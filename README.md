@@ -1037,7 +1037,7 @@ HTTPSµÄÊµÏÖ
 
 
 
-Áù. eJetÏà¹ØµÄÁíÍâÁ½¸ö¿ªÔ´ÏîÄ¿
+Æß. eJetÏà¹ØµÄÁíÍâÁ½¸ö¿ªÔ´ÏîÄ¿
 ------
 
 ### adif ÏîÄ¿
@@ -1051,7 +1051,7 @@ ePump¿ò¼ÜÏîÄ¿ÒÀÀµÓÚ adif ÏîÄ¿Ìá¹©µÄ»ù´¡Êý¾Ý½á¹¹ºÍËã·¨¿â¡£adif ÊÇÓÃ±ê×¼ c ÓïÑÔ¿ª·
 
 ***
 
-Æß. ¹ØÓÚ×÷Õß ÀÏ¿Â (laoke)
+°Ë. ¹ØÓÚ×÷Õß ÀÏ¿Â (laoke)
 ------
 
 ÓÐ´óÁ¿LinuxµÈÏµÍ³ÉÏµÄÓ¦ÓÃÆ½Ì¨ºÍÍ¨ÐÅÏµÍ³¿ª·¢¾­Àú£¬ÊÇ×ÊÉî³ÌÐòÔ±¡¢¹¤³ÌÊ¦£¬·¢ÓÊ¼þkehengzhong@hotmail.com¿ÉÒÔÕÒµ½×÷Õß£¬»òÕßÍ¨¹ýQQºÅÂë[571527](http://wpa.qq.com/msgrd?V=1&Uin=571527&Site=github.com&Menu=yes)»òÎ¢ÐÅºÅ[beijingkehz](http://wx.qq.com/)¸ø×÷ÕßÁôÑÔ¡£
