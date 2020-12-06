@@ -1,8 +1,123 @@
+##Ä¿Â¼
+* [Ò». eJetÊÇÊ²Ã´£¿](#Ò»-ejetÊÇÊ²Ã´)
+* [¶þ. eJetÏµÍ³Á÷³ÌºÍ¹¤×÷Ô­Àí](#¶þ-ejetÏµÍ³Á÷³ÌºÍ¹¤×÷Ô­Àí)
+    * [2.1 Web·þÎñÆ÷»ù±¾¹¦ÄÜ](#21-web·þÎñÆ÷»ù±¾¹¦ÄÜ)
+    * [2.2 eJet Web·þÎñÆ÷Æô¶¯Á÷³Ì](#22-ejet-web·þÎñÆ÷Æô¶¯Á÷³Ì)
+    * [2.3 Æô¶¯¼àÌý·þÎñ](#23-Æô¶¯¼àÌý·þÎñ)
+    * [2.4 http_pump×÷ÎªÊÂ¼þÇý¶¯ºËÐÄÈë¿Ú](#24-http_pump×÷ÎªÊÂ¼þÇý¶¯ºËÐÄÈë¿Ú)
+    * [2.5 IOE_ACCEPTÊÂ¼þÇý¶¯eJet´´½¨HTTPConÁ¬½Ó](#25-ioe_acceptÊÂ¼þÇý¶¯ejet´´½¨httpconÁ¬½Ó)
+    * [2.6 IOE_READÊÂ¼þÇý¶¯eJet¶ÁÈ¡ÇëÇóÊý¾Ý](#26-ioe_readÊÂ¼þÇý¶¯ejet¶ÁÈ¡ÇëÇóÊý¾Ý)
+    * [2.7 ½âÎöHTTPÇëÇóÊý¾Ý](#27-½âÎöhttpÇëÇóÊý¾Ý)
+    * [2.8 ´´½¨HTTPMsg±£´æÇëÇóÊý¾Ý](#28-´´½¨httpmsg±£´æÇëÇóÊý¾Ý)
+    * [2.9 ÉèÖÃDocURI²¢Æô¶¯HTTPMsg×ÊÔ´ÊµÀý»¯](#29-ÉèÖÃdocuri²¢Æô¶¯httpmsg×ÊÔ´ÊµÀý»¯)
+    * [2.10 Proxy´úÀí×ª·¢](#210-proxy´úÀí×ª·¢)
+        * [2.10.1 ÅÐ¶¨ÊÇ·ñ´úÀí×ª·¢---ÕýÏò´úÀí»ò·´Ïò´úÀí](#2101-ÅÐ¶¨ÊÇ·ñ´úÀí×ª·¢---ÕýÏò´úÀí»ò·´Ïò´úÀí)
+        * [2.10.2 ´úÀíÇëÇó×ÊÔ´ÊÇ·ñÔÚ±¾µØ»º´æÀï](#2102-´úÀíÇëÇó×ÊÔ´ÊÇ·ñÔÚ±¾µØ»º´æÀï)
+        * [2.10.3 ´´½¨´úÀíÇëÇóÏûÏ¢](#2103-´´½¨´úÀíÇëÇóÏûÏ¢)
+        * [2.10.4 ´ò¿ªÔ´·þÎñÆ÷²¢½¨Á¢Í¨ÐÅÁ¬½Ó](#2104-´ò¿ªÔ´·þÎñÆ÷²¢½¨Á¢Í¨ÐÅÁ¬½Ó)
+        * [2.10.5 ·¢ËÍ´úÀíÇëÇóµ½Ô´·þÎñÆ÷](#2105-·¢ËÍ´úÀíÇëÇóµ½Ô´·þÎñÆ÷)
+    * [2.11 FastCGI×ª·¢](#211-fastcgi×ª·¢)
+    * [2.12 ¶ÁÈ¡²¢½âÎöÇëÇóÌå](#212-¶ÁÈ¡²¢½âÎöÇëÇóÌå)
+    * [2.13 ÓÉHandler´¦ÀíHTTPMsg](#213-ÓÉhandler´¦Àíhttpmsg)
+        * [2.13.1 Ð£ÑéÇëÇó·½·¨](#2131-Ð£ÑéÇëÇó·½·¨)
+        * [2.13.2 ·´ÏòProxyÄ£Ê½»º´æÄÚÈÝ´¦Àí](#2132-·´ÏòproxyÄ£Ê½»º´æÄÚÈÝ´¦Àí)
+        * [2.13.3 ÕýÏòProxyÄ£Ê½Ð£Ñé](#2133-ÕýÏòproxyÄ£Ê½Ð£Ñé)
+        * [2.13.4 HTTPÏûÏ¢Ó¦ÓÃ»Øµ÷ºÍ¶¯Ì¬¿â»Øµ÷´¦Àí](#2134-httpÏûÏ¢Ó¦ÓÃ»Øµ÷ºÍ¶¯Ì¬¿â»Øµ÷´¦Àí)
+        * [2.13.5 ¶ÁÈ¡²¢·¢ËÍ×ÊÔ´ÎÄ¼þ»òÂ·¾¶ÏÂµÄÈ±Ê¡ÎÄ¼þ](#2135-¶ÁÈ¡²¢·¢ËÍ×ÊÔ´ÎÄ¼þ»òÂ·¾¶ÏÂµÄÈ±Ê¡ÎÄ¼þ)
+    * [2.14 ·¢ËÍÏìÓ¦µ½¿Í»§¶Ë](#214-·¢ËÍÏìÓ¦µ½¿Í»§¶Ë)
+    * [2.15 ÓÃ×´Ì¬»ú´¦Àí²»ÍêÕûÇëÇó](#215-ÓÃ×´Ì¬»ú´¦Àí²»ÍêÕûÇëÇó)
+    * [2.16 ÉèÖÃ¿ÉÐ´Í¨Öª²úÉúIOE_WRITEÊÂ¼þ´¦ÀíÍøÂçÓµÈû](#216-ÉèÖÃ¿ÉÐ´Í¨Öª²úÉúioe_writeÊÂ¼þ´¦ÀíÍøÂçÓµÈû)
+    * [2.17 ÀûÓÃ¶¨Ê±Æ÷²úÉúµÄIOE_TIMEOUTÊÂ¼þ¼à¹ÜÊµÀý¶ÔÏó](#217-ÀûÓÃ¶¨Ê±Æ÷²úÉúµÄioe_timeoutÊÂ¼þ¼à¹ÜÊµÀý¶ÔÏó)
+* [Èý. eJetÏµÍ³»ù±¾Êý¾Ý½á¹¹](#Èý-ejetÏµÍ³»ù±¾Êý¾Ý½á¹¹)
+    * [3.1 HTTPMgmt - eJetÄÚºË](#31-httpmgmt---ejetÄÚºË)
+    * [3.2 HTTPMsg - ÏûÏ¢](#32-httpmsg---ÏûÏ¢)
+    * [3.3 HTTPCon - Í¨ÐÅÁ¬½Ó](#33-httpcon---Í¨ÐÅÁ¬½Ó)
+    * [3.4 HTTPListen - ¼àÌý·þÎñ](#34-httplisten---¼àÌý·þÎñ)
+    * [3.5 HTTPHost - ÐéÄâÖ÷»ú](#35-httphost---ÐéÄâÖ÷»ú)
+    * [3.6 HTTPLoc - ×ÊÔ´Î»ÖÃ](#36-httploc---×ÊÔ´Î»ÖÃ)
+    * [3.7 HTTPHeader - Í·ÐÅÏ¢](#37-httpheader---Í·ÐÅÏ¢)
+    * [3.8 HTTPUri - ×ÊÔ´µØÖ·URL](#38-httpuri---×ÊÔ´µØÖ·url)
+    * [3.9 HTTPVar - HTTP±äÁ¿](#39-httpvar---http±äÁ¿)
+    * [3.10 HTTPLog - ÈÕÖ¾ÐÅÏ¢](#310-httplog---ÈÕÖ¾ÐÅÏ¢)
+    * [3.11 CacheInfo - »º´æÐÅÏ¢¹ÜÀí](#311-cacheinfo---»º´æÐÅÏ¢¹ÜÀí)
+    * [3.12 HTTPForm - ±íµ¥ÐÅÏ¢](#312-httpform---±íµ¥ÐÅÏ¢)
+    * [3.13 HTTPScript - ½Å±¾³ÌÐò](#313-httpscript---½Å±¾³ÌÐò)
+    * [3.14 HTTPSrv - Ô´·þÎñÆ÷](#314-httpsrv---Ô´·þÎñÆ÷)
+    * [3.15 HTTPChunk - HTTPÊý¾Ý¿é](#315-httpchunk---httpÊý¾Ý¿é)
+    * [3.16 HTTPCookie - CookieÊý¾Ý](#316-httpcookie---cookieÊý¾Ý)
+    * [3.17 FcgiSrv - FastCGI·þÎñÆ÷](#317-fcgisrv---fastcgi·þÎñÆ÷)
+    * [3.18 FcgiCon - FastCGIÍ¨ÐÅÁ¬½Ó](#318-fcgicon---fastcgiÍ¨ÐÅÁ¬½Ó)
+    * [3.19 FcgiMsg - FastCGIÏûÏ¢](#319-fcgimsg---fastcgiÏûÏ¢)
+* [ËÄ. eJetºËÐÄ¹¦ÄÜÄ£¿é](#ËÄ-ejetºËÐÄ¹¦ÄÜÄ£¿é)
+    * [4.1 eJet×ÊÔ´¹ÜÀí¼Ü¹¹](#41-ejet×ÊÔ´¹ÜÀí¼Ü¹¹)
+        * [4.1.1 Èý²ã×ÊÔ´¶¨Î»¼Ü¹¹](#411-Èý²ã×ÊÔ´¶¨Î»¼Ü¹¹)
+        * [4.1.2 HTTP¼àÌý·þÎñ - HTTPListen](#412-http¼àÌý·þÎñ---httplisten)
+        * [4.1.3 HTTPÐéÄâÖ÷»ú - HTTPHost](#413-httpÐéÄâÖ÷»ú---httphost)
+        * [4.1.4 HTTP×ÊÔ´Î»ÖÃ - HTTPLoc](#414-http×ÊÔ´Î»ÖÃ---httploc)
+    * [4.2 HTTP±äÁ¿](#42-http±äÁ¿)
+        * [4.2.1 HTTP±äÁ¿µÄ¶¨Òå](#421-http±äÁ¿µÄ¶¨Òå)
+        * [4.2.2 HTTP±äÁ¿µÄÓ¦ÓÃ](#422-http±äÁ¿µÄÓ¦ÓÃ)
+        * [4.2.3 HTTP±äÁ¿µÄÀàÐÍºÍÊ¹ÓÃ¹æÔò](#423-http±äÁ¿µÄÀàÐÍºÍÊ¹ÓÃ¹æÔò)
+        * [4.2.4 Ô¤¶¨ÒåµÄ²ÎÊý±äÁ¿ÁÐ±íºÍÊµÏÖÔ­Àí](#424-Ô¤¶¨ÒåµÄ²ÎÊý±äÁ¿ÁÐ±íºÍÊµÏÖÔ­Àí)
+    * [4.3 HTTP Script½Å±¾](#43-http-script½Å±¾)
+        * [4.3.1 HTTP Script½Å±¾¶¨Òå](#431-http-script½Å±¾¶¨Òå)
+        * [4.3.2 Script½Å±¾Ç¶ÈëÎ»ÖÃ](#432-script½Å±¾Ç¶ÈëÎ»ÖÃ)
+        * [4.3.3 Script½Å±¾·¶Àý](#433-script½Å±¾·¶Àý)
+        * [4.3.4 Script½Å±¾Óï¾ä](#434-script½Å±¾Óï¾ä)
+            * [4.3.4.1 Ìõ¼þÓï¾ä](#4341-Ìõ¼þÓï¾ä)
+            * [4.3.4.2 ¸³ÖµÓï¾ä](#4342-¸³ÖµÓï¾ä)
+            * [4.3.4.3 ·µ»ØÓï¾ä](#4343-·µ»ØÓï¾ä)
+            * [4.3.4.4 ÏìÓ¦Óï¾ä](#4344-ÏìÓ¦Óï¾ä)
+            * [4.3.4.5 rewriteÓï¾ä](#4345-rewriteÓï¾ä)
+            * [4.3.4.6 addReqHeaderÓï¾ä](#4346-addreqheaderÓï¾ä)
+            * [4.3.4.7 addResHeaderÓï¾ä](#4347-addresheaderÓï¾ä)
+            * [4.3.4.8 delReqHeaderÓï¾ä](#4348-delreqheaderÓï¾ä)
+            * [4.3.4.9 delResHeaderÓï¾ä](#4349-delresheaderÓï¾ä)
+            * [4.3.4.10 try_files Óï¾ä](#43410-try_files-Óï¾ä)
+            * [4.3.4.11 ×¢ÊÍÓï¾ä](#43411-×¢ÊÍÓï¾ä)
+        * [4.3.5 Script½Å±¾½âÊÍÆ÷](#435-script½Å±¾½âÊÍÆ÷)
+    * [4.4 JSon¸ñÊ½µÄÏµÍ³ÅäÖÃ](#44-json¸ñÊ½µÄÏµÍ³ÅäÖÃ)
+    * [4.5 ÊÂ¼þÇý¶¯Á÷³Ì http_pump](#45-ÊÂ¼þÇý¶¯Á÷³Ì-http_pump)
+    * [4.6 HTTPÇëÇóºÍÏìÓ¦](#46-httpÇëÇóºÍÏìÓ¦)
+    * [4.7 HTTPMsgµÄÊµÀý»¯Á÷³Ì](#47-httpmsgµÄÊµÀý»¯Á÷³Ì)
+    * [4.8 HTTP MIME¹ÜÀí](#48-http-mime¹ÜÀí)
+    * [4.9 HTTP URI¹ÜÀí](#49-http-uri¹ÜÀí)
+    * [4.10 chunk_tÊý¾Ý½á¹¹](#410-chunk_tÊý¾Ý½á¹¹)
+    * [4.11 HTTPÇëÇó/ÏìÓ¦µÄ·¢ËÍÁ÷³Ì£¨writev/sendfile£©](#411-httpÇëÇóÏìÓ¦µÄ·¢ËÍÁ÷³Ìwritevsendfile)
+    * [4.12 Ê¹ÓÃwritevºÍsendfileÌáÉý·¢ËÍÐ§ÂÊ](#412-Ê¹ÓÃwritevºÍsendfileÌáÉý·¢ËÍÐ§ÂÊ)
+    * [4.13 eJetÈÕÖ¾ÏµÍ³](#413-ejetÈÕÖ¾ÏµÍ³)
+    * [4.14 Callback»Øµ÷»úÖÆ](#414-callback»Øµ÷»úÖÆ)
+    * [4.15 ÕýÔò±í´ïÊ½µÄÊ¹ÓÃ](#415-ÕýÔò±í´ïÊ½µÄÊ¹ÓÃ)
+    * [4.16 ³¬´óÎÄ¼þÉÏ´«](#416-³¬´óÎÄ¼þÉÏ´«)
+    * [4.17 TLS/SSL](#417-tlsssl)
+    * [4.18 Chunk´«Êä±àÂë½âÎö](#418-chunk´«Êä±àÂë½âÎö)
+    * [4.19 ·´Ïò´úÀí](#419-·´Ïò´úÀí)
+    * [4.20 FastCGI»úÖÆºÍÆô¶¯PHPµÄÁ÷³Ì](#420-fastcgi»úÖÆºÍÆô¶¯phpµÄÁ÷³Ì)
+    * [4.21 Á½¸öÍ¨ÐÅÁ¬½ÓµÄ´®ÁªPipeline](#421-Á½¸öÍ¨ÐÅÁ¬½ÓµÄ´®Áªpipeline)
+    * [4.22 HTTP CacheÏµÍ³](#422-http-cacheÏµÍ³)
+    * [4.23 HTTP Tunnel](#423-http-Tunnel)
+    * [4.24 HTTP Cookie»úÖÆ](#424-http-cookie»úÖÆ)
+    * [4.25 Áã¿½±´Zero-Copy¼¼Êõ](#425-Áã¿½±´zero-copy¼¼Êõ)
+    * [4.26 ÄÚ´æ³Ø](#426-ÄÚ´æ³Ø)
+* [Îå. eJetÎªÊ²Ã´¸ßÐÔÄÜ](#Îå-ejetÎªÊ²Ã´¸ßÐÔÄÜ)
+* [Áù. eJet Web·þÎñÓ¦ÓÃ°¸Àý](#Áù-ejet-web·þÎñÓ¦ÓÃ°¸Àý)
+    * [6.1 ´óÐÍ×ÊÔ´ÍøÕ¾](#61-´óÐÍ×ÊÔ´ÍøÕ¾)
+    * [6.2 ³ÐÔØPHPÓ¦ÓÃ](#62-³ÐÔØphpÓ¦ÓÃ)
+    * [6.3 ³äµ±´úÀí·þÎñÆ÷](#63-³äµ±´úÀí·þÎñÆ÷)
+    * [6.4 Web Cache·þÎñ](#64-web-cache·þÎñ)
+    * [6.5 ×÷ÎªCDN±ßÔµ·Ö·¢](#65-×÷Îªcdn±ßÔµ·Ö·¢)
+    * [6.6 Ó¦ÓÃ³ÌÐò¼¯³ÉeJet](#66-Ó¦ÓÃ³ÌÐò¼¯³Éejet)
+* [Æß. eJetÏà¹ØµÄÁíÍâÁ½¸ö¿ªÔ´ÏîÄ¿](#Æß-ejetÏà¹ØµÄÁíÍâÁ½¸ö¿ªÔ´ÏîÄ¿)
+    * [adif ÏîÄ¿](#adif-ÏîÄ¿)
+    * [ePumpÏîÄ¿](#epumpÏîÄ¿)
+* [°Ë. ¹ØÓÚ×÷Õß ÀÏ¿Â (laoke)](#°Ë-¹ØÓÚ×÷Õß-ÀÏ¿Â-laoke)
  
+***
+
 Ò». eJetÊÇÊ²Ã´£¿
 ------
  
-eJetÊÇ²ÉÓÃ±ê×¼CÓïÑÔ¿ª·¢¡¢ÊµÏÖÁËHTTP/1.0ºÍHTTP/1.1Ð­Òé¹¦ÄÜµÄWeb·þÎñÆ÷£¬eJet Web·þÎñÆ÷ÊÇÒÔadif¿âºÍePump¿ò¼ÜÎªµ×²ãÖ§³Å£¬¹¹½¨µÄÒ»¸öÊÂ¼þÇý¶¯Ä£ÐÍ¡¢¶àÏß³Ì¡¢´ó²¢·¢Á¬½ÓµÄÇáÁ¿¼¶µÄ¸ßÐ§Web·þÎñÆ÷¡£eJet Web·þÎñÆ÷µÄÈ«²¿¹¦ÄÜ¶¼·â×°³ÉÒ»¸ö300K×óÓÒ´óÐ¡µÄ¶¯Ì¬¿â»ò¾²Ì¬¿â£¬¿ÉÒÔÇ¶Èëµ½ÈÎºÎÓ¦ÓÃ³ÌÐòÖÐ£¬Ê¹Æä¾ß±¸ÏñNginx·þÎñÆ÷Ò»ÑùÇ¿´óµÄWeb¹¦ÄÜ£¬Ò²¿ÉÒÔÊ¹ÓÃÒ»¶þ°ÙÐÐ´úÂëÀ´µ÷ÓÃeJet¿â£¬ÇáÒ×ÊµÏÖÒ»¸ö¸ßÐÔÄÜµÄWeb·þÎñÆ÷¡£
+eJetÊÇ²ÉÓÃ±ê×¼CÓïÑÔ¿ª·¢µÄWeb·þÎñÆ÷£¬Ö§³ÖHTTP/1.0ºÍHTTP/1.1Ð­Òé£¬eJet Web·þÎñÆ÷ÊÇÒÔadif¿âºÍePump¿ò¼ÜÎªµ×²ãÖ§³Å£¬¹¹½¨µÄÒ»¸öÊÂ¼þÇý¶¯Ä£ÐÍ¡¢¶àÏß³Ì¡¢´ó²¢·¢Á¬½ÓµÄÇáÁ¿¼¶µÄ¸ßÐ§Web·þÎñÆ÷¡£eJet Web·þÎñÆ÷µÄÈ«²¿¹¦ÄÜ¶¼·â×°³ÉÒ»¸ö300K×óÓÒ´óÐ¡µÄ¶¯Ì¬¿â»ò¾²Ì¬¿â£¬¿ÉÒÔÇ¶Èëµ½ÈÎºÎÓ¦ÓÃ³ÌÐòÖÐ£¬Ê¹Æä¾ß±¸ÏñNginx·þÎñÆ÷Ò»ÑùÇ¿´óµÄWeb¹¦ÄÜ£¬Ò²¿ÉÒÔÊ¹ÓÃÒ»¶þ°ÙÐÐ´úÂëÀ´µ÷ÓÃeJet¿â£¬ÇáÒ×ÊµÏÖÒ»¸ö¸ßÐÔÄÜµÄWeb·þÎñÆ÷¡£
 
 eJet Web·þÎñÆ÷µÄÈ«²¿´úÂë¾ùÎª×÷Õß±àÐ´£¬¾ø´ó²¿·Ö²»ÒÀÀµÓÚÈÎºÎµÚÈý·½´úÂë¡£ÉÙÊý¼¸¸öÊ¹ÓÃ¿ªÔ´´úÂëµÄ¹¦ÄÜ°üÀ¨£ºHTTPS°²È«Êý¾Ý´«ÊäÊ¹ÓÃÁËOpenSSL¿â£»ÕýÔò±í´ïÊ½Æ¥ÅäÊÇÒÀÀµÓÚLinuxÏµÍ³Ìá¹©µÄPOSIX±ê×¼µÄregex¹¦ÄÜÊµÏÖ£»gzipÑ¹ËõÐèÒªÒÀÀµzlib¿ªÔ´¿â£¬Ä¿Ç°Ã»ÓÐÌí¼Ó½øÀ´£¬ËùÒÔeJet Web·þÎñÆ÷ÔÝÊ±²»Ìá¹©gzip¡¢deflateµÄÑ¹ËõÖ§³Ö¡£
 
@@ -234,43 +349,43 @@ HTTPÍ·ÐÅÏ¢ÊÇÓÉnameºÍvalue¼üÖµ¶Ô¹¹³É£¬ÖÐ¼äÊ¹ÓÃÃ°ºÅ£¨£º£©·Ö¸ô£¬ÆäÖÐNameÖ»ÄÜÊÇ×ÖÄ¸º
 
 HTTPVar±äÁ¿ÊÇÖ¸ÔÚeJet·þÎñÆ÷ÔËÐÐÆÚ¼ä£¬¿ÉÍ¨¹ýScript½Å±¾³ÌÐò»òÅäÖÃÎÄ¼þÀï¶¯Ì¬µØ¶ÁÈ¡·ÃÎÊµ±Ç°HTTPÇëÇóÏìÓ¦Ïà¶ÔÓ¦µÄHTTPMsgÊµÀý¶ÔÏóÄÚÌØ¶¨Êý¾ÝµÄ±äÁ¿£¬Ò»°ãÔÚÅäÖÃÎÄ¼þ¡¢·ÃÎÊÈÕÖ¾µÈµØ·½ÐèÒª¶¯Ì¬µØÅäÖÃ»òÊ¹ÓÃÕâÐ©±äÁ¿¡£HTTPVar±äÁ¿°üÀ¨È«¾Ö±äÁ¿¡¢¾Ö²¿±äÁ¿¡¢Location±äÁ¿£¬±äÁ¿µÄÒýÓÃ±ØÐëÒÔ$¿ªÍ·£¬ºó¸ú±äÁ¿Ãû£¬Èç¹û±äÁ¿ºóÃæ»¹ÓÐÁ¬Ðø½ôËæµÄÆäËû×Ö·û´®£¬ÔòÐèÓÃ{}À´°üÀ¨×¡±äÁ¿Ãû¡£
 
-### 3.9 HTTPLog - ÈÕÖ¾ÐÅÏ¢
+### 3.10 HTTPLog - ÈÕÖ¾ÐÅÏ¢
 
 Ã¿¸öHTTPÇëÇóºÍÏìÓ¦µÄÐÅÏ¢¶¼ÒªÐ´ÈëÈÕÖ¾ÎÄ¼þ£¬·½±ãÔËÎ¬ºÍÆäËûÍ³¼ÆÏµÍ³½øÐÐ´¦ÀíºÍ·ÖÎö¡£HTTPLogÊý¾Ý½á¹¹±£´æÈÕÖ¾ÎÄ¼þÃû¡¢ÎÄ¼þ¾ä±ú¡¢ÒªÐ´ÈëÈÕÖ¾ÎÄ¼þµÄ×Ö¶ÎÁÐ±íµÈÐÅÏ¢£¬´ýÐ´ÈëÈÕÖ¾ÎÄ¼þµÄ×Ö¶Î²ÉÓÃHTTPVar±äÁ¿·½Ê½£¬ÔÚÅäÖÃÎÄ¼þÖÐÉè¶¨¡£HTTPMsgÔÚ¹Ø±ÕÖ®Ç°£¬½«ÅäÖÃÎÄ¼þÉè¶¨µÄÕâÐ©±äÁ¿ÄÚÈÝ£¬´ÓHTTPMsgÊµÀý±äÁ¿ÒÔ¼°ÆäËûÊµÀý¶ÔÏóÖÐÌáÈ¡³öÀ´£¬Í³Ò»Ð´Èëaccess.logÈÕÖ¾ÎÄ¼þÖÐ¡£
 
-### 3.10 CacheInfo - »º´æÐÅÏ¢¹ÜÀí
+### 3.11 CacheInfo - »º´æÐÅÏ¢¹ÜÀí
 
 ÔÚÕýÏò´úÀí»ò·´Ïò´úÀíÄ£Ê½ÏÂ£¬¿Í»§¶ËµÄÇëÇó¶¼»á×ªÒÆµ½OriginÔ´·þÎñÆ÷£¬²¢½«Origin·þÎñÆ÷µÄÏìÓ¦×ª·¢¸ø¿Í»§¶Ë¡£´óÁ¿µÄ¿Í»§¶ËÇëÇó£¬½«»áµ¼ÖÂ×ª·¢ºÍ×ªÊÕµÄÐ§ÂÊ²»¸ß£¬ÐèÒª²ÉÓÃHTTP CacheÏµÍ³£¬½«ÏìÓ¦ÄÚÈÝ´æ´¢ÔÚ±¾µØ¡£HTTP Cache´æ´¢ÏµÍ³ÊÇÓÉRaw»º´æÎÄ¼þºÍ»º´æÐÅÏ¢¹ÜÀíÎÄ¼þ×é³É£¬Raw»º´æÎÄ¼þ¸ºÔð´æ´¢Êµ¼ÊµÄÎÄ¼þ½éÖÊÄÚÈÝ£¬»º´æÐÅÏ¢¹ÜÀíÎÄ¼þÓëÊý¾Ý½á¹¹CacheInfoÒ»ÖÂ£¬Ã¿¸ö»º´æÎÄ¼þ¶¼ÓÐÒ»¸öÈ«¾ÖÎ¨Ò»µÄCacheInfo£¬¹ÜÀí»º´æµÄ¸÷ÖÖÐÅÏ¢£¬°üÀ¨»º´æÎÄ¼þÃû¡¢»º´æÎÄ¼þµÄMIMEÀàÐÍ¡¢ÎÄ¼þ´óÐ¡¡¢Êµ¼Ê»º´æµÄÎÄ¼þ´óÐ¡¡¢»º´æ²ßÂÔ¡¢ÎÄ¼þ´´½¨ºÍ¸üÐÂÊ±¼ä£¬×îÖ÷Òª³ÉÔ±ÊÇFragPack£¬¼ÇÂ¼Raw»º´æÎÄ¼þÀïµÄËùÓÐÒÑÏÂÔØËéÆ¬¿é´æ´¢µÄÎ»ÖÃºÍ´óÐ¡£¬È·±£ÄÄ¸öÎ»ÖÃÇøÓòÊÇ·ñ±£´æÁËÎÄ¼þÄÚÈÝ¡£ÏµÍ³¸ù¾ÝCacheInfo£¬¿É¾«×¼µØÖªµÀ»º´æÎÄ¼þµÄ´æ´¢ÐÅÏ¢ºÍ´æ´¢ÄÚÈÝ¶ÁÐ´·ÃÎÊ¡£
 
-### 3.11 HTTPForm - ±íµ¥ÐÅÏ¢
+### 3.12 HTTPForm - ±íµ¥ÐÅÏ¢
 
 ¿Í»§¶Ë²ÉÓÃHTTP Post·½·¨ÉÏ´«¶à¸öÐèÒªÓÃ»§ÊäÈëµÄÐÅÏ¢ÄÚÈÝµ½Web·þÎñÆ÷£¬°üÀ¨ÉÏ´«±¾µØÎÄ¼þµÈ£¬ÕâÖÖÇé¿öÒ»°ã²ÉÓÃContent-TypeÎªmultipart/form-dataµÄÄÚÈÝ±àÂë·½Ê½£¬¸÷ÄÚÈÝÖ®¼äÓÃ¿Í»§¶ËËæ»ú²úÉúµÄboundary×Ö·û´®·Ö¸ô¡£eJet Web·þÎñÆ÷Éè¼ÆÁËHTTPFormÊý¾Ý½á¹¹À´¹ÜÀímultipart/form-dataÄÚÈÝµÄ½âÎöºÍ´æ´¢£¬Ò»°ãÇé¿öÏÂ£¬ÉÏ´«ÄÚÈÝ¹ý´ó»á×Ô¶¯±£´æµ½»º´æÎÄ¼þÀï£¬HTTPForm½Ó¿Úº¯Êý¶Ô»º´æÎÄ¼þ½øÐÐ½âÎö£¬·Ö±ð½â¹¹³ö¸÷¸ö×Ö¶ÎµÄÃû³Æ£¬¸Ã×Ö¶ÎµÄÄÚÈÝÔÚ»º´æÎÄ¼þÖÐµÄÎ»ÖÃºÍ´óÐ¡£¬Èç¹û¸Ã×Ö¶ÎÊÇÎÄ¼þ£¬Ôò¼ÇÂ¼ÎÄ¼þÃû£¬ÒÔ¼°¸ÃÉÏ´«ÎÄ¼þÔÚ»º´æÎÄ¼þÖÐµÄÆðÊ¼Î»ÖÃºÍ´óÐ¡¡£Ó¦ÓÃ³ÌÐò¿ÉÒÔÊ¹ÓÃHTTPFormÀ´·ÃÎÊ¿Í»§¶ËÉÏ´«µÄ¸÷¸ö×Ö¶ÎÃû³ÆºÍ×Ö¶ÎÄÚÈÝ£¬Èç¹ûÉÏ´«µÄÊÇÎÄ¼þ£¬¿Éµ÷ÓÃHTTPForm½Ó¿Ú£¬½«»º´æÎÄ¼þÖÐÏàÓ¦ÇøÓòµÄÄÚÈÝÌáÈ¡³öÀ´£¬Ð´Èëµ½Ó¦ÓÃ³ÌÐòÖ¸¶¨µÄÄ¿Â¼ÖÐ¡£
 
-### 3.12 HTTPScript - ½Å±¾³ÌÐò
+### 3.13 HTTPScript - ½Å±¾³ÌÐò
 
 eJet Web·þÎñÆ÷µÄÅäÖÃÎÄ¼þ²ÉÓÃJSon¸ñÊ½£¬ÔÚhttp.listen£¨¶ÔÓ¦HTTPListen¶ÔÏó£©¡¢http.listen.host£¨¶ÔÓ¦HTTPHost¶ÔÏó£©¡¢http.listen.host.location£¨¶ÔÓ¦HTTPLoc¶ÔÏó£©ÕâÈýÖÖ¶ÔÏóÏÂ£¬Í¨¹ý¶ÔJSonÓï·¨½øÐÐÀ©Õ¹£¬¶¼¿ÉÒÔÅäÖÃÔö¼Óscript¶ÔÏó£¬script¶ÔÏóµÄÄÚÈÝ¸ñÊ½ÊÇ²Î¿¼CÓïÑÔÓï·¨¹æ·¶µÄ½Å±¾³ÌÐò£¬ÓÉeJetÏµÍ³ÔÚÌØ¶¨Ê±¿Ì½âÊÍ²¢Ö´ÐÐ¡£µ±¿Í»§¶Ë·¢ÆðµÄÃ¿¸öHTTPÇëÇóµ½´ïeJet Web·þÎñÆ÷Ê±£¬eJet½âÎöÇëÇó²¢´´½¨HTTPMsg¶ÔÏó£¬HTTPMsg¶ÔÏóÊµÀý»¯¹ý³ÌÖ÷ÒªÊÇ¸ù¾ÝÇëÇóÐÅÏ¢Æ¥ÅäºÍÉè¶¨HTTPMsg×Ô¼ºµÄHTTPListen¡¢HTTPHost¡¢HTTPLoc£¬ÔÚÆ¥Åäµ½ÕâÈý¸ö¶ÔÏóµÄÄÇÒ»¿Ì£¬eJetÏµÍ³Ê×ÏÈ»áµ÷ÓÃHTTPScript½Ó¿ÚÀ´½âÊÍÖ´ÐÐÕâÈý¸ö¶ÔÏóÏÂÅäÖÃµÄScript¶ÔÏóÖÐµÄ½Å±¾³ÌÐò¡£Ïñrewrite¡¢return¡¢reply¡¢try_files¡¢if¡¢elseµÈÖ¸ÁîºÍÓï·¨¶¼ÊÇ½Å±¾³ÌÐòµÄ»ù±¾ÄÚÈÝ¡£½Å±¾³ÌÐòµÄ¶¯Ì¬Ö´ÐÐÊ¹µÃ¿Í»§¶ËµÄÇëÇó£¬ÒÔ¸ü¼ÓÁé»î»ú¶¯µÄ·½Ê½±»´¦Àí¡£
 
-### 3.13 HTTPSrv - Ô´·þÎñÆ÷
+### 3.14 HTTPSrv - Ô´·þÎñÆ÷
 
 eJet Web·þÎñÆ÷¿É³äµ±HTTP¿Í»§¶ËÏòÔ¶³ÌHTTP·þÎñÆ÷·¢ÆðHTTPÇëÇó£¬»ò³äµ±´úÀíÄ£Ê½·¢ÆðHTTPÇëÇó£¬½¨Á¢µÄHTTPConÁ¬½ÓÖ÷ÒªÊÇ¸ù¾ÝÄ¿±êIPµØÖ·ºÍ¶Ë¿ÚÀ´Çø·Ö£¬¾ßÓÐÏàÍ¬Ä¿µÄIPµØÖ·ºÍ¶Ë¿ÚµÄHTTPConÇëÇó£¬¿ÉÒÔ¸´ÓÃÀ´·¢ËÍºóÐøÏàÍ¬µØÖ·µÄHTTPÇëÇó£¬ÕâÊÇÓÃHTTPSrvÊý¾Ý½á¹¹À´¹ÜÀíÕâÐ©¾ßÓÐÏàÍ¬Ä¿µÄIPµØÖ·ºÍ¶Ë¿ÚµÄHTTPConÁ¬½Ó£¬ÕâÑù£¬HTTPSrv¾Í´ú±íÁËHTTP Origin·þÎñÆ÷¡£HTTPSrv°üº¬Ò»¸öHTTPMsgÇëÇóÏûÏ¢¶ÓÁÐ£¬µ±ÓÐHTTPÇëÇó·¢ËÍµ½Ä³¸öHTTP Origin·þÎñÆ÷Ê±£¬Ö±½Ó½«¸ÃÇëÇóÏûÏ¢Ìí¼Óµ½¸Ã¶ÓÁÐÖÐ£¬HTTPSrv»áÔÚµ±Ç°Á¬½ÓÖÐ¾ùºâ·ÖÅäÒ»¸öHTTPCon»ò´´½¨Ò»¸öÐÂµÄHTTPCon£¬À´·¢ËÍ¸ÃÇëÇó¡£
 
-### 3.14 HTTPChunk - HTTPÊý¾Ý¿é
+### 3.15 HTTPChunk - HTTPÊý¾Ý¿é
 
 HTTPÇëÇóºÍÏìÓ¦µÄÏûÏ¢ÌåBodyÔÚ´«Êä¹ý³ÌÓÐÁ½ÖÖ·½Ê½À´±êÊ¶»ò±àÂë£¬Ò»ÖÖÊÇ²ÉÓÃContent-Length£¬ÁíÒ»ÖÖÊÇ²ÉÓÃTransfer-EncodingÎªchunkedµÄ´«Êä±àÂë¡£ºóÕßÊÇ½«BodyÊý¾Ý·Ö³ÉÒ»¸ö¸öChunkÊý¾Ý¿é£¬Ã¿¸öÊý¾Ý¿éÇ°Í·ÊÇ16½øÖÆµÄÊý¾Ý¿é³¤¶ÈºÍÁ½¸ö»»ÐÐ·û\r\n£¬chunkÊý¾Ý¿éºóÃæÔÙ¸úÁ½¸ö»»ÐÐ·û\r\n£¬×îºóÊÇÒÔ³¤¶ÈÎª0µÄChunkÊý¾Ý¿éÀ´½áÎ²¡£ÕâÖÖ±àÂë·½Ê½ÌØ±ðÊÊºÏ²»ÖªµÀÊµ¼Ê³¤¶ÈµÄÄÚÈÝµÄ´«Êä£¬ÈçÊµÊ±Ñ¹ËõµÄÄÚÈÝ¡¢Ö±²¥Á÷Ã½ÌåÄÚÈÝµÈ¡£eJetÏµÍ³Éè¼ÆHTTPChunkÊý¾Ý½á¹¹À´½âÎö¡¢´æ´¢ChunkÊý¾Ý¿éÄÚÈÝ£¬ÓÈÆäÊÇÁ¬Ðø´«ÊäµÄChunkÊý¾Ý¿éÒòÎªÍøÂç¶¶¶¯µÈÔ­Òò¶ÏÐø½ÓÊÕÊ±£¬ÐèÒªHTTPChunk½á¹¹À´¸ú×ÙChunk¿é×´Ì¬¡£
 
-### 3.15 HTTPCookie - CookieÊý¾Ý
+### 3.16 HTTPCookie - CookieÊý¾Ý
 
 OSIÆß²ãÐ­ÒéÄ£ÐÍÖÐ£¬×÷ÎªTransactionÊÂÎñ²ãµÄHTTPÐ­ÒéÊÇState-lessÐ­Òé£¬²¢Ã»ÓÐ±£´æÍ¨ÐÅË«·½µÄ»á»°×´Ì¬£¬¶øÊÇÍ¨¹ýCookie»úÖÆÀ´Î¬³ÖSession¡£Web ServerÍ¨¹ýÔÚHTTP ResponseÍ·ÖÐÔö¼ÓSet-CookieÍ·À´ÉèÖÃCookieÐÅÏ¢£¬¿Í»§¶ËÔÚËæºóµÄHTTP RequestÇëÇóÖÐÔö¼ÓCookieÍ·½«CookieÐÅÏ¢Ð¯´øÉÏ¡£CookieÄÚÈÝÊÇÓÉºÜ¶à¸öname/value¼üÖµ¶Ô×é³É£¬Í¬Ò»¸öCookieÏÂ²»Í¬µÄname/value¼üÖµ¶ÔÊÇÓÃ·ÖºÅ£¨;£©¸ô¿ª£¬Ó¦ÓÃ·þÎñÆ÷¿ÉÒÔ¸ù¾ÝCookie¼üÖµ¶ÔÀ´±£´æ»á»°×´Ì¬£¬Æ©Èçid¡¢µÇÂ¼»á»°´®µÈ¡£ÔÚSet-Cookie¹æ·¶ÉèÖÃCookieÊ±£¬Ã¿¸öCookieµÄÊôÐÔÖÐ±ØÐë°üº¬Domain¡¢Path£¬Ö¸¶¨¸ÃCookieÊôÓÚÄÄ¸öÓòÃûÖ÷»úµÄÄÄ¸öÂ·¾¶£¬Ò»°ã»¹°üº¬max-ageºÍexpires£¬Ö¸¶¨¸ÃCookieµÄÊÙÃüÖÜÆÚ¡£eJetÏµÍ³Í¨¹ýHTTPCookieÀ´½âÎö¡¢±£´æºÍ¹ÜÀíÕâÐ©CookieÐÅÏ¢¡£
 
-### 3.16 FcgiSrv - FastCGI·þÎñÆ÷
+### 3.17 FcgiSrv - FastCGI·þÎñÆ÷
 
 HTTPÇëÇóµÄ×ÊÔ´Èç¹ûÊÇPHPµÈÄÚÈÝÊ±£¬eJet»áÆô¶¯FastCGIÄ£¿é£¬½«HTTPÇëÇóÄÚÈÝÍ¨¹ýFastCGIÐ­Òé·¢ËÍµ½FastCGI·þÎñÆ÷£¬Èçphp-fpm£¬FastCGI·þÎñÆ÷Ö´ÐÐ½Å±¾³ÌÐòºó£¬½«ÏìÓ¦ÄÚÈÝÍ¨¹ýFastCGIÐ­Òé·µ»Ø¸øeJet Web·þÎñÆ÷£¬×é×°³ÉHTTPÏìÓ¦·µ»Ø¸ø¿Í»§¶Ë¡£Í¨³£FastCGI·þÎñÆ÷¸úeJet Web·þÎñÆ÷Î»ÓÚÍ¬Ò»Ì¨·þÎñÆ÷ÉÏ£¬ÓëFastCGI·þÎñÆ÷Ö®¼äµÄÍ¨ÐÅ£¬Ò»°ã²ÉÓÃ½ø³Ì¼äÍ¨ÐÅIPC»úÖÆ£¬ÈçUnix Socket»òTCPÐ­Òé¡£eJet²ÉÓÃFcgiSrvÊý¾Ý½á¹¹À´±êÊ¶¹ÜÀíFastCGI·þÎñÆ÷£¬·þÎñÆ÷µÄ±êÊ¶Ò»°ãÎª unix:/dev/shm/php-cgi.sock »ò fastcgi://127.0.0.1:9000¡£Ã¿¸öFcgiSrvµÄ½ÇÉ«ÀàËÆHTTPSrv£¬´ú±íÄ³¸öFastCGI·þÎñÆ÷£¬Ò»¸öeJet Web·þÎñÆ÷¿ÉÒÔ²¿ÊðÅäÖÃ¶à¸öFastCGI·þÎñÆ÷¡£Ã¿¸öFastCGI·þÎñÆ÷¹ÜÀíFcgiMsgÏûÏ¢¶ÓÁÐ£¬½¨Á¢ºÍÎ¬³Ö¶à¸öFastCGIÐ­ÒéµÄÁ¬½ÓFcgiCon¡£
 
-### 3.17 FcgiCon - FastCGIÍ¨ÐÅÁ¬½Ó
+### 3.18 FcgiCon - FastCGIÍ¨ÐÅÁ¬½Ó
 
 Í¨¹ýUnix Socket»òTCPÐ­Òé£¬À´³ÐÔØFastCGIÐ­ÒéµÄÍ¨ÐÅ·þÎñ£¬ÓÃFcgiConÊý¾Ý½á¹¹À´¹ÜÀíÃ¿Ò»¸ö¿É¿¿Í¨ÐÅÁ¬½Ó¡£Ê×ÏÈÐèÒªÎ¬³ÖÒ»¸öÍ¨ÐÅ½ÓÊÕ»º³åÇø£¬ÈÎºÎÀ´×Ô¶Ô·½µÄÊý¾Ý£¬Í¨¹ýÊÂ¼þÍ¨ÖªÇý¶¯½ÓÊÕ½Ó¿Ú£¬´æ´¢ÔÚ»º³åÇøÖÐÓÃÓÚ½âÎöºÍ´¦Àí¡£Æä´Î±£´æ¸ÃÁ¬½ÓµÄiodev_t¶ÔÏó£¬ÒÔ¼°Î¬³ÖÁ¬½ÓËùÐèµÄ¶¨Ê±Æ÷£¬µ±Ç°ÕýÔÚ·¢ËÍ»ò½ÓÊÕµÄFcgiMsgÏûÏ¢£¬»ò¹ÜÀí´¦ÓÚFIFOÅÅ¶Ó¶ÓÁÐÖÐµÄÏûÏ¢¡£Ã¿¸öFcgiConÁ¥ÊôÓÚFcgiSrv£¬Ò»¸öFcgiSrvÏÂÓÐ¶à¸öFcgiCon£¬¹²Í¬¾ùºâµØ³Ðµ£´«ÊäÈÎÎñ¡£
 
-### 3.18 FcgiMsg - FastCGIÏûÏ¢
+### 3.19 FcgiMsg - FastCGIÏûÏ¢
 
 FastCGIÐ­Òé¶¨ÒåÁË´«ÊäÊý¾Ý¹æ·¶£¬Êý¾ÝÊÇÓÉÒ»¸öµ½¶à¸öFastCGI Record¹¹³É£¬Record¶¼ÊÇ8×Ö½Ú¶ÔÆë£¬Ã¿¸öRecord°üº¬Ò»¸ö8×Ö½Ú³¤µÄÍ·²¿£¬×î´ó²»³¬¹ý65KB´óÐ¡µÄ¿É±ä³¤¶ÈÏûÏ¢Ìå£¬×îºóÊÇÎªÁË²¹Æë8×Ö½Ú¶ÔÆëËùÐèµÄpadding×Ö½Ú¡£FastCGIÐ­ÒéRecordÀàÐÍ¹²ÓÐ10ÖÖ£¬·Ö±ðÎªBEGIN_REQUEST¡¢ABORT_REQUEST¡¢END_REQUEST¡¢PARAMS¡¢STDIN¡¢STDOUT¡¢STDERR¡¢DATA¡¢GET_VALUES¡¢GET_VALUES_RESULT¡£FcgiMsg·â×°ÁËFastCGIÊý¾Ý¹æ·¶µÄÕâÐ©ÐÅÏ¢£¬¶ÔFastCGIÐÅÏ¢ÄÚÈÝ½øÐÐ½âÎö»ò±àÂë£¬¸ºÔð´«Êä¹ý³ÌÖÐÏûÏ¢ÄÚÈÝ×´Ì¬µÄ¸ú×Ù¼ÇÂ¼£¬×÷ÎªFastCGIÍ¨ÐÅ½Ó¿ÚµÄ×î»ù±¾Êý¾Ý´«Êäµ¥Ôª¡£
 
