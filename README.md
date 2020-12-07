@@ -1,5 +1,6 @@
-    eJet 是一个轻量级、高性能、嵌入式Web服务器，实现HTTP/1.1协议全栈功能，包括TLS/SSL、正向代理、反向代理、FastCGI、Cookie、Web Cache、访问日志、HTTP变量、HTTP Script脚本程序、JSon配置文件、虚拟主机、HTTP Location、Rewrite/Try_files等指令、HTTP Tunnel、应用回调和动态库回调等，是承载超大文件上传下载、网站、PHP、CDN、Web Cache、嵌入式Web等服务的理想平台。
-
+```
+*eJet 是一个轻量级、高性能、嵌入式Web服务器，实现HTTP/1.1协议全栈功能，包括TLS/SSL、正向代理、反向代理、FastCGI、Cookie、Web Cache、访问日志、HTTP变量、HTTP Script脚本程序、JSon配置文件、虚拟主机、HTTP Location、Rewrite/Try_files等指令、HTTP Tunnel、应用回调和动态库回调等，是承载超大文件上传下载、网站、PHP、CDN、Web Cache、嵌入式Web等服务的理想平台。*
+```
 
 ## 目录
 * [一. eJet是什么？](#一-ejet是什么)
