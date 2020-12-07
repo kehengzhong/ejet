@@ -1317,6 +1317,72 @@ http = {
 
 ### 4.5 事件驱动流程 http_pump
 
+eJet系统是建立在ePump框架之上的Web服务器，eJet是ePump的事件驱动框架（Event-Driven Architecture）的回调应用。ePump框架基于事件监听机制，产生网络监听事件、网络读事件、网络写事件、连接成功事件、定时器超时事件等，并将事件均衡派发到各个工作线程中，通过工作线程来回调eJet的处理函数，这种通过设备监听、产生事件、以事件驱动工作线程来回调应用接口函数的流程，就是事件驱动架构模型。
+
+驱动eJet工作的事件包括如下：
+```
+    /* event types include getting connected, connection accepted, readable,
+     * writable, timeout. the working threads will be driven by these events */
+    #define IOE_CONNECTED        1
+    #define IOE_CONNFAIL         2
+    #define IOE_ACCEPT           3
+    #define IOE_READ             4
+    #define IOE_WRITE            5
+    #define IOE_INVALID_DEV      6
+    #define IOE_TIMEOUT          100
+    #define IOE_USER_DEFINED     10000
+```
+
+eJet系统中处理这些事件的回调函数是http_pump，其原型如下：
+```
+int http_pump (void * vmgmt, void * vobj, int event, int fdtype)
+```
+
+其中fdtype是产生这些事件的文件描述符类型、定时器等，其定义如下：
+```
+    /* the definition of FD type in the EventPump device */
+    #define FDT_LISTEN            0x01
+    #define FDT_CONNECTED         0x02
+    #define FDT_ACCEPTED          0x04
+    #define FDT_UDPSRV            0x08
+    #define FDT_UDPCLI            0x10
+    #define FDT_USOCK_LISTEN      0x20
+    #define FDT_USOCK_CONNECTED   0x40
+    #define FDT_USOCK_ACCEPTED    0x80
+    #define FDT_RAWSOCK           0x100
+    #define FDT_FILEDEV           0x200
+    #define FDT_TIMER             0x10000
+    #define FDT_USERCMD           0x20000
+    #define FDT_LINGER_CLOSE      0x40000
+    #define FDT_STDIN             0x100000
+    #define FDT_STDOUT            0x200000
+```
+
+eJet系统没有创建任何线程和进程，却能充分利用CPU执行全部HTTP请求和响应的所有流程，完全是被动的，即被这些事件所驱动。
+
+启动ePump的事件驱动，首先需要根据eJet系统的需求，调用ePump框架提供的API，创建相应的iodev_t设备对象和iotimer_t定时器对象，只有这些对象才会被ePump框架监控和触发，从而产生相应的事件，驱动eJet工作。
+
+eJet系统中调用ePump创建事件源的几个API函数如下：
+```
+/* Note: automatically detect if Linux kernel supported REUSEPORT. 
+   if supported, create listen socket for every current running epump threads
+   and future-started epump threads.
+   if not, create only one listen socket for all epump threads to bind. */
+void * eptcp_mlisten (void * vpcore, char * localip, int port, void * para,
+                      IOHandler * cb, void * cbpara);
+
+void * eptcp_accept (void * vpcore, void * vld, void * para, int * retval,
+                     IOHandler * cb, void * cbpara, int bindtype);
+ 
+void * eptcp_connect (void * vpcore, char * ip, int port,
+                      char * localip, int localport, void * para,
+                      int * retval, IOHandler * cb, void * cbpara);
+
+void * iotimer_start (void * vpcore, int ms, int cmdid, void * para,
+                      IOHandler * cb, void * cbpara);
+```
+
+eJet系统完全依赖于ePump极其高效的多线程调度机制，充分利用ePump框架对多核CPU并行处理的调用机制，使得eJet系统具备支撑大并发、大容量访问的物理基础。
 
 ### 4.6 HTTP请求和响应
 
