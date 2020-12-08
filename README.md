@@ -99,22 +99,24 @@
     * [4.9 HTTP URI管理](#49-http-uri管理)
     * [4.10 chunk_t数据结构](#410-chunk_t数据结构)
     * [4.11 HTTP请求/响应的发送流程（writev/sendfile）](#411-http请求响应的发送流程writevsendfile)
-    * [4.12 使用writev和sendfile提升发送效率](#412-使用writev和sendfile提升发送效率)
-    * [4.13 eJet日志系统](#413-ejet日志系统)
-    * [4.14 Callback回调机制](#414-callback回调机制)
-    * [4.15 正则表达式的使用](#415-正则表达式的使用)
-    * [4.16 超大文件上传](#416-超大文件上传)
-    * [4.17 TLS/SSL](#417-tlsssl)
-    * [4.18 Chunk传输编码解析](#418-chunk传输编码解析)
-    * [4.19 反向代理](#419-反向代理)
-    * [4.20 FastCGI机制和启动PHP的流程](#420-fastcgi机制和启动php的流程)
-    * [4.21 两个通信连接的串联Pipeline](#421-两个通信连接的串联pipeline)
-    * [4.22 HTTP Cache系统](#422-http-cache系统)
-    * [4.23 HTTP Tunnel](#423-http-Tunnel)
-    * [4.24 HTTP Cookie机制](#424-http-cookie机制)
-    * [4.25 零拷贝Zero-Copy技术](#425-零拷贝zero-copy技术)
-    * [4.26 内存池](#426-内存池)
+    * [4.12 eJet日志系统](#412-ejet日志系统)
+    * [4.13 Callback回调机制](#414-callback回调机制)
+    * [4.14 正则表达式的使用](#415-正则表达式的使用)
+    * [4.15 TLS/SSL](#417-tlsssl)
+    * [4.16 Chunk传输编码解析](#418-chunk传输编码解析)
+    * [4.17 反向代理](#419-反向代理)
+    * [4.18 FastCGI机制和启动PHP的流程](#420-fastcgi机制和启动php的流程)
+    * [4.19 两个通信连接的串联Pipeline](#421-两个通信连接的串联pipeline)
+    * [4.20 HTTP Cache系统](#422-http-cache系统)
+    * [4.21 HTTP Tunnel](#423-http-Tunnel)
+    * [4.22 HTTP Cookie机制](#424-http-cookie机制)
 * [五. eJet为什么高性能](#五-ejet为什么高性能)
+    * [5.1 事件驱动多线程ePump框架](#51-事件驱动多线程epump框架)
+    * [5.2 零拷贝Zero-Copy技术](#52-零拷贝zero-copy技术)
+    * [5.3 使用writev和sendfile提升发送效率](#53-使用writev和sendfile提升发送效率)
+    * [5.4 内存池](#54-内存池)
+    * [5.5 超大文件上传](#55-超大文件上传)
+    * [5.6 不连续碎片存储读写chunk_t](#56_不连续碎片存储读写chunk_t)
 * [六. eJet Web服务应用案例](#六-ejet-web服务应用案例)
     * [6.1 大型资源网站](#61-大型资源网站)
     * [6.2 承载PHP应用](#62-承载php应用)
@@ -1527,10 +1529,8 @@ Transfer-Encoding传输编码的样例格式如下：
 ### 4.11 HTTP请求/响应的发送流程（writev/sendfile）
 
 
-### 4.12 使用writev和sendfile提升发送效率
 
-
-### 4.13 eJet日志系统
+### 4.12 eJet日志系统
 
  日志文件模块 --- 每个HTTP请求和响应的信息很多，决定哪些内容写入access.log是在配置文件中用HTTP变量来动态配置的；
 
@@ -1549,34 +1549,30 @@ Transfer-Encoding传输编码的样例格式如下：
     时生成新文件。
 
 
-### 4.14 Callback回调机制
+### 4.13 Callback回调机制
 
  作为嵌入式Web服务器，eJet系统的动态库回调和函数回调机制
 
 
-### 4.15 正则表达式的使用
-
-
-### 4.16 超大文件上传
- 客户端上传大文件时节省内存空间流程。当客户端上传文件过大时（一般超过128KB），上传内容自动保存到缓存文件里，
+### 4.14 正则表达式的使用
 
 
 
-### 4.17 TLS/SSL
+### 4.15 TLS/SSL
 HTTPS的实现
 用SNI机制选择不同域名证书私钥
 
 
-### 4.18 Chunk传输编码解析
+### 4.16 Chunk传输编码解析
 
 
-### 4.19 反向代理
+### 4.17 反向代理
 
 
-### 4.20 FastCGI机制和启动PHP的流程
+### 4.18 FastCGI机制和启动PHP的流程
 
 
-### 4.21 两个通信连接的串联Pipeline
+### 4.19 两个通信连接的串联Pipeline
 
  两个通信连接串联变成管道时，FD事件处理必须在同一个线程
 
@@ -1586,32 +1582,46 @@ HTTPS的实现
     HTTP Proxy或FastCGI模式下实时转发的流量控制
     流量限速机制
 
-### 4.22 HTTP Cache系统
+### 4.20 HTTP Cache系统
 
  Proxy模式下的Cache碎片存储处理流程
 
-### 4.23 HTTP Tunnel
+### 4.21 HTTP Tunnel
 
 
-### 4.24 HTTP Cookie机制
-
-
-### 4.25 零拷贝Zero-Copy技术
-
- 共采用了哪些Zero-Copy技术提升系统性能
-
-
-### 4.26 内存池
+### 4.22 HTTP Cookie机制
 
 
 
 五. eJet为什么高性能
 ------
 
+eJet系统具备高性能特征，主要体现在能充分使用CPU运算能力、使用更小的内存开销完成更大数据处理、使用更少的I/O或读写效率更高效等方面。
+
   运用了哪些技术来支撑大并发访问
   降低单个HTTP请求的内存使用开销，采用chunk_t的不连续碎片管理技术
   大量运用Zero-Copy技术减少冗余拷贝
   采用writev和sendfile等系统调用，减少用户空间和内核空间的数据拷贝，提升发送效率
+
+### 5.1 事件驱动多线程ePump框架
+
+
+### 5.2 零拷贝Zero-Copy技术
+
+ 共采用了哪些Zero-Copy技术提升系统性能
+
+
+### 5.3 使用writev和sendfile提升发送效率
+
+
+### 5.4 内存池
+
+
+### 5.5 超大文件上传
+ 客户端上传大文件时节省内存空间流程。当客户端上传文件过大时（一般超过128KB），上传内容自动保存到缓存文件里，
+
+
+### 5.6 不连续碎片存储读写chunk_t
 
 
 六. eJet Web服务应用案例
