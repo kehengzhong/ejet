@@ -91,6 +91,9 @@
         * [4.4.3 eJet配置文件](#443-ejet配置文件)
     * [4.5 事件驱动流程 http_pump](#45-事件驱动流程-http_pump)
     * [4.6 HTTP请求和响应](#46-http请求和响应)
+        * [4.6.1 HTTP请求格式](#461-http请求格式)
+        * [4.6.2 HTTP响应格式](#462-http响应格式)
+        * [4.6.3 头和体的解析与编码](#463-头和体的解析与编码)
     * [4.7 HTTPMsg的实例化流程](#47-httpmsg的实例化流程)
     * [4.8 HTTP MIME管理](#48-http-mime管理)
     * [4.9 HTTP URI管理](#49-http-uri管理)
@@ -1319,7 +1322,7 @@ http = {
 
 eJet系统是建立在ePump框架之上的Web服务器，eJet是ePump的事件驱动框架（Event-Driven Architecture）的回调应用。ePump框架基于事件监听机制，产生网络监听事件、网络读事件、网络写事件、连接成功事件、定时器超时事件等，并将事件均衡派发到各个工作线程中，通过工作线程来回调eJet的处理函数，这种通过设备监听、产生事件、以事件驱动工作线程来回调应用接口函数的流程，就是事件驱动架构模型。
 
-驱动eJet工作的事件包括如下：
+驱动eJet工作的ePump事件包括如下：
 ```
     /* event types include getting connected, connection accepted, readable,
      * writable, timeout. the working threads will be driven by these events */
@@ -1382,23 +1385,82 @@ void * iotimer_start (void * vpcore, int ms, int cmdid, void * para,
                       IOHandler * cb, void * cbpara);
 ```
 
-eJet系统完全依赖于ePump极其高效的多线程调度机制，充分利用ePump框架对多核CPU并行处理的调用机制，使得eJet系统具备支撑大并发、大容量访问的物理基础。
+eJet系统完全依赖于ePump极其高效的多线程调度机制，充分利用ePump框架对多核CPU并行处理的调用，使得eJet系统具备支撑大并发、大容量访问的物理基础。
 
 ### 4.6 HTTP请求和响应
 
-  1. HTTP请求的报文格式
-     HTTP请求包括请求行、请求头、请求体，头与体之间由空行\r\n隔开。
-     请求行由三部分构成：请求方法、请求URI地址、协议版本。
-     请求方法一般有：GET、POST、PUT、DELETE、HEAD、OPTIONS、TRACE、CONNECT等。
-     请求URL地址是标识资源位置的定位符，其基本格式为：
-        <协议>://<主机>:[端口]/<路径>?[参数]
+HTTP请求和响应构成HTTP消息，从客户端发送给服务器端的HTTP消息是HTTP请求，从服务器端到客户端的消息是HTTP响应。HTTP请求和响应的消息格式的格式包括一个起始行、0个或者多个Header字段、一个空行、可能消息体。
 
-  2. HTTP响应的报文格式
-     HTTP响应包括状态行、响应头、响应体，头与体之间由空行\r\n隔开。
-     状态行由三部分构成：协议版本、状态码、状态码描述，其中协议版本一般需跟请求报文一致。
+#### 4.6.1 HTTP请求格式
 
-  3. 头和体的解析与编码
+按照[RFC 2616](https://datatracker.ietf.org/doc/rfc2616/?include_text=1)规范，HTTP请求消息包括请求行、请求头、消息体，具体格式如下：
+```
+    Method SP Request-URI SP HTTP-Version CRLF
+    *(( general-header | request-header | entity-header ) CRLF)
+    CRLF
+    [ message-body ]
+其中
+    Method = "OPTIONS" | "GET" | "HEAD" | "POST" | "PUT" | "DELETE" | "TRACE" | "CONNECT"
+    Request-URI    = "*" | absoluteURI | abs_path | authority
+    HTTP-Version   = "HTTP" "/" 1*DIGIT "." 1*DIGIT
+    http_URL = "http:" "//" host [ ":" port ] [ abs_path [ "?" query ]]
+```
+HTTP请求消息的三部分：请求行、请求头、消息体，前两部分都是纯文本内容，头与体之间由一个空行\r\n隔开。请求行由三部分构成：请求方法、请求URI地址、协议版本。请求URL地址是标识资源位置的定位符，其基本格式为：<协议>://<主机>:[端口]/<路径>?[参数]
 
+#### 4.6.2 HTTP响应格式
+
+按照RFC 2616规范，HTTP响应消息包括状态行、响应头、响应体，具体格式如下：
+```
+    HTTP-Version SP Status-Code SP Reason-Phrase CRLF
+    *(( general-header | response-header | entity-header ) CRLF)
+    CRLF
+    [ message-body ]
+其中
+    HTTP-Version   = "HTTP" "/" 1*DIGIT "." 1*DIGIT
+```
+响应行中的状态码是由3个整型数字构成，状态原因短语是对状态码的简要文字描述。状态码中的第一位代表响应状态的类别，后两位是此类状态的原因，共有五类状态：
+* 1xx - 信息，表示请求已收到，继续处理中
+* 2xx - 成功，表示请求已成功接收、理解和处理
+* 3xz - 重定向，表示请求需要导向到其他地址处理
+* 4xx - 客户侧错误，表示请求语法错误、或不能正确理解
+* 5xx - 服务侧错误，表示服务器未能处理请求
+
+#### 4.6.3 头和体的解析与编码
+
+eJet从对方接收HTTP请求或响应的字节流时，首先需要解析起始行、头信息，根据这些信息，再判断消息体内容是否存在，如果存在其大小和格式是什么。
+
+根据上述规范，在头和体之间有一个空行，加上前面的换行符号，这四个字符\r\n\r\n就是头部区域的结尾，eJet当作是头部结尾符。解析过程首先要做的是搜索接收缓冲区字节流是否存在这四个字符，如果不存在，就继续等待接收数据到缓冲区，直到遇到这四个结尾符。这个过程需要做错误判断，如果接收缓冲区总长度超过32K字节，还没有收到头部结尾符，则任务客户端发起错误的、恶意的HTTP请求，直接关闭连接。
+
+找到结尾符后，如果不存在HTTPMsg实例，先创建HTTPMsg实例，对结尾符之前的字节流内容按照上述规范进行解析，并保存到HTTPMsg对象成员中，对于HTTP请求，则包括请求方法、请求URI地址、协议版本、所有的请求头等，对于HTTP响应，包括协议版本、状态码、状态原因、响应头等，解析成功后，需分析和预处理这些数据，进行合规性校验和判断。
+
+HTTPMsg对头信息的管理是采用hashtab和动态数组arr_t，方便快速定位和遍历，每个头信息基础数据结构为HeaderUnit，保存的是偏移地址和长度，并没有为每个头分配空间，以防止大量的内存碎片。
+
+HTTPMsg在处理中，eJet系统或上层回调函数都可以根据需要，添加额外的请求头和响应头，发送给对方。
+
+编码过程主要是对HTTPMsg中保存的起始行、动态数组中的头信息按照规范生成以\r\n分隔的文本格式的字节流。
+
+对消息体的解析和编码比较复杂，消息体格式分成三个层级，第一层是传输编码，第二层是内容编码，第三层内容类型编码。
+
+传输编码一般采用Content-Length头来标识的消息体Entity内容的长度，或采用Transfer-Encoding: chunked方法对消息体进行切片分块编码，这两种方法是HTTP/1.1中对消息体在传输之前采用的标准传输方式。
+
+Content-Length方式比较简单，将实际消息体长度指定到头中，消息体内容跟在编码完的头信息之后，顺序传输给对方。
+
+Transfer-Encoding传输编码的样例格式如下：
+```
+        Chunk format as following:
+         24E5CRLF            #chunk-sizeCRLF  (first chunk begin)
+         24E5(byte)CRLF      #(chunk-size octet)CRLF
+         38A1CRLF            #chunk-sizeCRLF  (another chunk begin)
+         38A1(byte)CRLF      #(chunk-size octet)CRLF
+         ......              #one more chunks may be followed
+         0CRLF               #end of all chunks
+         X-bid-for: abcCRLF  #0-more HTTP Headers as entity header
+         .....               #one more HTTP headers with trailing CRLF
+         CRLF
+```
+对Transfer-Encoding: Chunk模式的解析，eJet系统是用HTTPChunk数据结构和函数来实现的。
+
+传输过程中，最棘手的问题是收到的消息内容不完整，而且内存不够大时，这些内容分别存储在不同的地方，如有些存储在内存中，有些存储在缓存文件中。
 
 ### 4.7 HTTPMsg的实例化流程
 
