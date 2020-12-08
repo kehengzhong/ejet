@@ -9,6 +9,8 @@ PKGNAME = ejet
 PKGLIB = lib$(PKGNAME)
 PKG_SO_LIB = $(PKGLIB).so
 PKG_A_LIB = $(PKGLIB).a
+PKG_A_LIB = $(PKGLIB).a
+PKG_BIN = $(PKGNAME)srv
 
 PREFIX = /usr/local
 INSTALL_INC_PATH = $(DESTDIR)$(PREFIX)/include
@@ -26,15 +28,21 @@ epump_lib = $(PREFIX)/lib
 ejet_inc = $(ROOT)/include
 ejet_src = $(ROOT)/src
 
+ejetsrv_inc = $(ROOT)/ejetsrv
+ejetsrv_src = $(ROOT)/ejetsrv
+
 inc = $(ROOT)/include
 obj = $(ROOT)/obj
-dst = $(ROOT)/lib
+libdst = $(ROOT)/lib
+bindst = $(ROOT)/bin
 
-bin = $(dst)/$(PKG_A_LIB)
-sobin = $(dst)/$(PKG_SO_LIB)
+alib = $(libdst)/$(PKG_A_LIB)
+solib = $(libdst)/$(PKG_SO_LIB)
+bin = $(bindst)/$(PKG_BIN)
 
 ADIF_RPATH = -Wl,-rpath,$(adif_lib)
 EPUMP_RPATH = -Wl,-rpath,$(epump_lib)
+PKG_RPATH = -Wl,-rpath,$(libdst):$(INSTALL_LIB_PATH)
 
 #################################################################
 #  Customization of shared object library (SO)
@@ -62,7 +70,7 @@ LFLAGS = -L/usr/lib -L/usr/local/lib
 LIBS = -lnsl -lm -lz -lpthread
 SOFLAGS = $(LD_SONAME)
 
-APPLIBS = -ladif -lepump
+APPLIBS = -ladif -lepump -l$(PKGNAME) $(PKG_RPATH)
 
 
 ifeq ($(MAKECMDGOALS), debug)
@@ -90,6 +98,7 @@ endif
 
 ifeq ($(shell test -e /usr/include/openssl/ssl.h && echo 1), 1)
   DEFS += -DHAVE_OPENSSL
+  LIBS += -lssl -lcrypto
 endif
 
 
@@ -129,7 +138,7 @@ ifeq ($(UNAME), Darwin)
   PKG_SONAME_LIB = $(PKGLIB).$(PKG_VER_MAJOR).dylib
   LD_SONAME=
 
-  SOFLAGS += -install_name $(dst)/$(PKGLIB).dylib
+  SOFLAGS += -install_name $(libdst)/$(PKGLIB).dylib
   SOFLAGS += -compatibility_version $(PKG_VER_MAJOR)
   SOFLAGS += -current_version $(PKG_VER)
 endif
@@ -160,9 +169,13 @@ SOLINK = $(CC) $(CFLAGS) $(IFLAGS) $(LFLAGS) -shared $(SOFLAGS) -o
 #################################################################
 #  Modules
 
-cnfs = $(wildcard $(ejet_inc)/*.h)
-sources = $(wildcard $(ejet_src)/*.c)
-objs = $(patsubst $(ejet_src)/%.c,$(obj)/%.o,$(sources))
+ejet_incs = $(wildcard $(ejet_inc)/*.h)
+ejet_sources = $(wildcard $(ejet_src)/*.c)
+ejet_objs = $(patsubst $(ejet_src)/%.c,$(obj)/%.o,$(ejet_sources))
+
+ejetsrv_incs = $(wildcard $(ejetsrv_inc)/*.h)
+ejetsrv_sources = $(wildcard $(ejetsrv_src)/*.c)
+ejetsrv_objs = $(patsubst $(ejetsrv_src)/%.c,$(obj)/%.o,$(ejetsrv_sources))
 
 
 #################################################################
@@ -170,29 +183,31 @@ objs = $(patsubst $(ejet_src)/%.c,$(obj)/%.o,$(sources))
 
 .PHONY: all clean debug show
 
-all: $(bin) $(sobin)
-so: $(sobin)
-debug: $(bin) $(sobin)
+all: $(alib) $(solib) $(bin)
+so: $(solib)
+debug: $(alib) $(solib)
 clean: 
-	$(RM) $(objs)
+	$(RM) $(ejet_objs)
 	$(RM) -r $(obj)
-	@cd $(dst) && $(RM) $(PKG_A_LIB)
-	@cd $(dst) && $(RM) $(PKG_SO_LIB)
-	@cd $(dst) && $(RM) $(PKG_SONAME_LIB)
-	@cd $(dst) && $(RM) $(PKG_VERSO_LIB)
+	$(RM) $(ejetsrv_objs)
+	@cd $(libdst) && $(RM) $(PKG_A_LIB)
+	@cd $(libdst) && $(RM) $(PKG_SO_LIB)
+	@cd $(libdst) && $(RM) $(PKG_SONAME_LIB)
+	@cd $(libdst) && $(RM) $(PKG_VERSO_LIB)
 show:
+	@echo $(alib)
+	@echo $(solib)
 	@echo $(bin)
-	@echo $(sobin)
 
-dist: $(cnfs) $(sources)
+dist: $(ejet_incs) $(ejet_sources)
 	cd $(ROOT)/.. && tar czvf $(PKGNAME)-$(PKG_VER).tar.gz $(PKGPATH)/src \
 	    $(PKGPATH)/include $(PKGPATH)/lib $(PKGPATH)/Makefile $(PKGPATH)/README.md \
-	    $(PKGPATH)/LICENSE
+	    $(PKGPATH)/LICENSE $(PKGPATH)/ejetsrv $(PKGPATH)/bin
 
-install: $(bin) $(sobin)
+install: $(alib) $(solib)
 	mkdir -p $(INSTALL_INC_PATH) $(INSTALL_LIB_PATH)
-	install -s $(dst)/$(PKG_A_LIB) $(INSTALL_LIB_PATH)
-	cp -af $(dst)/$(PKG_VERSO_LIB) $(INSTALL_LIB_PATH)
+	install -s $(libdst)/$(PKG_A_LIB) $(INSTALL_LIB_PATH)
+	cp -af $(libdst)/$(PKG_VERSO_LIB) $(INSTALL_LIB_PATH)
 	@cd $(INSTALL_LIB_PATH) && $(RM) $(PKG_SONAME_LIB) && ln -sf $(PKG_VERSO_LIB) $(PKG_SONAME_LIB)
 	@cd $(INSTALL_LIB_PATH) && $(RM) $(PKG_SO_LIB) && ln -sf $(PKG_SONAME_LIB) $(PKG_SO_LIB)
 	cp -af $(inc)/ejet.h $(INSTALL_INC_PATH)
@@ -221,16 +236,26 @@ uninstall:
 #  CSRC = $(filter %.c,$(files))
 
 
-$(sobin): $(objs) 
-	$(SOLINK) $(dst)/$(PKG_VERSO_LIB) $? 
-	@cd $(dst) && $(RM) $(PKG_SONAME_LIB) && ln -s $(PKG_VERSO_LIB) $(PKG_SONAME_LIB)
-	@cd $(dst) && $(RM) $(PKG_SO_LIB) && ln -s $(PKG_SONAME_LIB) $(PKG_SO_LIB)
+$(solib): $(ejet_objs) 
+	@mkdir -p $(libdst)
+	$(SOLINK) $(libdst)/$(PKG_VERSO_LIB) $? 
+	@cd $(libdst) && $(RM) $(PKG_SONAME_LIB) && ln -s $(PKG_VERSO_LIB) $(PKG_SONAME_LIB)
+	@cd $(libdst) && $(RM) $(PKG_SO_LIB) && ln -s $(PKG_SONAME_LIB) $(PKG_SO_LIB)
      
-$(bin): $(objs) 
+$(alib): $(ejet_objs) 
+	@mkdir -p $(libdst)
 	$(AR) $(ARFLAGS) $@ $?
 	$(RANLIB) $(RANLIBFLAGS) $@
 
-$(obj)/%.o: $(ejet_src)/%.c $(cnfs)
+$(obj)/%.o: $(ejet_src)/%.c $(ejet_incs)
 	@mkdir -p $(obj)
 	$(COMPILE.c) $< -o $@
+
+$(obj)/%.o: $(ejetsrv_src)/%.c $(ejetsrv_incs)
+	@mkdir -p $(obj)
+	$(COMPILE.c) $< -o $@
+
+$(bin): $(ejetsrv_objs)
+	@mkdir -p $(bindst)
+	$(LINK) $@ $? $(LIBS)
 
