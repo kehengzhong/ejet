@@ -1564,15 +1564,36 @@ eJet系统根据HTTP请求，在其资源位置对应的目录体系下，找到要返回给客户端的资源文件
 
 
 ### 4.9 HTTP URI管理
-  RequestURI、DocURI、AbaURI
+
+URI是Uniform Resource Identifiers的缩写，以一种简单而又可扩展的方式来定位资源。URI规范是由[RFC 2396](https://tools.ietf.org/html/rfc2396)来定义和描述的。
+
+HTTP URI是以HTTP协议来定位网络资源的URI格式，基于语法如下：
+```
+http_URL = "http: | https:" "//" host [ ":" port ] [ abs_path [ "?" query ]]
+```
+
+如果port不存在，则在http模式下port缺省为80，在https模式下port缺省为443。
+
+在eJet系统中，HTTP URI定位资源是通过三层资源架构来实现的，即HTTPListen、HTTPHost、HTTPLoc。
+
+在创建HTTPMsg保存请求信息时，使用了三个成员来保存HTTP URI，即RequestURI、DocURI、AbsURI，客户端发出的请求URI、经过实例化处理后的文档URI、绝对URI地址。
+
+eJet作为HTTP Server时，HTTP请求URI是相对URI地址，即不包含HTTP完整URI中的scheme、domain、port部分，只有abs_path和query部分，domain和port信息包含在HTTP请求头Host中。
+
+eJet作为HTTP Proxy时，注意是正向代理，HTTP请求URI是绝对地址，以http打头的地址。
+
+HTTPMsg中，通过字段req_url_type来标识当前请求的地址类型，0-相对地址，1-绝对地址。
+
+无论是相对地址还是绝对地址，eJet系统在解析HTTP请求的起始行、请求头信息后，都要给成员AbsURI设置成完整的绝对地址，吧请求地址设置为DocURI的初始地址。
 
 
 ### 4.10 chunk_t数据结构
+
   解决不同存储介质上的不连续碎片数据融合读写访问
   实现高性能HTTP超大文件的上传下载
   更低的内存使用
 
- 基础库中chunk_t这个数据结构是对不连续的碎片数据存储进行管理，提供连续顺序的访问接口来读写数据。主要用途
+基础库中chunk_t这个数据结构是对不连续的碎片数据存储进行管理，提供连续顺序的访问接口来读写数据。主要用途
     是处理HTTP请求和响应时，动态添加请求体或响应体的数据，这些数据包括内存指针型的数据，如HTTP头数据、XML
     数据、JSon数据、读数据库时返回的数据等，还包括文件数据，如图片文件、HTML文件等，或者文件的一部分数据。
     尤其是在处理HTTP请求时，该返回的响应体来自上层应用的处理，需要动态地发送字节数据块，都是不连续的内容。
