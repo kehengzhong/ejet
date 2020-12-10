@@ -97,6 +97,9 @@
         * [4.6.2 HTTP响应格式](#462-http响应格式)
         * [4.6.3 头和体的解析与编码](#463-头和体的解析与编码)
     * [4.7 HTTPMsg的实例化流程](#47-httpmsg的实例化流程)
+        * [4.7.1 什么是HTTPMsg实例化](#471-什么是httpmsg实例化)
+        * [4.7.2 匹配虚拟主机和资源位置](#472-匹配虚拟主机和资源位置)
+        * [4.7.3 执行脚本程序](#473-执行脚本程序)
     * [4.8 HTTP MIME管理](#48-http-mime管理)
     * [4.9 HTTP URI管理](#49-http-uri管理)
     * [4.10 chunk_t数据结构](#410-chunk_t数据结构)
@@ -1468,17 +1471,95 @@ Transfer-Encoding传输编码的样例格式如下：
 
 ### 4.7 HTTPMsg的实例化流程
 
-    创建HTTPMsg后确定Host、Location并解析和执行script脚本程序的过程，叫HTTPMsg的实例化instance，完成实例化后
-    方可进行后续的处理操作。
+#### 4.7.1 什么是HTTPMsg实例化
 
-    Script脚本执行的时机是在引用该变量或当HTTPMsg刚开始创建时，针对配置信息，对HTTPMsg内的相关属性信息进行
-    实例化，其中最主要的是基于请求URL（req_path）对配置文件中的Host、Location进行匹配，通过设定的匹配规则计
-    算当前请求使用哪个Host和Location，确定Host后Location后，如果该Listen、Host、Location中设定了script脚本程
-    序，则需解析并执行该Listen、Host和Location下的script脚本程序。利用Host、Location内定义的参数，可设置或改
-    变当前HTTPMsg内部成员变量的值，而当需要根据请求信息（如IP地址、终端类型、特定请求头、请求目的URL等）动态
-    设置或改变成员变量值或相关属性配置时，则需要script脚本程序。
+eJet接受客户端发起的TCP连接，接收该连接上的HTTP请求数据，解析HTTP请求头，创建HTTPMsg来保存请求数据后，需要理解客户端发送HTTP请求的目的，即确定HTTP请求的资源在哪个虚拟主机下的那个存储位置，这个过程就是HTTPMsg的实例化流程。
+
+如4.1中所述，eJet Web服务器的资源管理结构分成三层：
+* **HTTP监听服务HTTPListen** - 对应的是监听本地IP地址和端口后的TCP连接
+* **HTTP虚拟主机** - 对应的是请求主机名称domain
+* **HTTP资源位置HTTPLoc** - 对应的是主机下的各个资源目录
+ 
+一个eJet Web服务器可以监听本机的一个或多个IP地址、一个或多个端口，等候不同客户端的TCP连接请求，分别对应到多个监听服务HTTPListen；在每一个监听服务下，可以配置一个到多个HTTP虚拟主机HTTPHost，每个虚拟主机对应的是一个网站，管理不同类别的文件资源、网络资源等位置信息HTTPLoc；每个资源位置包含具体的文件存储路径，或网络地址等信息。
+
+#### 4.7.2 匹配虚拟主机和资源位置
+
+HTTPMsg的实例化是以DocURI地址的信息来匹配虚拟主机和资源位置的，DocURI的缺省地址是客户端发起的HTTP请求URI。
+
+HTTPMsg的实例化过程中改变的地址是DocURI，再次匹配虚拟主机和资源位置的也是DocURI的信息。对用户请求URI进行资源定位过程中，由于补足资源目录下的缺省文件名、或使用rewrite、try_files等指令改变请求地址等操作，都会改变DocURI。
+
+当eJet接受客户端连接时创建HTTPCon，并绑定监听服务HTTPListen实例，当接收到请求数据后，创建HTTPMsg，并将该连接上的HTTPListen实例传递到的HTTPMsg对象保存。
+
+HTTPMsg根据DocURI的主机名称，查找当前HTTPListen下的主机表，用Hashtab的精准匹配，找到HTTPHost虚拟主机实例对象。
+
+绑定了HTTPHost后，使用DocURI的路径名，分别采用路径名进行精准匹配、前缀匹配、正则表达式匹配三种匹配规则，找到资源位置HTTPLoc，如果三种匹配都没有匹配到，则采用缺省的资源位置HTTPLoc。
+
+#### 4.7.3 执行脚本程序
+
+HTTPMsg实例对象设置了三个层级的资源对象后，分别读取各自的脚本程序，解释并执行这些程序代码。
+
+执行脚本程序的优先级是: 首先执行HTTPListen监听服务下的脚本程序，其次执行HTTPHost虚拟主机下的脚本程序，最后执行HTTPLoc资源位置下的脚本程序。
+
+脚本程序执行过程中，如果调用Reply指令直接给客户端返回响应，那么终止当前所有的Script脚本运行，退出实例化过程，并完成响应的发送后，终止当前请求服务。
+
+如果执行脚本时，调用了rewrite、try_files指令，并且重新改写了DocURI，则会出现HTTPMsg实例化过程的嵌套执行，即重新执行4.7.2节描述的重新匹配虚拟主机和资源位置，并执行新的脚本程序。需注意的是，eJet系统中HTTPMsg实例化过程中，递归嵌套次数不超过16次。
+
+脚本程序执行期间，可根据请求信息（如IP地址、终端类型、特定请求头、请求目的URL等），利用各种脚本指令，动态设置或改变成员变量值或相关属性。
 
 ### 4.8 HTTP MIME管理
+
+媒体类型MIME的全称为Multipurpose Internet Mail Extensions，是表示文档、文件或字节流的性质和格式的标准，其标准规范定义在[RFC 6838](https://tools.ietf.org/html/rfc6838)里。
+
+Web服务器是基于MIME类型来识别和处理文档类型的，不同于操作系统中的文件扩展名。不过国际机构IANA在分配和管理MIME类型时，对MIME类型和扩展名之间建立了对应关系。
+
+MIME使用文本字符串来标识类型，对大小写不敏感。MIME的语法如下：
+```
+    type/subtype
+```
+其中type表示文档类型的主类别，subtype是该主类别下的细分子类别。
+
+常用的MIME类型的主类别主要包括如下：
+| 类型 | 描述 | 示例 |
+| text | 普通文本 | text/plain, text/html, text/css, text/javascript |
+| image | 图像格式 | image/png, image/jpeg, image/gif |
+| audio | 音频格式 | audio/mp3, audio/aac, audio/mpeg |
+| video | 视频格式 | video/mp4, video/mpeg2-ts, video/ogg |
+| application | 二进制数据 | application/octet-stream |
+
+eJet系统中对MIME类型数据结构进行了定义和管理，并将IANA定义的1000多种MIME类型进行了初始化，并为每个MIME类型单独分配了一个数字ID和APPID，并和OS的文件扩展名之间建立了对应关系。
+```c
+typedef struct mime_item {
+    uint32    mimeid; 
+    uint32    appid;
+    char      extname[16]; 
+    char      mime[96]; 
+} MimeItem; 
+
+    { 2000, 1000, ".gif", "image/gif" },
+    { 2010, 1010, ".jpg", "image/jpeg" },
+    { 2011, 1010, ".jpeg", "image/jpeg" },
+    { 2012, 1010, ".jpe", "image/jpeg" },
+    { 2013, 1010, ".jfif", "image/jpeg" },
+    { 2014, 1010, ".jfi", "image/jpeg" },
+    { 2015, 1010, ".jpg", "image/pjpeg" },
+    { 2016, 1010, ".jpg", "image/jpg" },
+    { 2020, 1020, ".png", "image/png" },
+    { 2021, 1020, ".x-png", "image/png" },
+    { 2022, 1020, ".png", "image/x-png" },
+       ......
+```
+
+如果应用系统中自定义了新的MIME类型，在缺省MIME中不存在，则可以在系统配置文件中，在http.mime types配置对象下，增加新的MIME类型，方便eJet系统识别和理解，新增加的MIME配置信息如下：
+```
+mime types = {
+    application/vnd.wap.wmlc                       = .wmlc;
+    application/x-perl                             = .pl .pm;
+    ......
+};
+```
+eJet系统自动地将系统配置文件中定义的MIME类型和缺省定义的MIME类型整合在一起，并提供统一的获取MIME类型的接口。在根据扩展名获取MIME类型时，优先获取配置文件中的MIME类型，在配置文件没有定义时，获取系统缺省定义的MIME类型。
+
+eJet系统根据HTTP请求，在其资源位置对应的目录体系下，找到要返回给客户端的资源文件前，根据文件扩展名在MIME管理系统中，找到对应的MIME类型，或者没有扩展名时，根据系统命令file确定文件的MIME类型。
 
 
 ### 4.9 HTTP URI管理
