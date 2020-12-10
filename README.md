@@ -1520,6 +1520,7 @@ MIME使用文本字符串来标识类型，对大小写不敏感。MIME的语法如下：
 
 常用的MIME类型的主类别主要包括如下：
 | 类型 | 描述 | 示例 |
+| ---- | ---- | ---- |
 | text | 普通文本 | text/plain, text/html, text/css, text/javascript |
 | image | 图像格式 | image/png, image/jpeg, image/gif |
 | audio | 音频格式 | audio/mp3, audio/aac, audio/mpeg |
