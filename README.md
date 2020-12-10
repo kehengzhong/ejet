@@ -1625,14 +1625,14 @@ chunk_tÊý¾Ý½á¹¹¶Ô²»Á¬ÐøµÄËéÆ¬Êý¾Ý´æ´¢½øÐÐ¹ÜÀí£¬Ìá¹©Á¬ÐøË³ÐòµÄ·ÃÎÊ½Ó¿ÚÀ´¶ÁÐ´Êý¾Ý¡
 
 LinuxÄÚºËÌá¹©ÁË¶à»º³åÇøÊý¾Ý¶ÁÐ´ÏµÍ³µ÷ÓÃwritev£¬Æä¶¨ÒåÈçÏÂ£º
 ```c
-    ssize_t writev(int fd, const struct iovec *iov, int iovcnt);
+ssize_t writev(int fd, const struct iovec *iov, int iovcnt);
 ```
 
 chunk_tÊý¾Ý½á¹¹ºÍwritevÏµÍ³µ÷ÓÃÊÇÌì×÷Ö®ºÏ£¬±£´æÔÚchunk_tÖÐµÄ²»Á¬ÐøµÄ¡¢ËéÆ¬Êý¾Ý£¬Í¨¹ýwritevµÄÒ»´ÎÏµÍ³µ÷ÓÃ¾Í¿ÉÒÔ½â¾ö¶à»º³åÇøµÄ·¢ËÍµ½ÎÄ¼þÃèÊö·ûµÄÎÊÌâ£¬±È¶à´Îµ÷ÓÃwriteÀ´Öð¸ö·¢ËÍchunk_tµÄËéÆ¬»º³åÇøµÄÐ§ÂÊ¸ßºÜ¶à±¶¡£
 
 ´ËÍâLinuxÄÚºËÌá¹©ÁËÔÚÎÄ¼þÃèÊö·ûÖ®¼ä´«ÊäÊý¾ÝµÄÏµÍ³µ÷ÓÃsendfile£¬Æä¶¨ÒåÈçÏÂ£º
 ```c
-    ssize_t sendfile(int out_fd, int in_fd, off_t *offset, size_t count);
+ssize_t sendfile(int out_fd, int in_fd, off_t *offset, size_t count);
 ```
 
 sendfile¶ÔÁ½¸öÎÄ¼þÃèÊö·û¿½±´Êý¾ÝÊÇÔÚÄÚºËÖÐÍê³ÉµÄ£¬²»ÏûºÄCPUºÍÄÚ´æ£¬·Ç³£¸ßÐ§¿ìËÙµØÊµÏÖÎÄ¼þÃèÊö·ûÖ®¼äµÄÊý¾Ý×ª´¢¡£Í¬ÑùµØ£¬chunk_tÊý¾Ý½á¹¹ºÍsendfileÏµÍ³µ÷ÓÃµÄÅäºÏÒ²ÊÇÌìÒÂÎÞ·ì£¬µ±chunk_tÖÐ´æÔÚÎÄ¼þÊý¾ÝÊ±£¬Èç¹ûÒªÐ´Èëµ½ÍøÂçsocket£¬»òÁíÍâÒ»¸öÎÄ¼þ£¬µ÷ÓÃsendfile±ã¿É¸ßÐ§µØ½«ÆäÖÐµÄÎÄ¼þÊý¾Ý×ª´¢³öÈ¥¡£
@@ -1641,7 +1641,7 @@ sendfile¶ÔÁ½¸öÎÄ¼þÃèÊö·û¿½±´Êý¾ÝÊÇÔÚÄÚºËÖÐÍê³ÉµÄ£¬²»ÏûºÄCPUºÍÄÚ´æ£¬·Ç³£¸ßÐ§¿ìËÙµ
 
 chunk_tÌá¹©ÁËÒ»¸ö½Ó¿Ú£¬ÓÃÓÚwritevºÍsendfileµÄµ÷ÓÃ£¬Æä½Ó¿Ú¶¨ÒåÈçÏÂ£º
 ```c
-    int chunk_vec_get (void * vck, int64 offset, chunk_vec_t * pvec, int httpchunk)
+int chunk_vec_get (void * vck, int64 offset, chunk_vec_t * pvec, int httpchunk)
 ```
 
 µ÷ÓÃ¸Ã½Ó¿Úº¯Êý£¬¿ÉÒÔ»ñÈ¡µ½ÒÀÕÕË³Ðò¶ø´æ´¢ÆðÀ´µÄ¶à¸öËéÆ¬ÄÚ´æ¿é£¬À´µ÷ÓÃwritevº¯Êý£¬»ò»ñÈ¡µ½ÎÄ¼þºó£¬µ÷ÓÃsendfileº¯Êý¡£
@@ -1649,25 +1649,34 @@ chunk_tÌá¹©ÁËÒ»¸ö½Ó¿Ú£¬ÓÃÓÚwritevºÍsendfileµÄµ÷ÓÃ£¬Æä½Ó¿Ú¶¨ÒåÈçÏÂ£º
 
 ### 4.11 HTTPÇëÇó/ÏìÓ¦µÄ·¢ËÍÁ÷³Ì£¨writev/sendfile£©
 
+eJetÏµÍ³·¢ËÍHTTPÏìÓ¦µ½¿Í»§¶Ë¡¢»òÕß·¢ËÍHTTPÇëÇóµ½Origin·þÎñÆ÷¶Ë£¬²ÉÓÃµÄÁ÷³ÌÊÇÒ»ÑùµÄ£¬¾ÍÊÇÀûÓÃchunk_tÊý¾Ý½á¹¹¹ÜÀíºÍ±£´æ´ý·¢ËÍµÄÊý¾Ý£¬Í¨¹ýwritevºÍsendfileÏµÍ³µ÷ÓÃ£¬½«Êý¾Ý·¢ËÍ¸ø¶Ô·½¡£
 
+·¢ËÍÁ÷³ÌÊÇÍ¨¹ýTCPÁ¬½ÓÉÏ½¨Á¢µÄµÄHTTPConÊµÀýÀ´·¢ËÍÊý¾Ý£¬ÓÉÓÚÒ»¸öÁ¬½ÓÉÏ¿ÉÒÔÍ¬Ê±·¢ËÍ¶à¸öHTTPÇëÇó£¬ÄÇÃ´±ØÐë°´ÕÕÁ÷Ë®Ïßpipeline·½Ê½£¬Ë³Ðò´¦ÀíÃ¿¸öÇëÇóºÍÏìÓ¦£¬Ç°ÃæµÄHTTPMsg£¨°üº¬ÇëÇóºÍÏìÓ¦£©Ã»ÓÐ·¢ËÍ³É¹¦Ö®Ç°£¬²»ÄÜ·¢ËÍºóÐøµÄHTTPMsg¡£
+
+ÒÔ·¢ËÍHTTPMsgµÄÏìÓ¦µ½¿Í»§¶ËÎªÀý£¬·¢ËÍ¹ý³ÌÊÇ´Óµ±Ç°HTTPConÖÐµÄmsg_listÖÐÒÔFIFO·½Ê½È¡³öµÚÒ»¸öHTTPMsg£ºÈç¹û¸ÃÇëÇóÊÇÒ»¸öProxyÇëÇó£¬Ôòµ÷ÓÃProxyÏà¹ØµÄ·¢ËÍÁ÷³Ì£»Èç¹û¸ÃÇëÇóµÄÏìÓ¦ÉÐÎ´´¦ÀíÍê±Ï£¬»òÕßËùÓÐÏìÓ¦µÄÄÚÈÝ¶¼ÒÑ·¢ËÍÍê±Ï£¬ÔòÖÕÖ¹·¢ËÍ¹ý³Ì£¬·ñÔò¿ªÊ¼·¢ËÍÏìÓ¦Êý¾Ý¡£
+
+HTTPMsgÖÐÎªÁË·¢ËÍÊý¾Ýµ½Í¨ÐÅ¶Ô·½£¬±ØÐëÓÐ¼¸¸öÖØÒª³ÉÔ±±äÁ¿£¬Ò»¸öÊÇÀàÐÍÎªÊý¾Ý½á¹¹chunk_tµÄrex_body_chunk£¬Ò»¸öµ±Ç°·¢ËÍ³É¹¦µÄ×Ü³¤¶Èrex_stream_sent£»Æä´ÎÊÇÈ·±£µ±Ç°TCPÁ¬½ÓµÄ¼¸¸öÄÚºËÑ¡ÏîNOPUSH×´Ì¬ÐèÒªÉèÖÃÎªTRUE¡¢NODELAY×´Ì¬Ðè¸´Î»ÎªFALSE£¬ÒÔ±£Ö¤µ±Ç°TCPÊý¾ÝÔÚÌî³äÂú»º³åÇøºóÔÙ·¢ËÍ³öÈ¥£¬ÌáÉý·¢ËÍÐ§ÂÊ¡£
+
+ÓÃÒÑ·¢ËÍ³¤¶È×÷Îªµ±Ç°Î»ÖÃ£¬ÅÐ¶Ïchun_tÀàÐÍµÄrex_body_chunkÊÇ·ñ½áÊø£¬Èç¹ûÃ»ÓÐ½áÊø£º
+* µ÷ÓÃchunk_vec_get»ñÈ¡Èô¸É¸öÁ¬ÐøËéÆ¬»º³åÇø»òÎÄ¼þ£»
+* Èç¹ûÎª´ý·¢ËÍÄÚÈÝÎªÁ¬Ðø¶à¸ö»º³åÇø£¬µ÷ÓÃwritev½Ó¿Ú·¢ËÍ£»
+* Èç¹ûÎªÎÄ¼þ£¬µ÷ÓÃsendfileÀ´·¢ËÍ£»
+* ·¢ËÍ³É¹¦£¬Í³¼Æ×Ö½ÚÊý£¬²¢ÒÆ³ýchun_tÀàÐÍrex_body_chunkÖÐµÄÒÑ·¢ËÍ³É¹¦µÄËéÆ¬¿é£»
+* Ñ­»·Ö´ÐÐÉÏÊöÁ÷³Ì£¬Ö±ÖÁËùÓÐÊý¾Ý·¢ËÍÍê±Ï¡£
+
+µ±Ç°HTTPMsg·¢ËÍ³É¹¦ºó£¬½«µ±Ç°ÇëÇóºÍÏìÓ¦ÐÅÏ¢Ð´ÈëÈÕÖ¾ºó£¬¹Ø±Õµ±Ç°HTTPMsg£¬½Ó×Å´ÓHTTPConÖÐµÄmsg_listµ¯³öºóÐøHTTPMsg¼ÌÐø·¢ËÍ²Ù×÷¡£
+
+ÓÉÓÚ²ÉÓÃÁËchunk_tÊý¾Ý½á¹¹£¬²¢³ä·ÖÀûÓÃwritevºÍsendfileÏµÍ³µ÷ÓÃ£¬Ê¹µÃ·¢ËÍÁ÷³Ì·Ç³£¼ò½à¸ßÐ§¡£
 
 ### 4.12 eJetÈÕÖ¾ÏµÍ³
 
- ÈÕÖ¾ÎÄ¼þÄ£¿é --- Ã¿¸öHTTPÇëÇóºÍÏìÓ¦µÄÐÅÏ¢ºÜ¶à£¬¾ö¶¨ÄÄÐ©ÄÚÈÝÐ´Èëaccess.logÊÇÔÚÅäÖÃÎÄ¼þÖÐÓÃHTTP±äÁ¿À´¶¯Ì¬ÅäÖÃµÄ£»
+eJetÈÕÖ¾ÏµÍ³ÊÇ¼ÇÂ¼ÓÃ»§ÇëÇóºÍÏìÓ¦ÐÅÏ¢µÄÈÕÖ¾ÐÅÏ¢¡£Ã¿¸öHTTPÇëÇóºÍÏìÓ¦µÄÐÅÏ¢ºÜ¶à£¬¾ö¶¨ÄÄÐ©ÄÚÈÝÐ´Èëaccess.logÊÇÔÚÅäÖÃÎÄ¼þÖÐÓÃHTTP±äÁ¿À´¶¯Ì¬ÅäÖÃµÄ¡£
 
-    AccessLogÊÇ¼ÇÂ¼Web·þÎñÆ÷ÊÕµ½¿Í»§¶ËHTTPÇëÇó²¢·µ»ØÏìÓ¦µÄ»ù±¾ÈÕÖ¾ÐÅÏ¢£¬ÈÕÖ¾ÌõÄ¿ÄÚÈÝ¿ÉÒÔÔÚÅäÖÃÎÄ¼þÖÐ¶¯Ì¬ÅäÖÃ£¬
-    ÔÚhttp.access logÏîÏÂ£¬ÉèÖÃÁËAccessLogµÄÅäÖÃÏî¡£Ê×ÏÈÅäÖÃÊÇ·ñÐèÒªÆô¶¯AccessLogµÄlog2file = on/off£¬ÉèÖÃÅäÖÃ
-    ÎÄ¼þÃû£¬×îºó×îÖ÷ÒªµÄÊÇÐ´ÈëÅäÖÃÎÄ¼þÃ¿Ìõ¼ÇÂ¼¶¼°üº¬ÄÄÐ©ÄÚÈÝ£¬ÕâÐ©ÄÚÈÝÊÇÓÉ¸÷¸ö±äÁ¿×é³É£¬Í¨¹ý±äÁ¿¶¯Ì¬µØ»ñÈ¡Ã¿¸ö
-    ÇëÇóºÍÏìÓ¦µÄ»ù±¾ÐÅÏ¢¡£
+eJetÈÕÖ¾ÏµÍ³ÊÇ¼ÇÂ¼Web·þÎñÆ÷ÊÕµ½¿Í»§¶ËHTTPÇëÇó²¢·µ»ØÏìÓ¦µÄ»ù±¾ÈÕÖ¾ÐÅÏ¢£¬ÈÕÖ¾ÌõÄ¿ÄÚÈÝÊÇÔÚÅäÖÃÎÄ¼þÖÐ¶¯Ì¬ÅäÖÃ£¬ÔÚhttp.access logÏîÏÂ£¬ÉèÖÃÁËAccessLogµÄÅäÖÃÏî¡£Ê×ÏÈÅäÖÃÊÇ·ñÐèÒªÆô¶¯AccessLogµÄlog2file = on/off£¬ÉèÖÃÅäÖÃÎÄ¼þÃû£¬È»ºó×îÖ÷ÒªµÄÊÇÅäÖÃÐ´ÈëÅäÖÃÎÄ¼þÃ¿Ìõ¼ÇÂ¼¶¼°üº¬ÄÄÐ©ÄÚÈÝ£¬ÕâÐ©ÄÚÈÝÊÇÓÉ¸÷¸öHTTP±äÁ¿×é³É£¬Í¨¹ýHTTP±äÁ¿¶¯Ì¬µØ»ñÈ¡Ã¿¸öÇëÇóºÍÏìÓ¦µÄ»ù±¾ÐÅÏ¢¡£
  
-    ²ÉÓÃHTTPLog½á¹¹À´¹ÜÀí·ÃÎÊÈÕÖ¾£¬°üÀ¨ÅäÖÃÐÅÏ¢¡¢ÈÕÖ¾ÎÄ¼þ¾ä±ú¡¢Ð´ÈëÎÄ¼þµÄ»¥³âËø¡¢ÈÕÖ¾ÄÚÈÝ¿Õ¼äµÈ¡£ÈÕÖ¾µÄÐ´ÈëÊ±»ú
-    ÊÇÔÚHTTPMsg´´½¨¡¢´¦ÀíÍêËùÓÐ²Ù×÷¡¢²¢½«ÏìÓ¦³É¹¦·µ»Ø¿Í»§¶Ë¡¢×¼±¸¹Ø±ÕHTTPMsgÖ®Ç°£¬À´Ð´ÈëÕâÐ©¹ý³ÌÖÐµÄËùÓÐ¶¯Ì¬ÐÅ
-    Ï¢µ½ÎÄ¼þÖÐ¡£Õâ¸öÊ±»úµã£¬ÊÇÍê³ÉËùÓÐÇëÇó¡¢´¦Àí¡¢·µ»ØÏìÓ¦ºó²Å¿ªÊ¼Ð´ÈëÈÕÖ¾ÐÅÏ¢£¬¹ý³ÌÊ±¼äÓÐ¿ÉÄÜ»á·Ç³£³¤£¬ÈçÔÚÏÂÔØ
-    Ò»¸ö´óÎÄ¼þÊ±£¬³ÖÐøÊ±¼ä»á³¤´ï¼¸·ÖÖÓ¡¢¼¸Ê®·ÖÖÓ»ò¼¸¸öÐ¡Ê±£»Á÷Ã½ÌåÍÆËÍÁ÷µÄÊ±¼äÒ²ºÜ³¤µÈµÈ.
+²ÉÓÃHTTPLog½á¹¹À´¹ÜÀí·ÃÎÊÈÕÖ¾£¬°üÀ¨ÅäÖÃÐÅÏ¢¡¢ÈÕÖ¾ÎÄ¼þ¾ä±ú¡¢Ð´ÈëÎÄ¼þµÄ»¥³âËø¡¢ÈÕÖ¾ÄÚÈÝ¿Õ¼äµÈ¡£ÈÕÖ¾µÄÐ´ÈëÊ±»úÊÇÔÚHTTPMsg´´½¨¡¢´¦ÀíÍêËùÓÐ²Ù×÷¡¢²¢½«ÏìÓ¦³É¹¦·µ»Ø¿Í»§¶Ë¡¢×¼±¸¹Ø±ÕHTTPMsgÖ®Ç°£¬À´Ð´ÈëÕâÐ©¹ý³ÌÖÐµÄËùÓÐ¶¯Ì¬ÐÅÏ¢µ½ÎÄ¼þÖÐ¡£Õâ¸öÊ±»úµã£¬ÊÇÍê³ÉËùÓÐÇëÇó¡¢´¦Àí¡¢·µ»ØÏìÓ¦ºó²Å¿ªÊ¼Ð´ÈëÈÕÖ¾ÐÅÏ¢£¬¹ý³ÌÊ±¼äÓÐ¿ÉÄÜ»á·Ç³£³¤£¬ÈçÔÚÏÂÔØÒ»¸ö´óÎÄ¼þÊ±£¬³ÖÐøÊ±¼ä»á³¤´ï¼¸·ÖÖÓ¡¢¼¸Ê®·ÖÖÓ»ò¼¸¸öÐ¡Ê±£»Á÷Ã½ÌåÍÆËÍÁ÷µÄÊ±¼äÒ²ºÜ³¤µÈµÈ.
  
-    Ò»°ãHTTP AccessLogÊÇºÜ¶àCDN·þÎñÆ½Ì¨×÷ÎªÍ³¼ÆÊµÊ±Á÷Á¿µÄÖØÒªÀ´Ô´£¬³£ÐèÒª°´ÈÕ¡¢ÖÜ¡¢ÔÂµÈÊ±¼äÖÜÆÚÀ´»ã×ÜÈÕÖ¾ÐÅÏ¢£¬
-    Éè¼ÆHTTPLogÊ±£¬ÐèÒª¿¼ÂÇÉú³ÉµÄÈÕÖ¾ÎÄ¼þÊÇÒ»¸ö¹Ì¶¨µÄÎÄ¼þ¡¢»¹ÊÇÃ¿Ìì¿ªÊ¼Ê±Éú³ÉÒ»¸öÐÂÈÕÖ¾ÎÄ¼þ¡¢»¹ÊÇÃ¿ÖÜ»òÃ¿ÔÂ¿ªÊ¼
-    Ê±Éú³ÉÐÂÎÄ¼þ¡£
+Ò»°ãHTTP AccessLogÊÇºÜ¶àCDN·þÎñÆ½Ì¨×÷ÎªÍ³¼ÆÊµÊ±Á÷Á¿µÄÖØÒªÀ´Ô´£¬³£ÐèÒª°´ÈÕ¡¢ÖÜ¡¢ÔÂµÈÊ±¼äÖÜÆÚÀ´»ã×ÜÈÕÖ¾ÐÅÏ¢£¬Éè¼ÆHTTPLogÊ±£¬ÐèÒª¿¼ÂÇÉú³ÉµÄÈÕÖ¾ÎÄ¼þÊÇÒ»¸ö¹Ì¶¨µÄÎÄ¼þ¡¢»¹ÊÇÃ¿Ìì¿ªÊ¼Ê±Éú³ÉÒ»¸öÐÂÈÕÖ¾ÎÄ¼þ¡¢»¹ÊÇÃ¿ÖÜ»òÃ¿ÔÂ¿ªÊ¼Ê±Éú³ÉÐÂÎÄ¼þ¡£
 
 
 ### 4.13 Callback»Øµ÷»úÖÆ
