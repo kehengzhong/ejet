@@ -103,6 +103,9 @@
     * [4.8 HTTP MIME¹ÜÀí](#48-http-mime¹ÜÀí)
     * [4.9 HTTP URI¹ÜÀí](#49-http-uri¹ÜÀí)
     * [4.10 chunk_tÊý¾Ý½á¹¹](#410-chunk_tÊý¾Ý½á¹¹)
+        * [4.10.1 chunk_tÊÇÊ²Ã´Êý¾Ý½á¹¹](#4101-chunk_tÊÇÊ²Ã´Êý¾Ý½á¹¹)
+        * [4.10.2 chunk_tÓ¦ÓÃ³¡¾°](#4102-chunk_tÓ¦ÓÃ³¡¾°)
+        * [4.10.3 chunk_t½Ó¿Ú¹¦ÄÜ](#4103-chunk_t½Ó¿Ú¹¦ÄÜ)
     * [4.11 HTTPÇëÇó/ÏìÓ¦µÄ·¢ËÍÁ÷³Ì£¨writev/sendfile£©](#411-httpÇëÇóÏìÓ¦µÄ·¢ËÍÁ÷³Ìwritevsendfile)
     * [4.12 eJetÈÕÖ¾ÏµÍ³](#412-ejetÈÕÖ¾ÏµÍ³)
     * [4.13 Callback»Øµ÷»úÖÆ](#414-callback»Øµ÷»úÖÆ)
@@ -1396,7 +1399,7 @@ eJetÏµÍ³ÍêÈ«ÒÀÀµÓÚePump¼«Æä¸ßÐ§µÄ¶àÏß³Ìµ÷¶È»úÖÆ£¬³ä·ÖÀûÓÃePump¿ò¼Ü¶Ô¶àºËCPU²¢ÐÐ´
 
 ### 4.6 HTTPÇëÇóºÍÏìÓ¦
 
-HTTPÇëÇóºÍÏìÓ¦¹¹³ÉHTTPÏûÏ¢£¬´Ó¿Í»§¶Ë·¢ËÍ¸ø·þÎñÆ÷¶ËµÄHTTPÏûÏ¢ÊÇHTTPÇëÇó£¬´Ó·þÎñÆ÷¶Ëµ½¿Í»§¶ËµÄÏûÏ¢ÊÇHTTPÏìÓ¦¡£HTTPÇëÇóºÍÏìÓ¦µÄÏûÏ¢¸ñÊ½µÄ¸ñÊ½°üÀ¨Ò»¸öÆðÊ¼ÐÐ¡¢0¸ö»òÕß¶à¸öHeader×Ö¶Î¡¢Ò»¸ö¿ÕÐÐ¡¢¿ÉÄÜÏûÏ¢Ìå¡£
+HTTPÇëÇóºÍÏìÓ¦¹¹³ÉHTTPÏûÏ¢£¬´Ó¿Í»§¶Ë·¢ËÍ¸ø·þÎñÆ÷¶ËµÄHTTPÏûÏ¢ÊÇHTTPÇëÇó£¬´Ó·þÎñÆ÷¶Ëµ½¿Í»§¶ËµÄÏûÏ¢ÊÇHTTPÏìÓ¦¡£HTTPÇëÇóºÍÏìÓ¦µÄÏûÏ¢¸ñÊ½°üÀ¨Ò»¸öÆðÊ¼ÐÐ¡¢0¸ö»òÕß¶à¸öHeader×Ö¶Î¡¢Ò»¸ö¿ÕÐÐ¡¢¿ÉÄÜ´æÔÚµÄÏûÏ¢Ìå¡£
 
 #### 4.6.1 HTTPÇëÇó¸ñÊ½
 
@@ -1584,51 +1587,64 @@ eJet×÷ÎªHTTP ProxyÊ±£¬×¢ÒâÊÇÕýÏò´úÀí£¬HTTPÇëÇóURIÊÇ¾ø¶ÔµØÖ·£¬ÒÔhttp´òÍ·µÄµØÖ·¡£
 
 HTTPMsgÖÐ£¬Í¨¹ý×Ö¶Îreq_url_typeÀ´±êÊ¶µ±Ç°ÇëÇóµÄµØÖ·ÀàÐÍ£¬0-Ïà¶ÔµØÖ·£¬1-¾ø¶ÔµØÖ·¡£
 
-ÎÞÂÛÊÇÏà¶ÔµØÖ·»¹ÊÇ¾ø¶ÔµØÖ·£¬eJetÏµÍ³ÔÚ½âÎöHTTPÇëÇóµÄÆðÊ¼ÐÐ¡¢ÇëÇóÍ·ÐÅÏ¢ºó£¬¶¼Òª¸ø³ÉÔ±AbsURIÉèÖÃ³ÉÍêÕûµÄ¾ø¶ÔµØÖ·£¬°ÉÇëÇóµØÖ·ÉèÖÃÎªDocURIµÄ³õÊ¼µØÖ·¡£
+ÎÞÂÛÊÇÏà¶ÔµØÖ·»¹ÊÇ¾ø¶ÔµØÖ·£¬eJetÏµÍ³ÔÚ½âÎöHTTPÇëÇóµÄÆðÊ¼ÐÐ¡¢ÇëÇóÍ·ÐÅÏ¢ºó£¬¶¼Òª°Ñ³ÉÔ±AbsURIÉèÖÃ³ÉÍêÕûµÄ¾ø¶ÔµØÖ·£¬°ÑÇëÇóµØÖ·ÉèÖÃÎªDocURIµÄ³õÊ¼µØÖ·¡£
 
 
 ### 4.10 chunk_tÊý¾Ý½á¹¹
 
-  ½â¾ö²»Í¬´æ´¢½éÖÊÉÏµÄ²»Á¬ÐøËéÆ¬Êý¾ÝÈÚºÏ¶ÁÐ´·ÃÎÊ
-  ÊµÏÖ¸ßÐÔÄÜHTTP³¬´óÎÄ¼þµÄÉÏ´«ÏÂÔØ
-  ¸üµÍµÄÄÚ´æÊ¹ÓÃ
+#### 4.10.1 chunk_tÊÇÊ²Ã´Êý¾Ý½á¹¹
 
-»ù´¡¿âÖÐchunk_tÕâ¸öÊý¾Ý½á¹¹ÊÇ¶Ô²»Á¬ÐøµÄËéÆ¬Êý¾Ý´æ´¢½øÐÐ¹ÜÀí£¬Ìá¹©Á¬ÐøË³ÐòµÄ·ÃÎÊ½Ó¿ÚÀ´¶ÁÐ´Êý¾Ý¡£Ö÷ÒªÓÃÍ¾
-    ÊÇ´¦ÀíHTTPÇëÇóºÍÏìÓ¦Ê±£¬¶¯Ì¬Ìí¼ÓÇëÇóÌå»òÏìÓ¦ÌåµÄÊý¾Ý£¬ÕâÐ©Êý¾Ý°üÀ¨ÄÚ´æÖ¸ÕëÐÍµÄÊý¾Ý£¬ÈçHTTPÍ·Êý¾Ý¡¢XML
-    Êý¾Ý¡¢JSonÊý¾Ý¡¢¶ÁÊý¾Ý¿âÊ±·µ»ØµÄÊý¾ÝµÈ£¬»¹°üÀ¨ÎÄ¼þÊý¾Ý£¬ÈçÍ¼Æ¬ÎÄ¼þ¡¢HTMLÎÄ¼þµÈ£¬»òÕßÎÄ¼þµÄÒ»²¿·ÖÊý¾Ý¡£
-    ÓÈÆäÊÇÔÚ´¦ÀíHTTPÇëÇóÊ±£¬¸Ã·µ»ØµÄÏìÓ¦ÌåÀ´×ÔÉÏ²ãÓ¦ÓÃµÄ´¦Àí£¬ÐèÒª¶¯Ì¬µØ·¢ËÍ×Ö½ÚÊý¾Ý¿é£¬¶¼ÊÇ²»Á¬ÐøµÄÄÚÈÝ¡£
- 
-    ÕâÖÖÇé¿öÌØ±ðÊÊºÏchunk_tÊý¾Ý½á¹¹À´½â¾ö¡£
- 
-    Íùchunk_tÖÐ¶¯Ì¬×·¼ÓµÄÊý¾Ý¿é£¬ÐèÒª¼°Ê±µØ·¢ËÍ³öÈ¥£¬LinuxÌá¹©ÁËÓëchunk_tÏà¶ÔÓ¦µÄÏµÍ³µ÷ÓÃwritev£¬¶à¸ö»º³åÇø
-    Ð´µ½ÄÚºË£¬Ò»´ÎÏµÍ³µ÷ÓÃ¾ÍÄÜ½â¾ö¶à»º³åÇø·¢ËÍÎÊÌâ£¬±È¶à´Îµ÷ÓÃwriteÖð¸öµØ·¢ËÍ¶à¸ö»º³åÇøµÄÐ§ÂÊ¸ßºÜ¶à¡£ÁíÍâ
-    LinuxÌá¹©ÁËsendfileÏµÍ³µ÷ÓÃ£¬ÊÇÁã¿½±´Zero-Copy¼¼ÊõµÄÖ÷ÒªÏµÍ³µ÷ÓÃ£¬¿ÉÒÔ½«chunk_tÖÐµÄÎÄ¼þÊý¾Ý²ÉÓÃ×î¸ßÐ§µÄ
-    Áã¿½±´¼¼Êõ·¢ËÍ³öÈ¥¡£
- 
-    Ê¹ÓÃÕâÁ½¸öÏµÍ³µ÷ÓÃ£¬Í¨¹ýTCPÀ´·¢ËÍchunk_tÖÐµÄÊý¾Ý£¬ÎÒÃÇ×¨ÃÅ¿ª·¢ÁËÒ»¸öº¯Êý½Ó¿Ú:
-        int chunk_vec_get (void * vck, int64 offset, chunk_vec_t * pvec, int httpchunk)
-    ¿ÉÒÔ¶à´ÎµØµ÷ÓÃ£¬ÄÃµ½Âú×ãµ÷ÓÃwritevÊ±Èë¿Ú²ÎÊýËùÐèµÄË³Ðò´æ´¢µÄ¶à¸öËéÆ¬¿éÄÚ´æ£¬ºÍÎÄ¼þ£¬À´·Ö±ðµ÷ÓÃwritevºÍ
-    sendfile·¢ËÍÊý¾Ý¡£
+chunk_tÊÇÕë¶ÔËéÆ¬Êý¾Ý¿é¡¢²»Á¬ÐøÊý¾Ý¿é¡¢¿çÔ½¶à¸öÎïÀí´æ´¢ÏµÍ³µÄÊý¾Ý¿éµÈ£¬½øÐÐÍ³Ò»µÄ¡¢ÐòÁÐ»¯µÄ¡¢Á¬ÐøÐÔ¹ÜÀíµÄ»ù±¾Êý¾Ý½á¹¹£¬¶ÔÍâÌá¹©ÏßÐÔ·ÃÎÊÊý¾ÝµÄ½Ó¿Ú£¬ËéÆ¬Êý¾ÝÄÚÈÝ¿ÉÒÔÀ´×ÔÄÚ´æ¿é¡¢ÎÄ¼þ¡¢ÍøÂç¡¢»Øµ÷½Ó¿Úº¯ÊýµÈ¡£
 
+chunk_tÊý¾Ý½á¹¹µÄÄ¿±ê£º
+* ½â¾ö²»Í¬´æ´¢½éÖÊÉÏµÄ¡¢²»Á¬ÐøµÄ¡¢ËéÆ¬»¯Êý¾ÝÈÚºÏ¶ÁÐ´·ÃÎÊ
+* Ê¹ÓÃ¸üµÍµÄÄÚ´æÀ´´ïµ½¸ü´óÍÌÍÂÄÜÁ¦
+* ÊµÏÖ¸ßÐÔÄÜHTTP³¬´óÎÄ¼þµÄÉÏ´«ÏÂÔØ
 
-    chunk_tÊÇÊµÏÖºÜ¶àËéÆ¬Êý¾Ý¿é¡¢²»Á¬ÐøÊý¾Ý¿é£¬½øÐÐÍ³Ò»µÄ¡¢ÐòÁÐ»¯µÄ¡¢Á¬ÐøÐÔ¹ÜÀíµÄ»ù±¾Êý¾Ý½á¹¹£¬ËéÆ¬Êý¾ÝÄÚÈÝ¿ÉÒÔ
-    À´×ÔÄÚ´æ¿é¡¢ÎÄ¼þ¡¢»Øµ÷½Ó¿Úº¯ÊýµÈ¡£ËéÆ¬Êý¾Ý¿é¡¢²»Á¬ÐøÊý¾Ý¿éµÄÓ¦ÓÃ³¡¾°°üÀ¨£º
-    £¨1£©ÔÚÐèÒª´óÁ¿´ó¿éÄÚ´æ×öÊý¾Ý´æ´¢Ê±£¬ÓÉÓÚ´ó²¢·¢ËùÐèµÄ´óÁ¿´ó¿éÄÚ´æ·ÖÅäµ¼ÖÂÄÚ´æ×ÊÔ´²»×ã£¬Ðè½èÖúÎÄ¼þ×÷Îª»º´æÀ´
-         ½«ÄÚ´æÊý¾Ý´æ´¢µ½Íâ´æÖÐ£¬ÕâÑùµ¼ÖÂÄÚ´æÊý¾Ý¡¢Íâ´æÊý¾Ý»ìºÏÔÚÒ»Æð½øÐÐ¼ìË÷¡¢²éÑ¯¡¢±éÀú¡¢¶ÁÐ´µÈ²Ù×÷£»
-    £¨2£©Îª¼õÉÙÍ¨ÐÅÊÕ·¢¹ý³ÌÖÐÊý¾ÝµÄÆµ·±¿½±´¡¢Ó¦ÓÃ³ÌÐòÔÚ´¦ÀíÇëÇóÊ±Ðè´Ó²»Í¬½Ó¿ÚÐ´Êý¾ÝÈç£¨ÄÚ´æÐ´Èë²¿·ÖÊý¾Ý¡¢´ÓDBÐ´
-         Èë²¿·ÖÊý¾ÝµÈ£©£¬¶øÐè½«¶à¸ö²»Á¬ÐøµÄÊý¾Ý½ÓÊÕ´æ´¢¿éºÏÔÚÒ»Æð£¬½øÐÐ¼ìË÷¡¢²éÑ¯¡¢±éÀú¡¢¶ÁÐ´´¦Àí£»
-    £¨3£©ÓÉÓÚÍøÂç²¨¶¯¡¢CPUºÍÍø¿¨½Ó¿Ú´¦ÀíÒì²½ÐÔµÈÔ­Òò£¬µ÷ÓÃÄÚºËread½Ó¿Ú¶ÁÈ¡ÍøÂçÊý¾ÝÊ±£¬Ã¿´Î¶ÁÈ¡µÄÊý¾Ý´óÐ¡²»Ò»Ñù¡¢
-         Êý¾Ý¶ÁÈ¡Ê±»úÒ²ÊÇËæ»úµÄ£¬ÄÇÃ´¶ÔÊý¾ÝµÄ´¦Àí¿ÉÄÜ²»Á¬¹á£¬ÈçÐèÒª¶Áµ½\r\n\r\nÕâËÄ¸ö×Ö½ÚÊ±£¬²ÅÈÏÎªHTTPÍ·È«²¿ÊÕ
-         µ½£¬²¢²Å¿ÉÒÔ½øÐÐÍ·ÐÅÏ¢½âÎö´¦Àí£¬ÔÚÎ´ÊÕµ½ÕâËÄ¸ö×Ö½ÚÇ°£¬Êý¾ÝÃ¿´Îµ½´ïºÍµ½´ï´óÐ¡µÄËæ»úÐÔ£¬ÐèÒªÒ»¸ö»º´æÀ´Á¬
-         ÐøÀÛ»ý±£´æÕâÐ©×Ö½ÚÁ÷£¬·½±ãÊÕÈ«Ïà¹Ø×Ö½ÚÁ÷ºóÍ³Ò»´¦Àí¡£ÎªÁËÌáÉýÐ§ÂÊ£¬¾¡¿ÉÄÜÁã¿½±´£¬ÄÇÃ´½«½ÓÊÕµ½µÄÄÚ´æ¿éÒÆ
-         ³öÀ´£¬ºÏÔÚÒ»Æð£¬½øÐÐÁ¬ÐøÐÔµÄ²Ù×÷£»
-    ÕâÐ©¹¦ÄÜÊÇÓÉchunk_t¸ºÔðÊµÏÖ£¬ËæÒâÌí¼ÓÈÎÒâÄÚ´æ¿éÊý¾Ý£¨ÒÑ·ÖÅäµÄ¡¢Î´·ÖÅäÒªÇó·ÖÅäµÄ£©¡¢ÎÄ¼þÊý¾Ý£¨ÎÄ¼þÃû¡¢FILEÎÄ
-    ¼þÖ¸Õë¡¢FDÎÄ¼þÃèÊö·û£©»òÎÄ¼þÖÐµÄ²¿·ÖÊý¾Ý¡¢»Øµ÷º¯Êý½ç¶¨µÄÊý¾ÝµÈ£¬ÕâÐ©Êý¾Ý°´ÕÕÌí¼ÓµÄË³Ðò£¬½øÐÐÍ³Ò»¹ÜÀí£¬Ìá¹©
-    °´ÕÕÐòºÅÖðÒ»·ÃÎÊÃ¿Ò»¸ö×Ö½Ú¡¢ÖÆ¶¨Æ«ÒÆÁ¿·ÃÎÊÄÚÈÝ¿é¡¢Ä£Ê½Æ¥Åä²éÕÒ¼ìË÷¡¢Ö¸¶¨Æ«ÒÆºÍ·¶Î§Ð´Èëµ½µÚÈý·½ÎÄ¼þºÍSocket
-    ÖÐ¡¢±éÀúºÍÌø×ªµÈ¡£
+chunk_tÊÇ[adif»ù´¡Êý¾Ý½á¹¹](https://github.com/kehengzhong/adif)ÖÐÊµÏÖµÄÒ»¸öÖØÒª¹¦ÄÜÄ£¿é¡£
+
+#### 4.10.2 chunk_tÓ¦ÓÃ³¡¾°
+
+×÷Îª²»Á¬ÐøµÄ¡¢ËéÆ¬»¯µÄ¡¢´¦ÓÚ²»Í¬´æ´¢½éÖÊÉÏµÄÊý¾Ý¿é¹ÜÀí»ù´¡ÉèÊ©£¬chunk_t¿É½â¾öºÜ¶à¼¬ÊÖµÄÊý¾Ý¶ÁÐ´·ÃÎÊÎÊÌâ¡£ÕâÐ©ÎÊÌâµÄÔ´Í·Ò»°ãÊÇÄÚ´æ¿Õ¼äÓÐÏÞ¡¢´¦ÀíµÄÊý¾ÝÁ¿³¬¼¶´ó¡¢Òì³£±ÀÀ£Ê±µÄ³ÖÐø´æ´¢µÈÐèÒª¾ö¶¨µÄ¡£
+
+Ê¹ÓÃchunk_tÊý¾Ý½á¹¹µÄÓ¦ÓÃ³¡¾°°üÀ¨£º
+
+* £¨1£©ÔÚÐèÒª´óÁ¿´ó¿éÄÚ´æ×öÊý¾Ý´æ´¢Ê±£¬ÓÉÓÚ´ó²¢·¢ËùÐèµÄ´óÁ¿µÄ´óÄÚ´æ¿é·ÖÅä£¬µ¼ÖÂÄÚ´æ×ÊÔ´²»×ã£¬Ðè½èÖúÎÄ¼þ×÷Îª»º´æÀ´½«ÄÚ´æÊý¾Ý´æ´¢µ½Íâ´æÖÐ£¬ÕâÑùµ¼ÖÂÄÚ´æÊý¾Ý¡¢Íâ´æÊý¾Ý»ìºÏÔÚÒ»Æð½øÐÐ¼ìË÷¡¢²éÑ¯¡¢±éÀú¡¢¶ÁÐ´µÈ²Ù×÷£»
+
+* £¨2£©Ó¦ÓÃ³ÌÐòÔÚ´¦ÀíÇëÇó»òÏìÓ¦Ê±£¬»á´Ó²»Í¬½Ó¿ÚÊ¹ÓÃ²»Í¬ÄÚ´æ¿é½ÓÊÕÊý¾Ý£¬ÈçÍøÂçÊý¾Ý¡¢DBÊý¾ÝµÈ£¬¶ø²úÉú¶à¸ö²»Á¬ÐøµÄÊý¾Ý¿é£¬Îª¼õÉÙÍ¨ÐÅ¹ý³ÌÖÐÊý¾ÝÆµ·±¿½±´µ¼ÖÂµÄÐÔÄÜËðºÄ£¬Ò»°ã²»»á·ÖÅä¸ü´óµÄÄÚ´æ¿éÀ´ºÏ²¢ÕâÐ©ËéÆ¬ÄÚÈÝ£¬¶øÊÇÂß¼­ÉÏ½«ËüÃÇºÏ²¢ÔÚÒ»Æð£¬½øÐÐ¼ìË÷¡¢²éÑ¯¡¢±éÀú¡¢¶ÁÐ´´¦Àí£»
+
+* £¨3£©ÓÉÓÚÍøÂç²¨¶¯¡¢CPUºÍÍø¿¨½Ó¿Ú´¦ÀíÒì²½ÐÔµÈÔ­Òò£¬µ÷ÓÃÄÚºË½Ó¿Ú¶ÁÈ¡ÍøÂçÊý¾ÝÊ±£¬Ã¿´Î¶ÁÈ¡µÄÊý¾Ý´óÐ¡²»Ò»Ñù¡¢Êý¾Ý¶ÁÈ¡Ê±»úÒ²ÊÇËæ»úµÄ£¬ÄÇÃ´¶ÔÊý¾ÝµÄ½âÎöºÍ´¦Àí²»Á¬¹á£¬ÈçÐèÒª¶Áµ½\r\n\r\nÕâËÄ¸ö×Ö½ÚÊ±£¬²ÅÈÏÎªHTTPÍ·È«²¿ÊÕµ½£¬²¢²Å¿ÉÒÔ½øÐÐÍ·ÐÅÏ¢½âÎö´¦Àí£¬ÔÚÎ´ÊÕµ½ÕâËÄ¸ö×Ö½ÚÇ°£¬Êý¾ÝÃ¿´Îµ½´ïºÍµ½´ï´óÐ¡µÄËæ»úÐÔ£¬ÐèÒªÒ»¸ö»º´æÀ´Á¬ÐøÀÛ»ý±£´æÕâÐ©×Ö½ÚÁ÷£¬·½±ãÊÕÈ«Ïà¹Ø×Ö½ÚÁ÷ºóÍ³Ò»´¦Àí¡£ÎªÁËÌáÉýÐ§ÂÊ£¬¾¡¿ÉÄÜÁã¿½±´£¬ÄÇÃ´½«½ÓÊÕµ½µÄÄÚ´æ¿éÒÆ³öÀ´£¬ºÏÔÚÒ»Æð£¬½øÐÐÁ¬ÐøÐÔµÄ²Ù×÷£»
+
+eJetÏµÍ³ÖÐ£¬Ò»¸ö³£¼ûµÄÓ¦ÓÃ³¡¾°ÊÇ´¦ÀíHTTPÇëÇóºÍÏìÓ¦Ê±£¬¾­³£ÊÇ¶¯Ì¬Ìí¼ÓÇëÇóÌå»òÏìÓ¦ÌåµÄÊý¾Ý£¬ÕâÐ©Êý¾Ý°üÀ¨ÄÚ´æÖ¸ÕëÐÍµÄÊý¾Ý£¬ÈçHTTPÍ·¾­¹ý±àÂëºóµÄÊý¾Ý¡¢XMLÊý¾Ý¡¢JSonÊý¾Ý¡¢¶ÁÊý¾Ý¿âÊ±·µ»ØµÄÊý¾ÝµÈ£¬»¹°üÀ¨ÎÄ¼þÊý¾Ý£¬ÈçÍ¼Æ¬ÎÄ¼þ¡¢HTMLÎÄ¼þµÈ£¬»òÕßÎÄ¼þµÄÒ»²¿·ÖÊý¾Ý¡£ÓÈÆäÊÇÔÚ´¦ÀíHTTPÇëÇóÊ±£¬ÐèÒª·µ»Ø¸ø¿Í»§¶ËµÄÏìÓ¦ÌåÀ´×ÔÉÏ²ãÓ¦ÓÃµÄ»Øµ÷º¯Êý£¬ÕâÐ©»Øµ÷º¯ÊýÌá¹©µÄÏìÓ¦ÌåÄÚÈÝ£¬¿ÉÄÜÊÇ¶¯Ì¬µÄ×Ö½ÚÊý¾Ý¿é£¬¶øÕâÐ©¿ÉÄÜÊÇ²»Á¬ÐøµÄÄÚÈÝ¡£
  
-    »ùÓÚchunk_tÊý¾Ý½á¹¹£¬½èÖúÆäÎÄ¼þ´æ´¢¹ÜÀí¹¦ÄÜ£¬¿ÉÒÔ·½±ãµØÊµÏÖHTTP³¬´óÎÄ¼þµÄÉÏ´«£¬ÄÚ´æÊý¾Ý×ª´æµ½ÁÙÊ±ÎÄ¼þÖÐ£¬´Ó
-    ¶øÏûºÄÄÚ´æ»á·Ç³£µÄµÍ¡£¿ÉÒÔ²ÉÓÃÁã¿½±´¼¼ÊõÊµÏÖÍøÂçÊý¾Ý´ÓÄÚºËÄ£Ê½ºÍÓÃ»§Ä£Ê½Ö®¼äµÄ½»»¥£¬µÈµÈ.
+chunk_tÊý¾Ý½á¹¹¶Ô²»Á¬ÐøµÄËéÆ¬Êý¾Ý´æ´¢½øÐÐ¹ÜÀí£¬Ìá¹©Á¬ÐøË³ÐòµÄ·ÃÎÊ½Ó¿ÚÀ´¶ÁÐ´Êý¾Ý¡£
+
+#### 4.10.3 chunk_t½Ó¿Ú¹¦ÄÜ
+
+Ê¹ÓÃchunk_tÊý¾Ý½á¹¹£¬¿ÉËæÒâÌí¼ÓÈÎÒâÄÚ´æ¿éÊý¾Ý£¨ÒÑ·ÖÅäµÄ¡¢Î´·ÖÅäÒªÇó·ÖÅäµÄ£©¡¢ÎÄ¼þÊý¾Ý£¨ÎÄ¼þÃû¡¢FILEÎÄ¼þÖ¸Õë¡¢FDÎÄ¼þÃèÊö·û£©»òÎÄ¼þÖÐµÄ²¿·ÖÊý¾Ý¡¢»Øµ÷º¯Êý½ç¶¨µÄÊý¾ÝµÈ£¬ÕâÐ©Êý¾Ý°´ÕÕÌí¼ÓµÄË³Ðò£¬½øÐÐÍ³Ò»¹ÜÀí£¬Ìá¹©°´ÕÕÐòºÅÖðÒ»·ÃÎÊÃ¿Ò»¸ö×Ö½Ú¡¢Ö¸¶¨Æ«ÒÆÁ¿·ÃÎÊÄÚÈÝ¿é¡¢Ä£Ê½Æ¥Åä²éÕÒ¼ìË÷¡¢Ö¸¶¨Æ«ÒÆºÍ·¶Î§Ð´Èëµ½µÚÈý·½ÎÄ¼þºÍSocketÖÐ¡¢±éÀúºÍÌø×ªµÈ¡£
+
+LinuxÄÚºËÌá¹©ÁË¶à»º³åÇøÊý¾Ý¶ÁÐ´ÏµÍ³µ÷ÓÃwritev£¬Æä¶¨ÒåÈçÏÂ£º
+```c
+    ssize_t writev(int fd, const struct iovec *iov, int iovcnt);
+```
+
+chunk_tÊý¾Ý½á¹¹ºÍwritevÏµÍ³µ÷ÓÃÊÇÌì×÷Ö®ºÏ£¬±£´æÔÚchunk_tÖÐµÄ²»Á¬ÐøµÄ¡¢ËéÆ¬Êý¾Ý£¬Í¨¹ýwritevµÄÒ»´ÎÏµÍ³µ÷ÓÃ¾Í¿ÉÒÔ½â¾ö¶à»º³åÇøµÄ·¢ËÍµ½ÎÄ¼þÃèÊö·ûµÄÎÊÌâ£¬±È¶à´Îµ÷ÓÃwriteÀ´Öð¸ö·¢ËÍchunk_tµÄËéÆ¬»º³åÇøµÄÐ§ÂÊ¸ßºÜ¶à±¶¡£
+
+´ËÍâLinuxÄÚºËÌá¹©ÁËÔÚÎÄ¼þÃèÊö·ûÖ®¼ä´«ÊäÊý¾ÝµÄÏµÍ³µ÷ÓÃsendfile£¬Æä¶¨ÒåÈçÏÂ£º
+```c
+    ssize_t sendfile(int out_fd, int in_fd, off_t *offset, size_t count);
+```
+
+sendfile¶ÔÁ½¸öÎÄ¼þÃèÊö·û¿½±´Êý¾ÝÊÇÔÚÄÚºËÖÐÍê³ÉµÄ£¬²»ÏûºÄCPUºÍÄÚ´æ£¬·Ç³£¸ßÐ§¿ìËÙµØÊµÏÖÎÄ¼þÃèÊö·ûÖ®¼äµÄÊý¾Ý×ª´¢¡£Í¬ÑùµØ£¬chunk_tÊý¾Ý½á¹¹ºÍsendfileÏµÍ³µ÷ÓÃµÄÅäºÏÒ²ÊÇÌìÒÂÎÞ·ì£¬µ±chunk_tÖÐ´æÔÚÎÄ¼þÊý¾ÝÊ±£¬Èç¹ûÒªÐ´Èëµ½ÍøÂçsocket£¬»òÁíÍâÒ»¸öÎÄ¼þ£¬µ÷ÓÃsendfile±ã¿É¸ßÐ§µØ½«ÆäÖÐµÄÎÄ¼þÊý¾Ý×ª´¢³öÈ¥¡£
+
+ÕâÁ½¸öÏµÍ³µ÷ÓÃÊÇZero-CopyÁã¿½±´¼¼ÊõµÄÖ÷Òª³ÐÔØ½Ó¿Ú£¬chunk_tÊÇ¸ù¾ÝÁã¿½±´Ë¼ÏëÉè¼ÆµÄÊý¾Ý½á¹¹£¬ºÜºÃµØ·â×°²¢½â¾öÁË¸´ÔÓÊý¾ÝµÄ¸ßÐ§´æ´¢¡¢·ÃÎÊ¡¢¶ÁÐ´ÎÊÌâ¡£
+
+chunk_tÌá¹©ÁËÒ»¸ö½Ó¿Ú£¬ÓÃÓÚwritevºÍsendfileµÄµ÷ÓÃ£¬Æä½Ó¿Ú¶¨ÒåÈçÏÂ£º
+```c
+    int chunk_vec_get (void * vck, int64 offset, chunk_vec_t * pvec, int httpchunk)
+```
+
+µ÷ÓÃ¸Ã½Ó¿Úº¯Êý£¬¿ÉÒÔ»ñÈ¡µ½ÒÀÕÕË³Ðò¶ø´æ´¢ÆðÀ´µÄ¶à¸öËéÆ¬ÄÚ´æ¿é£¬À´µ÷ÓÃwritevº¯Êý£¬»ò»ñÈ¡µ½ÎÄ¼þºó£¬µ÷ÓÃsendfileº¯Êý¡£
 
 
 ### 4.11 HTTPÇëÇó/ÏìÓ¦µÄ·¢ËÍÁ÷³Ì£¨writev/sendfile£©
@@ -1724,6 +1740,8 @@ eJetÏµÍ³¾ß±¸¸ßÐÔÄÜÌØÕ÷£¬Ö÷ÒªÌåÏÖÔÚÄÜ³ä·ÖÊ¹ÓÃCPUÔËËãÄÜÁ¦¡¢Ê¹ÓÃ¸üÐ¡µÄÄÚ´æ¿ªÏúÍê³É¸
 
 ### 5.5 ³¬´óÎÄ¼þÉÏ´«
  ¿Í»§¶ËÉÏ´«´óÎÄ¼þÊ±½ÚÊ¡ÄÚ´æ¿Õ¼äÁ÷³Ì¡£µ±¿Í»§¶ËÉÏ´«ÎÄ¼þ¹ý´óÊ±£¨Ò»°ã³¬¹ý128KB£©£¬ÉÏ´«ÄÚÈÝ×Ô¶¯±£´æµ½»º´æÎÄ¼þÀï£¬
+
+»ùÓÚchunk_tÊý¾Ý½á¹¹£¬½èÖúÆäÎÄ¼þ´æ´¢¹ÜÀí¹¦ÄÜ£¬¿ÉÒÔ·½±ãµØÊµÏÖHTTP³¬´óÎÄ¼þµÄÉÏ´«£¬ÄÚ´æÊý¾Ý×ª´æµ½ÁÙÊ±ÎÄ¼þÖÐ£¬´Ó¶øÏûºÄÄÚ´æ»á·Ç³£µÄµÍ¡£¿ÉÒÔ²ÉÓÃÁã¿½±´¼¼ÊõÊµÏÖÍøÂçÊý¾Ý´ÓÄÚºËÄ£Ê½ºÍÓÃ»§Ä£Ê½Ö®¼äµÄ½»»¥£¬µÈµÈ.
 
 
 ### 5.6 ²»Á¬ÐøËéÆ¬´æ´¢¶ÁÐ´chunk_t
