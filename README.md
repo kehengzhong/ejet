@@ -109,6 +109,10 @@
     * [4.11 HTTP请求/响应的发送流程（writev/sendfile）](#411-http请求响应的发送流程writevsendfile)
     * [4.12 eJet日志系统](#412-ejet日志系统)
     * [4.13 Callback回调机制](#414-callback回调机制)
+        * [4.13.1 eJet回调机制](#4131-ejet回调机制)
+        * [4.13.2 eJet全局回调函数](#4132-ejet全局回调函数)
+        * [4.13.3 eJet动态库回调](#4133-ejet动态库回调)
+        * [4.13.4 回调函数使用HTTPMsg的成员函数](#4134-回调函数使用httpmsg的成员函数)
     * [4.14 正则表达式的使用](#415-正则表达式的使用)
     * [4.15 TLS/SSL](#417-tlsssl)
     * [4.16 Chunk传输编码解析](#418-chunk传输编码解析)
@@ -1690,10 +1694,105 @@ access log = {
  
 一般HTTP AccessLog是很多应用系统，如CDN服务平台，作为统计实时流量的重要来源，常需要按日、周、月等时间周期来汇总日志信息，HTTPLog的未来实现版本，需要考虑生成的日志文件是一个固定的文件、还是每天开始时生成一个新日志文件、还是每周或每月开始时生成新文件。
 
-
 ### 4.13 Callback回调机制
 
- 作为嵌入式Web服务器，eJet系统的动态库回调和函数回调机制
+#### 4.13.1 eJet回调机制
+
+eJet系统提供了HTTP请求消息交付给应用程序处理的回调机制，回调机制是事件驱动模型中底层系统异步调用上层处理函数的编程模式，上层应用系统需事先将函数实现设置到底层系统的回调函数指针中。
+
+eJet系统提供了两种回调机制，一种是在启动eJet时，设置的全局回调函数，另一种是在系统配置文件中位于监听服务下的动态库配置回调机制。
+
+#### 4.13.2 eJet全局回调函数
+
+全局回调函数的设置是在启动eJet系统时，应用层可以实现HTTP消息处理函数，来处理所有HTTP请求的HTTPMsg，这是程序级的回调机制，需要将eJet代码嵌入到应用系统中来实现回调处理。
+
+设置全局回调的API如下：
+```c
+int http_set_reqhandler (void * vmgmt, RequestHandler * reqhandler, void * cbobj);
+```
+其中，vmgmt是eJet系统创建的全局管理入口HTTPMgmt对象实例， reqhandler是应用层实现的回调函数，cbobj是应用层回调函数的第一个回调参数，eJet每次调用回调函数时，必须携带的第一个参数就是cbobj。
+
+应用层回调函数的原型如下：
+```c
+typedef int RequestHandler (void * cbobj, void * vmsg);
+```
+其中，cbobj是设置全局回调函数时传递回调参数，vmsg是当前封装HTTP请求的HTTPMsg实例对象。
+
+应用程序将系统管理所需的数据结构（包括应用层配置、数据库连接、用户管理等）封装好，创建并初始化一个cbobj对象，作为设置回调函数时的回调参数。通过回调参数，已经HTTPMsg请求对象，可以将请求信息和应用程序内的数据对象建立各种关联关系。
+
+#### 4.13.3 eJet动态库回调
+
+eJet系统另外一种回调是使用动态库的回调方式，这是松耦合型的、修改配置文件就可以完成回调处理的方式。应用程序无需改动eJet的任何代码，只需在配置中添加含有路径的动态库文件名，即可以实现回调功能，其中动态库必须实现三个固定名称的函数，且遵循eJet约定的函数原型定义。
+
+配置文件中添加动态库回调的位置：
+```
+listen = {
+    local ip = *;
+    port = 8181;
+
+    request process library = reqhandle.so
+......
+```
+
+eJet系统启动期间，加载配置文件后，解析三层资源架构的第一步HTTPListen时，其配置项下的动态库会被加载，加载过程为：
+* 加载配置项指定动态库文件；
+* 根据函数名http_handle_init，获取动态库中的初始化函数指针；
+* 根据函数名http_handle，获取动态库中的回调处理函数指针；
+* 根据函数名http_handle_clean，获取动态库中的清除函数指针；
+* 执行动态库初始化函数，并返回初始化后的回调参数对象。
+
+在eJet系统退出时，会调用http_handle_clean来释放初始化过程分配的资源。
+
+动态库在实现回调时，必须含有这三个函数名：http_handle_init、http_handle、http_handle_clean，其函数原型定义如下：
+```c
+typedef void * HTTPCBInit     ();
+typedef void   HTTPCBClean    (void * hcb);
+typedef int    RequestHandler (void * cbobj, void * vmsg);
+```
+其中回调函数http_handle的第一个参数cbobj是由http_handle_init返回的结果对象，vmsg即是eJet系统的HTTPMsg实例对象。
+
+
+#### 4.13.4 回调函数使用HTTPMsg的成员函数
+
+eJet系统通过传递HTTPMsg实例对象给回调函数，来处理HTTP请求。HTTP对象封装了HTTP请求的所有信息，回调函数在处理请求时，可以添加各种响应数据到HTTPMsg中，包括响应状态、响应头、响应体等。
+
+访问请求头信息或添加响应数据的操作，既可以直接对HTTPMsg的成员变量进行数据读取或写入，也可以通过调用HTTPMsg内置的指针函数来进行处理，HTTPMsg中封装了很多函数调用，通过这些函数，基本可实现eJet系统HTTP请求处理的各种操作。这些例子函数如下：
+```c
+......
+char * (*GetRootPath)     (void * vmsg);
+ 
+int    (*GetPath)         (void * vmsg, char * path, int len);
+int    (*GetRealPath)     (void * vmsg, char * path, int len);
+int    (*GetRealFile)     (void * vmsg, char * path, int len);
+int    (*GetLocFile)      (void * vmsg, char * p, int len, char * f, int flen, char * d, int dlen);
+ 
+int    (*GetQueryP)       (void * vmsg, char ** pquery, int * plen);
+int    (*GetQuery)        (void * vmsg, char * query, int len);
+int    (*GetQueryValueP)  (void * vmsg, char * key, char ** pval, int * vallen);
+int    (*GetQueryValue)   (void * vmsg, char * key, char * val, int vallen);
+
+int    (*GetReqContentP)    (void * vmsg, void ** pform, int * plen);
+ 
+int    (*GetReqFormJsonValueP)  (void * vmsg, char * key, char ** ppval, int * vallen);
+int    (*GetReqFormJsonValue)   (void * vmsg, char * key, char * pval, int vallen);
+
+int    (*SetStatus)      (void * vmsg, int code, char * reason);
+int    (*AddResHdr)      (void * vmsg, char * na, int nlen, char * val, int vlen);
+int    (*DelResHdr)      (void * vmsg, char * name, int namelen);
+ 
+int    (*SetResEtag) (void * vmsg, char * etag, int etaglen);
+
+int    (*SetResContentType)   (void * vmsg, char * type, int typelen);
+int    (*SetResContentLength) (void * vmsg, int64 len);
+
+int    (*AddResContent)       (void * vmsg, void * body, int64 bodylen);
+int    (*AddResContentPtr)    (void * vmsg, void * body, int64 bodylen);
+int    (*AddResFile)          (void * vmsg, char * filename, int64 startpos, int64 len);
+
+int    (*Reply)          (void * vmsg);
+int    (*RedirectReply)  (void * vmsg, int status, char * redurl);
+......
+```
 
 
 ### 4.14 正则表达式的使用
