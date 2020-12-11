@@ -1797,11 +1797,44 @@ int    (*RedirectReply)  (void * vmsg, int status, char * redurl);
 
 ### 4.14 正则表达式的使用
 
+正则表达式是用来检索、替换那些符合某个模式或规则的文本，是对字符串操作的一种逻辑公式，用事先定义好的一些特定字符、及这些特定字符的组合，组成一个“规则字符串”，这个“规则字符串”用来表达对字符串的一种过滤逻辑。
 
+eJet系统中，正则表达式主要用途是模式匹配，将配置文件中预先定义好的模式串，去匹配HTTP请求中的特定变量的内容，根据匹配结果来决定后续操作。
+
+eJet使用正则表达式的场景主要有四种：
+* 根据HTTP请求的路径，进行精准匹配、前缀匹配和正则表达式模式匹配，最终完成资源定位；
+* Script脚本中，if语句中条件比较时，使用正则表达式的匹配操作；
+* Script脚本中，rewrite语句中使用正则表达式模式串，匹配当前HTTP请求的路径，来决定替换操作；
+* eJet系统作为HTTP客户端发起向Origin服务器的HTTP请求时，根据配置来决定是否设置Proxy正向代理，左侧为正则表达式模式串，需要匹配目标主机名；
+
+eJet系统使用Linux自带的POSIX标准的正则表达式函数regcomp、regexec、regfree，来实现上述功能，基本能满足解析和匹配需求。
 
 ### 4.15 TLS/SSL
-HTTPS的实现
-用SNI机制选择不同域名证书私钥
+
+#### 4.15.1 TLS/SSL、OpenSSL介绍
+
+SSL的全称为Secure Socket Layer，即安全套接字层，是Netscape于90年代研发，位于TCP协议之上，利用PKI安全加密体系来实现认证和加密传输，SSL当前最新版本为3.0。
+
+SSL协议分为两层：
+* SSL记录协议（SSL Record Protocol）：在TCP之上，为高层协议提供数据封装、压缩、加密等功能，定义传输格式
+* SSL握手协议（SSL Handshake Protocol）：在SSL记录协议之上，对通讯双方进行身份认证、协商加密算法、交换密钥等。
+
+TLS的全称是Transport Layer Security，即传输层安全协议，当前最新版为TLS 1.3，是IETF（Internet Engineering Task Force，互联网工程任务组）制定的一种新的协议，建立在SSL 3.0协议规范之上，是SSL 3.0的后续版本。
+
+同样TLS协议由两层组成：
+* TLS 记录协议（TLS Record）
+* TLS 握手协议（TLS Handshake）
+
+SSL/TLS协议提供的服务主要有：
+* 认证。认证客户端和服务器，确保数据发送到正确的客户端和服务器；
+* 加密。加密数据以防止数据中途被窃取；
+* 一致性。维护数据的完整性，确保数据在传输过程中不被改变
+
+实现TLS/SSL协议的开源软件是OpenSSL，是澳洲人Eric Young、Tim Hudson于90年代开源的SSLeay基础上演变过来的，采用标准C语言编写，广泛用于使用加密和安全的环境。
+
+#### 4.15.2 eJet集成OpenSSL
+
+
 
 
 ### 4.16 Chunk传输编码解析
