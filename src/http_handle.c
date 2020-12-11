@@ -144,11 +144,6 @@ int http_request_process (void * vcon, void * vmsg)
         return msg->Reply(msg);
     }
 
-    if (!(ploc = (HTTPLoc *)msg->ploc)) {
-        msg->SetStatus(msg, 404, NULL);          
-        return msg->Reply(msg);
-    }
-
     if (msg->issued <= 0 && mgmt->req_handler) {
         ret = (*mgmt->req_handler)(mgmt->req_cbobj, msg);
     }
@@ -160,7 +155,12 @@ int http_request_process (void * vcon, void * vmsg)
     /* if the upper callback handled and replied the request, the msg already recycled.
      * some default handlings should be done by determining if the msg got correctly dealt with */
 
-    if (ret < 0 && http_msg_mgmt_get(mgmt, msgid) == msg && msg->issued <= 0) {
+    if (ret < 0 || (http_msg_mgmt_get(mgmt, msgid) == msg && msg->issued <= 0)) {
+        if (!(ploc = (HTTPLoc *)msg->ploc)) {
+            msg->SetStatus(msg, 404, NULL);          
+            return msg->Reply(msg);
+        }
+
         ret = msg->GetRealFile(msg, path, sizeof(path));
 
         if (strstr(path, "../")) {
