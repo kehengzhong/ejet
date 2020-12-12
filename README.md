@@ -115,6 +115,8 @@
         * [4.13.4 »Øµ÷º¯ÊıÊ¹ÓÃHTTPMsgµÄ³ÉÔ±º¯Êı](#4134-»Øµ÷º¯ÊıÊ¹ÓÃhttpmsgµÄ³ÉÔ±º¯Êı)
     * [4.14 ÕıÔò±í´ïÊ½µÄÊ¹ÓÃ](#414-ÕıÔò±í´ïÊ½µÄÊ¹ÓÃ)
     * [4.15 TLS/SSL](#415-tlsssl)
+        * [4.15.1 TLS/SSL¡¢OpenSSL½éÉÜ](#4151-tls/sslopenssl½éÉÜ)
+        * [4.15.2 eJet¼¯³ÉOpenSSL](#4152-ejet¼¯³Éopenssl)
     * [4.16 Chunk´«Êä±àÂë½âÎö](#416-chunk´«Êä±àÂë½âÎö)
     * [4.17 ·´Ïò´úÀí](#417-·´Ïò´úÀí)
     * [4.18 FastCGI»úÖÆºÍÆô¶¯PHPµÄÁ÷³Ì](#418-fastcgi»úÖÆºÍÆô¶¯phpµÄÁ÷³Ì)
@@ -439,27 +441,27 @@ HTTP¼àÌı·şÎñHTTPListenÊÇÖ¸eJet Web·şÎñÆ÷ÔÚÆô¶¯Ê±£¬ĞèÒª°ó¶¨±¾µØÄ³¸ö·şÎñÆ÷IPµØÖ·ºÍ
 
 HTTP¼àÌı·şÎñµÄÅäÖÃĞÅÏ¢¸ñÊ½²Î¿¼ÈçÏÂ£º
 ```
-    listen = {
-        local ip = *; #192.168.1.151
-        port = 443;
-        forward proxy = on;
- 
-        ssl = on;
-        ssl certificate = cert.pem;
-        ssl private key = cert.key;
-        ssl ca certificate = cacert.pem;
+listen = {
+    local ip = *; #192.168.1.151
+    port = 443;
+    forward proxy = on;
 
-        request process library = reqhandle.so
- 
-        script = {
-            #reply 302 https://ke.test.ejetsrv.com:8443$request_uri;
-            addResHeader X-Nat-IP $remote_addr;
-        }
- 
-        host = {.....}
-        host = {.....}
-        host = {.....}
+    ssl = on;
+    ssl certificate = cert.pem;
+    ssl private key = cert.key;
+    ssl ca certificate = cacert.pem;
+
+    request process library = reqhandle.so
+
+    script = {
+        #reply 302 https://ke.test.ejetsrv.com:8443$request_uri;
+        addResHeader X-Nat-IP $remote_addr;
     }
+
+    host = {.....}
+    host = {.....}
+    host = {.....}
+}
 ```
 
 Ò»Ì¨ÎïÀí·şÎñÆ÷¿ÉÒÔ°²×°¶à¸öÍø¿¨£¬Ã¿¸öÍø¿¨ÅäÖÃÒ»¸ö¶ÀÁ¢IPµØÖ·£¬HTTP¼àÌı·şÎñ¿ÉÒÔ¼àÌıÄ³Ò»¸öIPµØÖ·ÉÏµÄÄ³¸ö¶Ë¿Ú£¬Ò²¿ÉÒÔ¼àÌıËùÓĞIPµØÖ·ÉÏµÄÍ¬Ò»¸ö¶Ë¿Ú¡£ÄÜÆô¶¯¼àÌı·şÎñµÄ¶Ë¿ÚÊıÁ¿ÀíÂÛÉÏÊÇ65536¸ö£¬ÆäÖĞĞ¡ÓÚ1024µÄ¶Ë¿ÚĞèÒªÓĞroot³¬»§È¨ÏŞ²ÅÄÜ¼àÌı¡£
@@ -481,32 +483,32 @@ HTTP¼àÌı·şÎñHTTPListenÏÂ¿É¹ÜÀí¶à¸öĞéÄâÖ÷»úHTTPHost£¬²ÉÓÃÖ÷»úÃû³ÆÎªË÷ÒıÖ÷¼üµÄhash
 
 HTTPĞéÄâÖ÷»úµÄÅäÖÃĞÅÏ¢¸ñÊ½²Î¿¼ÈçÏÂ£º
 ```
-        host = {
-            host name = *; #www.ejetsrv.com
-            type = server | proxy | fastcgi;
-            gzip = on;
- 
-            ssl certificate = cert.pem;
-            ssl private key = cert.key;
-            ssl ca certificate = cacert.pem;
+host = {
+    host name = *; #www.ejetsrv.com
+    type = server | proxy | fastcgi;
+    gzip = on;
 
-            script = {
-                #reply 302 https://ke.test.ejetsrv.com:8443$request_uri;
-                addResHeader X-Nat-IP $remote_addr;
-            }
+    ssl certificate = cert.pem;
+    ssl private key = cert.key;
+    ssl ca certificate = cacert.pem;
 
-            error page = {
-                400 = 400.html;
-                504 = 504.html;
-                root = /opt/ejet/errpage;
-            }
+    script = {
+        #reply 302 https://ke.test.ejetsrv.com:8443$request_uri;
+        addResHeader X-Nat-IP $remote_addr;
+    }
 
-            root = /home/hzke/sysdoc;
+    error page = {
+        400 = 400.html;
+        504 = 504.html;
+        root = /opt/ejet/errpage;
+    }
 
-            location = {...}
-            location = {...}
-            location = {...}
-        }
+    root = /home/hzke/sysdoc;
+
+    location = {...}
+    location = {...}
+    location = {...}
+}
 ```
 
 HTTPĞéÄâÖ÷»úµÄÃû³ÆÒ»°ãÊÇÓòÃû¸ñÊ½£¬¼´¶à¼¶Ãû³ÆÌåÏµ£¬°üº¬¶¥¼¶ÓòÃû¡¢¶ş¼¶ÓòÃû¡¢Èı¼¶ÓòÃûµÈ£¬Í¨¹ıDNSÏµÍ³£¬½«¸ÃÓòÃû½âÎöµ½µ±Ç°eJet Web·şÎñÆ÷ËùÔÚµÄIPµØÖ·ÉÏ£¬Èç¹ûÔÚ¸ÃIPµØÖ·ÉÏÆô¶¯HTTPListen·şÎñ£¬ÄÇÃ´ËùÓĞÊ¹ÓÃ¸ÃÓòÃûµÄÇëÇó¶¼»áÖ¸Ïòµ½¶ÔÓ¦µÄHTTPHostĞéÄâÖ÷»ú¡£
@@ -532,56 +534,56 @@ HTTP×ÊÔ´Î»ÖÃHTTPLoc´ú±íµÄÊÇÇëÇó×ÊÔ´ÔÚÄ³¸ö¼àÌı·şÎñÏÂµÄÄ³¸öĞéÄâÖ÷»úÀïµÄÄ¿Â¼Î»ÖÃ£¬H
 
 HTTP×ÊÔ´Î»ÖÃµÄÅäÖÃĞÅÏ¢¸ñÊ½²Î¿¼ÈçÏÂ£º
 ```
-            location = {
-                type = server;
-                path = [ "\.(h|c|apk|gif|jpg|jpeg|png|bmp|ico|swf|js|css)$", "~*" ];
- 
-                root = /opt/ejet/httpdoc;
-                index = [ index.html, index.htm ];
-                expires = 30D;
- 
-                cache_file = <script>
-                       if ($request_uri ~* 'laoke')
-                           return "${host_name}_${server_port}${req_path_only}${req_file_only}";
-                       else if (!-f $root$request_path) {
-                           return "$root$request_path is not a regular file";
-                       } else if (!-x $root$request_path) {
-                           return "$root$request_path is not an executable file";
-                       } else
-                           return "${request_header[host]}${req_path_only}else.html";
-                     </script>;
-            }
+location = {
+    type = server;
+    path = [ "\.(h|c|apk|gif|jpg|jpeg|png|bmp|ico|swf|js|css)$", "~*" ];
 
-            location = {
-                path = [ '^/view/([0-9A-Fa-f]{32})$', '~*' ];
-                type = proxy;
-                passurl = http://cdn.ejetsrv.com/view/$1;
- 
-                root = /opt/cache/;
-                cache = on;
-                cache file = /opt/cache/${request_header[host]}/view/$1;
-            }
+    root = /opt/ejet/httpdoc;
+    index = [ index.html, index.htm ];
+    expires = 30D;
 
-            location = {
-                type = fastcgi;
-                path = [ "\.(php|php?)$", '~*'];
- 
-                passurl = fastcgi://localhost:9000;
- 
-                index = [ index.php ];
-                root = /opt/ejet/php;
-            }
+    cache_file = <script>
+           if ($request_uri ~* 'laoke')
+               return "${host_name}_${server_port}${req_path_only}${req_file_only}";
+           else if (!-f $root$request_path) {
+               return "$root$request_path is not a regular file";
+           } else if (!-x $root$request_path) {
+               return "$root$request_path is not an executable file";
+           } else
+               return "${request_header[host]}${req_path_only}else.html";
+         </script>;
+}
 
-            location = {
-                path = [ '/' ];
-                type = server;
- 
-                script = {
-                    try_files $uri $uri/ /index.php?$query_string;
-                };
- 
-                index = [ index.php, index.html, index.htm ];
-            }
+location = {
+    path = [ '^/view/([0-9A-Fa-f]{32})$', '~*' ];
+    type = proxy;
+    passurl = http://cdn.ejetsrv.com/view/$1;
+
+    root = /opt/cache/;
+    cache = on;
+    cache file = /opt/cache/${request_header[host]}/view/$1;
+}
+
+location = {
+    type = fastcgi;
+    path = [ "\.(php|php?)$", '~*'];
+
+    passurl = fastcgi://localhost:9000;
+
+    index = [ index.php ];
+    root = /opt/ejet/php;
+}
+
+location = {
+    path = [ '/' ];
+    type = server;
+
+    script = {
+        try_files $uri $uri/ /index.php?$query_string;
+    };
+
+    index = [ index.php, index.html, index.htm ];
+}
 ```
 
 HTTP×ÊÔ´Î»ÖÃHTTPLocÊÇÍ¨¹ıÂ·¾¶ÃûpathºÍÆ¥ÅäÀàĞÍmatchtypeÀ´×÷ÎªÆä±êÊ¶£¬Â·¾¶ÃûÎªÅäÖÃÖĞÉèÖÃµÄÃû³Æ£¬¿Í»§¶ËÇëÇóµÄÂ·¾¶ÃûÍ¨¹ıÆ¥ÅäÀàĞÍ¶¨ÒåµÄÆ¥Åä¹æÔòÀ´¸úÉèÖÃµÄÂ·¾¶Ãû½øĞĞÆ¥Åä£¬Èç¹û·ûºÏÆ¥Åä£¬Ôò¸ÃÇëÇóÊ¹ÓÃ´Ë×ÊÔ´Î»ÖÃHTTPLoc¡£
@@ -624,37 +626,37 @@ HTTP±äÁ¿ÊÇÖ¸ÔÚeJet Web·şÎñÆ÷ÔËĞĞÆÚ¼ä£¬ÄÜ¶¯Ì¬µØ·ÃÎÊHTTPÇëÇó¡¢HTTPÏìÓ¦¡¢HTTPÈ«¾Ö¹Ü
 
 Ê¹ÓÃHTTP±äÁ¿µÄ³¡¾°Ö÷ÒªÔÚJSon¸ñÊ½µÄÅäÖÃÎÄ¼şÖĞ£¬¸ø¸÷¸öÅäÖÃÏîÄ¿Ôö¼Ó¶¯Ì¬µÄ¿É±à³Ì½Ó¿Ú£¬¾ÍĞèÒª»ùÓÚ²»Í¬µÄHTTPÇëÇóµÄĞÅÏ¢£¬×öÅĞ¶Ï¡¢±È½Ï¡¢¸³Öµ¡¢¿½±´¡¢´®½ÓµÈ²Ù×÷£¬ÕâĞ©¶¼Àë²»¿ª±äÁ¿£¬ĞèÒª²»Í¬µÄ±äÁ¿ÃûÈ¥·ÃÎÊ²»Í¬HTTPÇëÇóÖĞµÄ²»Í¬ĞÅÏ¢ÄÚÈİ£¬Í¨¹ıÅäÖÃÖĞÊ¹ÓÃ±äÁ¿£º·ÃÎÊ±äÁ¿µÄÖµ£¬½øĞĞÌõ¼şÅĞ¶Ï¡¢±È½Ï¡¢Æ¥Åä¡¢¼Ó¼õ³Ë³ı¡¢¸³ÖµµÈ¡£±äÁ¿µÄÊ¹ÓÃÑùÀı¿É²Î¿¼ÈçÏÂ£º
 ```
-    access log = {
-        log2file = on;
-        log file = /var/log/access.log;
-        format = [ '$remote_addr', '-', '[$datetime[stamp]]', '"$request"', '"$request_header[host]"',
-                   '"$request_header[referer]"', '"$http_user_agent"', '$status', '$bytes_recv', '$bytes_sent' ];
-    }
+access log = {
+    log2file = on;
+    log file = /var/log/access.log;
+    format = [ '$remote_addr', '-', '[$datetime[stamp]]', '"$request"', '"$request_header[host]"',
+               '"$request_header[referer]"', '"$http_user_agent"', '$status', '$bytes_recv', '$bytes_sent' ];
+}
 
-    script = {
-        reply 302 https://ke.test.ejetsrv.com:8443$request_uri;
-    }
+script = {
+    reply 302 https://ke.test.ejetsrv.com:8443$request_uri;
+}
 
-    cache file = /opt/cache/${request_header[host]}/view/$1;
+cache file = /opt/cache/${request_header[host]}/view/$1;
 
-    params = {
-        SCRIPT_FILENAME   = $document_root$fastcgi_script_name;
-        QUERY_STRING      = $query_string;
-        REQUEST_METHOD    = $request_method;
-        CONTENT_TYPE      = $content_type;
-        CONTENT_LENGTH    = $content_length;
-    }
+params = {
+    SCRIPT_FILENAME   = $document_root$fastcgi_script_name;
+    QUERY_STRING      = $query_string;
+    REQUEST_METHOD    = $request_method;
+    CONTENT_TYPE      = $content_type;
+    CONTENT_LENGTH    = $content_length;
+}
 
-    script = {
-        if ($query[fid])
-            cache file = $real_path$query[fid]$req_file_ext;
-        else if ($req_file_only)
-            cache file = $real_path$req_file_only;
-        else if ($query[0])
-            cache file = ${real_path}${query[0]}$req_file_ext;
-        else
-            cache file = ${real_path}index.html;
-    }
+script = {
+    if ($query[fid])
+        cache file = $real_path$query[fid]$req_file_ext;
+    else if ($req_file_only)
+        cache file = $real_path$req_file_only;
+    else if ($query[0])
+        cache file = ${real_path}${query[0]}$req_file_ext;
+    else
+        cache file = ${real_path}index.html;
+}
 ```
 
 #### 4.2.3 HTTP±äÁ¿µÄÀàĞÍºÍÊ¹ÓÃ¹æÔò
@@ -747,13 +749,13 @@ Script½Å±¾ÊÇÓÉÒ»ÏµÁĞ·ûºÏ¶¨ÒåµÄÓï·¨¹æÔò¶ø±àĞ´µÄ´úÂëÓï¾ä×é³É£¬´úÂëÓï¾ä·ç¸ñÀàËÆJava
 
 HTTP Script½Å±¾³ÌĞòµÄÇ¶ÈëÎ»ÖÃ£¬¹²ÓĞÁ½ÖÖ¡£µÚÒ»ÖÖÇ¶ÈëÎ»ÖÃÊÇÔÚÅäÖÃÎÄ¼şµÄListen¡¢Host¡¢LocationÏÂ£¬Í¨¹ıÔö¼ÓJSon¶ÔÏóscript£¬½«½Å±¾³ÌĞò×÷Îªscript¶ÔÏóµÄÄÚÈİ£¬À´ÊµÏÖÅäÖÃÎÄ¼şÖĞÇ¶Èë½Å±¾±à³Ì¹¦ÄÜ¡£ÔÚÕâÖÖÎ»ÖÃÖĞ£¬²åÈëscript½Å±¾´úÂëµÄÓï·¨¹²¶¨ÒåÁËÈıÖÖ£º
 ```
-        script = {....};
-        script = if()... else...;
-        <script> .... </script>
+  script = {....};
+  script = if()... else...;
+  <script> .... </script>
 ```
 ÁíÍâÒ»ÖÖÇ¶ÈëScript½Å±¾³ÌĞòµÄÎ»ÖÃ£¬ÊÇÔÚJSonÖĞµÄKey-Value¶ÔÖĞ£¬ÔÚValueÀïÔö¼ÓÌØÊâ±ÕºÏ±êÇ©<script> Script Codes </script>£¬ÔÚ±êÇ©ÀïÃæÇ¶ÈëScript½Å±¾´úÂë£¬Ö´ĞĞÍê´úÂëºó·µ»ØµÄÄÚÈİ£¬×÷ÎªKeyµÄÖµ£¬ÕâÖÖ·½Ê½Ê¹µÃJSon¹æ·¶ÖĞKeyµÄÖµ¿ÉÒÔ¶¯Ì¬µØÓÉScript½Å±¾³ÌĞò¼ÆËãµÃÀ´¡£ÔÚListen¡¢Host»òLocationµÄ³£Á¿¸³ÖµÖĞ£¬ValueÄÚÈİ¿ÉÒÔÊÇscript½Å±¾£¬Èç
 ```
-        cache file = <script> if ()... return... </script>
+  cache file = <script> if ()... return... </script>
 ```
 
 ¶Ôadif »ù´¡¿âÖĞµÄjson.cÎÄ¼ş×öÁËĞŞ¸ÄÀ©Õ¹£¬Ê¹µÃJson¶ÔÏó¶¼ÄÜÖ§³Öscript½Å±¾¶¨ÒåµÄÕâ¼¸ÖÖÓï·¨£¬Èç¹ûÄ³¸ö¶ÔÏóÏÂÓĞÃû³ÆÎªscriptµÄÊı¾İÏî£¬¾ÍÈÏÎª¸ÃÊı¾İÏîÏÂµÄValueÖµÎª½Å±¾ÄÚÈİ¡£Õâ¾Í½«Ãû³Æscript×÷ÎªJsonµÄÈ±Ê¡³£Á¿Ãû³ÆÁË£¬Ê¹ÓÃÊ±ÇáÒ×²»ÒªÊ¹ÓÃscript×÷Îª±äÁ¿Ãû¡£
@@ -762,26 +764,26 @@ HTTP Script½Å±¾³ÌĞòµÄÇ¶ÈëÎ»ÖÃ£¬¹²ÓĞÁ½ÖÖ¡£µÚÒ»ÖÖÇ¶ÈëÎ»ÖÃÊÇÔÚÅäÖÃÎÄ¼şµÄListen¡¢Hos
 
 HTTP Script½Å±¾³ÌĞòÊ¾ÀıÈçÏÂ£º
 ```
-         script = {
-             if ($query[fid]) "cache file" = $req_path_only$query[fid]$req_file_ext;
-             else if ($req_file_only) "cache file" = ${req_path_only}index.html;
-             else "cache file" = $req_path_only$req_file_only; 
-         }
- 
-         cache file = <script> if ($query[fid]) return $req_path_only$query[fid]$req_file_ext;
-                                else if ($req_file_only) return ${req_path_only}index.html;
-                                else return $req_path_only$req_file_only; 
-                      </script>
- 
-         <script>
-             if ($query[fid]) "cache file" = $req_path_only$query[fid]$req_file_ext;
-             else if ($req_file_only) "cache file" = ${req_path_only}index.html;
-             else "cache file" = $req_path_only$req_file_only; 
-         </script>
- 
-         <script>
-             if ($scheme == "http://") rewrite ^(.*)$  https://$host$1;
-         </script>
+ script = {
+     if ($query[fid]) "cache file" = $req_path_only$query[fid]$req_file_ext;
+     else if ($req_file_only) "cache file" = ${req_path_only}index.html;
+     else "cache file" = $req_path_only$req_file_only; 
+ }
+
+ cache file = <script> if ($query[fid]) return $req_path_only$query[fid]$req_file_ext;
+                        else if ($req_file_only) return ${req_path_only}index.html;
+                        else return $req_path_only$req_file_only; 
+              </script>
+
+ <script>
+     if ($query[fid]) "cache file" = $req_path_only$query[fid]$req_file_ext;
+     else if ($req_file_only) "cache file" = ${req_path_only}index.html;
+     else "cache file" = $req_path_only$req_file_only; 
+ </script>
+
+ <script>
+     if ($scheme == "http://") rewrite ^(.*)$  https://$host$1;
+ </script>
 ```
 
 HTTP Script½Å±¾³ÌĞòµÄ½âÊÍÖ´ĞĞ£¬ÊÇÔÚ´´½¨HTTPMsgÊµÀı²¢ÉèÖÃÍêDocURIºó£¬¿ªÊ¼Ö´ĞĞ×ÊÔ´Î»ÖÃÊµÀı»¯Á÷³Ì£¬ÔÚÊµÀı»¯¹ı³ÌÖĞ£¬·Ö±ğÖ´ĞĞHTTPListenµÄScript½Å±¾¡¢HTTPHostµÄScript½Å±¾¡¢HTTPLocµÄScript½Å±¾¡£
@@ -794,7 +796,7 @@ script½Å±¾ÊÇÓÉÒ»ÏµÁĞÓï¾ä¹¹³ÉµÄ³ÌĞò£¬Óï·¨ÀàËÆÓÚJavaScriptºÍCÓïÒô£¬Ö÷Òª°üÀ¨ÈçÏÂÓï¾
 
 Ìõ¼şÓï¾äÖ÷ÒªÒÔif¡¢else if¡¢else×é³É£¬»ù±¾Óï·¨Îª£º
 ```
-     if (ÅĞ¶ÏÌõ¼ş) { ... } else if (ÅĞ¶ÏÌõ¼ş) { ... } else { ... }
+  if (ÅĞ¶ÏÌõ¼ş) { ... } else if (ÅĞ¶ÏÌõ¼ş) { ... } else { ... }
 ```
 
 ÅĞ¶ÏÌõ¼şÖÁÉÙ°üº¬Ò»¸ö±äÁ¿»ò³£Á¿£¬Í¨¹ı¶ÔÒ»¸ö»ò¶à¸ö±äÁ¿µÄÖµ½øĞĞÅĞ¶Ï»ò±È½Ï£¬È¡³ö½á¹ûÎªTRUE»òFALSE£¬À´¾ö¶¨Ö´ĞĞ·ÖÖ§£¬ÅĞ¶ÏÌõ¼ş°üÀ¨ÈçÏÂ¼¸ÖÖÇé¿ö£º
@@ -823,40 +825,40 @@ script½Å±¾ÊÇÓÉÒ»ÏµÁĞÓï¾ä¹¹³ÉµÄ³ÌĞò£¬Óï·¨ÀàËÆÓÚJavaScriptºÍCÓïÒô£¬Ö÷Òª°üÀ¨ÈçÏÂÓï¾
 
 ¸³ÖµÓï¾äÖ÷ÒªÓÉsetÓï¾ä¹¹³É£¬eJetÏµÍ³ÖĞ¾Ö²¿±äÁ¿µÄ´´½¨ºÍ¸³ÖµÊÇÍ¨¹ısetÓï¾äÀ´Íê³ÉµÄ¡£ÆäÓï·¨ÈçÏÂ£º
 ```
-          set $±äÁ¿Ãû  value;
+  set $±äÁ¿Ãû  value;
 ```
  
 ##### 4.3.4.3 ·µ»ØÓï¾ä
 
 ·µ»ØÓï¾äÒ²¼´ÊÇreturnÓï¾ä£¬½«script±ÕºÏ±êÇ©ÄÚÇ¶ÈëµÄScirpt½Å±¾´úÂëÖ´ĞĞÔËËãºóµÄ½á¹û£¬»òKey-Value¶ÔÖĞValueÄÚÇ¶µÄ½Å±¾³ÌĞò£¬½âÊÍÖ´ĞĞºóµÄ½á¹û·µ»Ø¸øKey±äÁ¿£¬»ù±¾Óï·¨Îª£º
 ```
-          return $±äÁ¿Ãû;
-          return ³£Á¿;
+  return $±äÁ¿Ãû;
+  return ³£Á¿;
 ```
 
 ÆäÊ¹ÓÃĞÎÌ¬ÈçÏÂ£º
 ```
-          cache file = <script> if ($user_agent ~* "MSIE") return $real_file; </script>;
+  cache file = <script> if ($user_agent ~* "MSIE") return $real_file; </script>;
 ```
 
 ##### 4.3.4.4 ÏìÓ¦Óï¾ä
 
 ÏìÓ¦Óï¾äÒ²¾ÍÊÇreplyÓï¾ä£¬Ö´ĞĞ¸ÃÓï¾äºó£¬eJetÏµÍ³½«ÖÕÖ¹µ±Ç°HTTPÇëÇóHTTPMsgµÄÈÎºÎ´¦Àí£¬Ö±½Ó·µ»ØHTTPÏìÓ¦¸ø¿Í»§¶Ë£¬ÆäÓï·¨ÈçÏÂ£º
 ```
-          reply  ×´Ì¬Âë  [ URL»òÏìÓ¦ÏûÏ¢Ìå ];
+  reply  ×´Ì¬Âë  [ URL»òÏìÓ¦ÏûÏ¢Ìå ];
 ```
 
 Èç¹û·µ»ØµÄ×´Ì¬ÂëÊÇ 444£¬ÔòÖ±½Ó¶Ï¿ª TCP Á¬½Ó£¬²»·¢ËÍÈÎºÎÄÚÈİ¸ø¿Í»§¶Ë¡£
  
 µ÷ÓÃReplyÖ¸ÁîÊ±£¬¿ÉÒÔÊ¹ÓÃµÄ×´Ì¬ÂëÓĞ£º204£¬400£¬402-406£¬408£¬410, 411, 413, 416 Óë 500-504¡£Èç¹û²»´ø×´Ì¬ÂëÖ±½Ó·µ»Ø URL Ôò±»ÊÓÎª 302¡£ÆäÊ¹ÓÃĞÎÌ¬ÈçÏÂ£º
 ```
-          if ($http_user_agent ~ curl) {
-              reply 200 'COMMAND USER\n';
-          }   
-          if ($http_user_agent ~ Mozilla) {
-              reply 302 http://www.baidu.com?$args;
-          }      
-          reply 404;
+  if ($http_user_agent ~ curl) {
+      reply 200 'COMMAND USER\n';
+  }   
+  if ($http_user_agent ~ Mozilla) {
+      reply 302 http://www.baidu.com?$args;
+  }      
+  reply 404;
 ```
  
 eJetÏµÍ³ÔÚ½âÊÍÆ÷½âÊÍÖ´ĞĞScript´úÂëÊ±£¬ÏÈÖ´ĞĞListenÏÂµÄscript½Å±¾¡¢ÔÙÖ´ĞĞHostÏÂµÄscript½Å±¾£¬×îºóÔÙÖ´ĞĞLocationÏÂµÄscript½Å±¾¡£ÔÚÖ´ĞĞÏÂÒ»¸ö½Å±¾Ö®Ç°£¬ÏÈÅĞ¶Ï¸Õ¸ÕÖ´ĞĞµÄscript½Å±¾ÊÇ·ñÒÑ¾­ReplyÁË»òÕßÒÑ¾­¹Ø±Õµ±Ç°HTTPMsgÁË¡£Èç¹ûReplyÁË»ò¹Ø±Õµ±Ç°ÏûÏ¢ÁË£¬ÔòÖ±½Ó·µ»Ø£¬ÎŞĞè¼ÌĞø½âÎö²¢Ö´ĞĞºóĞøµÄscript½Å±¾³ÌĞò¡£
@@ -869,7 +871,7 @@ rewriteÓï¾äÊµÏÖURLÖØĞ´¹¦ÄÜ£¬µ±¿Í»§HTTPÇëÇóµ½´ïWeb Server²¢´´½¨HTTPMsgºó£¬·Ö±ğÒÀ´
  
 rewrite»ù±¾Óï·¨ÈçÏÂ£º
 ```
-           rewrite regex replacement [flag];
+  rewrite regex replacement [flag];
 ```
  
 Ö´ĞĞ¸ÃÓï¾äÊ±ÊÇÓÃregexµÄÕıÔò±í´ïÊ½È¥Æ¥ÅäDocURI£¬²¢½«Æ¥Åäµ½µÄDocURIÌæ»»³ÉĞÂµÄDocURI£¨replacement£©£¬Èç¹ûÓĞ¶à¸örewriteÓï¾ä£¬ÔòÓÃĞÂµÄDocURI£¬¼ÌĞøÖ´ĞĞÏÂÒ»ÌõÓï¾ä¡£
@@ -890,32 +892,32 @@ flag±ê¼Ç¿ÉÒÔÑØÓÃNginxÉè¼ÆµÄ4¸ö±ê¼ÇÍâ£¬»¹Ôö¼ÓÁËproxy»òforward±ê¼Ç¡£Æä±ê¼Ç¶¨ÒåÈçÏÂ
  
 rewriteÊ¹ÓÃ°¸ÀıÈçÏÂ£º
 ```
-           rewrite  ^/(.*) https://www.ezops.com/$1 permanent;
- 
-           rewrite ^/search/(.*)$ /search.php?p=$1?;
-           ÇëÇóµÄURL: http://xxxx.com/search/some-search-keywords
-           ÖØĞ´ºóURL: http://xxxx.com/search.php?p=some-search-keywords
- 
-           rewrite ^/user/([0-9]+)/(.+)$ /user.php?id=$1&name=$2?;
-           ÇëÇóµÄURL: http://xxxx.com/user/47/dige
-           ÖØĞ´ºóURL: http://xxxx.com/user.php?id=47&name=dige
- 
-           rewrite ^/index.php/(.*)/(.*)/(.*)$ /index.php?p1=$1&p2=$2&p3=$3?;
-           ÇëÇóµÄURL: http://xxxx.com/index.php/param1/param2/param3
-           ÖØĞ´ºóURL: http://xxxx.com/index.php?p1=param1&p2=param2&p3=param3
- 
-           rewrite ^/wiki/(.*)$ /wiki/index.php?title=$1?;
-           ÇëÇóµÄURL£ºhttp://xxxx.com/wiki/some-keywords
-           ÖØĞ´ºóURL£ºhttp://xxxx.com/wiki/index.php?title=some-keywords
- 
-           rewrite ^/topic-([0-9]+)-([0-9]+)-(.*)\.html$ viewtopic.php?topic=$1&start=$2?;
-           ÇëÇóµÄURL£ºhttp://xxxx.com/topic-1234-50-some-keywords.html
-           ÖØĞ´ºóURL£ºhttp://xxxx.com/viewtopic.php?topic=1234&start=50
- 
-           rewrite ^/([0-9]+)/.*$ /aticle.php?id=$1?;
-           ÇëÇóµÄURL£ºhttp://xxxx.com/88/future
-           ÖØĞ´ºóURL£ºhttp://xxxx.com/atricle.php?id=88
- ```
+rewrite  ^/(.*) https://www.ezops.com/$1 permanent;
+
+rewrite ^/search/(.*)$ /search.php?p=$1?;
+ÇëÇóµÄURL: http://xxxx.com/search/some-search-keywords
+ÖØĞ´ºóURL: http://xxxx.com/search.php?p=some-search-keywords
+
+rewrite ^/user/([0-9]+)/(.+)$ /user.php?id=$1&name=$2?;
+ÇëÇóµÄURL: http://xxxx.com/user/47/dige
+ÖØĞ´ºóURL: http://xxxx.com/user.php?id=47&name=dige
+
+rewrite ^/index.php/(.*)/(.*)/(.*)$ /index.php?p1=$1&p2=$2&p3=$3?;
+ÇëÇóµÄURL: http://xxxx.com/index.php/param1/param2/param3
+ÖØĞ´ºóURL: http://xxxx.com/index.php?p1=param1&p2=param2&p3=param3
+
+rewrite ^/wiki/(.*)$ /wiki/index.php?title=$1?;
+ÇëÇóµÄURL£ºhttp://xxxx.com/wiki/some-keywords
+ÖØĞ´ºóURL£ºhttp://xxxx.com/wiki/index.php?title=some-keywords
+
+rewrite ^/topic-([0-9]+)-([0-9]+)-(.*)\.html$ viewtopic.php?topic=$1&start=$2?;
+ÇëÇóµÄURL£ºhttp://xxxx.com/topic-1234-50-some-keywords.html
+ÖØĞ´ºóURL£ºhttp://xxxx.com/viewtopic.php?topic=1234&start=50
+
+rewrite ^/([0-9]+)/.*$ /aticle.php?id=$1?;
+ÇëÇóµÄURL£ºhttp://xxxx.com/88/future
+ÖØĞ´ºóURL£ºhttp://xxxx.com/atricle.php?id=88
+```
 
 ÔÚeJetÏµÍ³ÖĞ£¬replacementºó¼Ó£¿ºÍ²»¼Ó£¿ÊÇÓĞ²î±ğµÄ£¬¼Ó£¿ÒâÎ¶×Åquery²ÎÊıÃ»ÁË£¬²»¼ÓÔò»á×Ô¶¯°ÑÔ´URLÖĞµÄquery´®£¨?query£©Ìí¼Óµ½Ìæ»»ºóµÄURLÖĞ¡£
  
@@ -925,38 +927,38 @@ rewriteÊ¹ÓÃ°¸ÀıÈçÏÂ£º
  
 Æä»ù±¾Óï·¨Îª£º
 ```
-          addReqHeader  <header name>  <header value>;
+  addReqHeader  <header name>  <header value>;
 ```
 <header name>²»ÄÜÊÇ¿Õ¸ñ×Ö·û£¬ÒÔ×ÖÄ¸¿ªÍ·ºó¸ú×ÖÄ¸¡¢Êı×ÖºÍÏÂ»®Ïß_µÄ×Ö·û´®£¬¿ÉÒÔÓÃË«ÒıºÅÈ¦¶¨ÆğÀ´£»
 <header value>ÊÇÈÎÒâ×Ö·û´®£¬¿ÉÒÔÒÔÒıºÅ°üº¬ÆğÀ´£¬×Ö·û´®ÖĞ¿É°üº¬±äÁ¿¡£
  
 Ê¹ÓÃ°¸ÀıÈçÏÂ£º
 ```
-            if ($proxied) {
-                addReqHeader X-Real-IP $remote_addr;
-                addReqHeader X-Forwarded-For $remote_addr;
-            }
+if ($proxied) {
+    addReqHeader X-Real-IP $remote_addr;
+    addReqHeader X-Forwarded-For $remote_addr;
+}
 ```
  
 ##### 4.3.4.7 addResHeaderÓï¾ä
 
 Æä»ù±¾Óï·¨Îª£º
 ```
-          addResHeader  <header name>  <header value>;
+ addResHeader  <header name>  <header value>;
 ``` 
  
 ##### 4.3.4.8 delReqHeaderÓï¾ä
 
 Æä»ù±¾Óï·¨Îª£º
 ```
-          delReqHeader  <header name>;
+ delReqHeader  <header name>;
 ```
  
 ##### 4.3.4.9 delResHeaderÓï¾ä
 
 Æä»ù±¾Óï·¨Îª£º
 ```
-          delResHeader  <header name>;
+  delResHeader  <header name>;
 ``` 
 
 ##### 4.3.4.10 try_files Óï¾ä
@@ -965,9 +967,9 @@ try_files ÊÇÒ»¸öÖØÒªµÄÖ¸Áî£¬½¨ÒéÎ»ÓÚLocation¡¢HostÏÂÃæ¡£Ê¹ÓÃ¸ÃÖ¸Áî£¬ÒÀ´Î²âÊÔÁĞ±í
  
 try_files»ù±¾Óï·¨ÈçÏÂ£º
 ```
-            try_files file ... uri;
-        »ò
-            try_files file ... =code;
+  try_files file ... uri;
+»ò
+  try_files file ... =code;
 ``` 
 
 ##### 4.3.4.11 ×¢ÊÍÓï¾ä
@@ -1002,7 +1004,7 @@ eJetÏµÍ³²ÉÓÃJSon×÷ÎªÅäÖÃÎÄ¼şÓï·¨¹æ·¶£¬ÎªÁË¼æÈİ´«Í³ÅäÖÃÎÄ¼şµÄ±àĞ´Ï°¹ß£¬½«JSon»ù´¡
 
 ÓÉÓÚÅäÖÃĞÅÏ¢Êı¾İ½Ï´ó£¬ĞèÒªÊ¹ÓÃ²»Í¬µÄÎÄ¼şÀ´±£´æ²»Í¬µÄÅäÖÃĞÅÏ¢£¬½è¼øCÓïÑÔ/PHPÓïÑÔµÄincludeºêÖ¸Áî£¬eJetÏµÍ³µÄJSonÓï·¨ÒıÈëÁËincludeÖ¸Áî¡£À©Õ¹Óï·¨ÖĞ½«°Ñ"include"×÷ÎªJSonÓï·¨µÄ¹Ø¼ü×Ö£¬²»»á±»µ±×ö¶ÔÏóÃû³ÆºÍÖµÄÚÈİÀ´´¦Àí£¬¶øÊÇ×÷ÎªÇ¶ÈëÁíÍâÒ»¸öÎÄ¼şµ½µ±Ç°Î»ÖÃ½øĞĞºóĞø´¦ÀíµÄÌØÊâÖ¸Áî¡£ÆäÓï·¨¹æ·¶ÈçÏÂ£º
 ```
-    include <ÅäÖÃÎÄ¼şÃû>;
+include <ÅäÖÃÎÄ¼şÃû>;
 ```
 ½âÎöJSonÄÚÈİÊ±£¬Èç¹ûÓöµ½includeÖ¸Áî£¬¾Í½«includeÖ¸ÁîºóÃæµÄÎÄ¼şÄÚÈİ¼ÓÔØµ½µ±Ç°Ö¸ÁîÎ»ÖÃ£¬×÷Îªµ±Ç°ÎÄ¼şÄÚÈİµÄÒ»²¿·Ö£¬½øĞĞ½âÎö´¦Àí¡£
 
@@ -1012,12 +1014,12 @@ eJetÏµÍ³²ÉÓÃJSon×÷ÎªÅäÖÃÎÄ¼şÓï·¨¹æ·¶£¬ÎªÁË¼æÈİ´«Í³ÅäÖÃÎÄ¼şµÄ±àĞ´Ï°¹ß£¬½«JSon»ù´¡
 
 ÎªÖ§³Ö×¢ÊÍ¹¦ÄÜ£¬eJetÏµÍ³µÄÅäÖÃÎÄ¼ş¶ÔJSONÓï·¨×öÁËÏàÓ¦À©Õ¹£¬Ôö¼ÓÁËµ¥ĞĞ×¢ÊÍ·ûºÅ#ºÍ¶àĞĞ×¢ÊÍ(/* */)£¬ÆäÓï·¨¹æ·¶ÈçÏÂ£º
 ```
-    # ÕâÊÇµ¥ĞĞ×¢ÊÍ£¬Èç¹û¾®ºÅ(#)²»ÔÚJSonÄ³¸öKey-Value¶ÔµÄÒıºÅÀïÃæ£¬ÄÇÃ´ÒÔ¾®ºÅ¿ªÍ·£¬¾®ºÅºóÃæµÄÄÚÈİ¶¼ÊÇ×¢ÊÍ
+# ÕâÊÇµ¥ĞĞ×¢ÊÍ£¬Èç¹û¾®ºÅ(#)²»ÔÚJSonÄ³¸öKey-Value¶ÔµÄÒıºÅÀïÃæ£¬ÄÇÃ´ÒÔ¾®ºÅ¿ªÍ·£¬¾®ºÅºóÃæµÄÄÚÈİ¶¼ÊÇ×¢ÊÍ
 
-    /* ×¢Òâ£º¶àĞĞ×¢ÊÍÊÇÒÔÁ¬ÔÚÒ»ÆğµÄ/ºÍ*¿ªÊ¼
-             ÒÔÁ¬ÔÚÒ»ÆğµÄ*ºÍ/½áÎ²£¬ÖĞ¼äµÄÄÚÈİ¶¼ÊÇ×¢ÊÍ
-       ¶àĞĞ×¢ÊÍ¿ª±Õ·ûºÅ£¬±ØĞë²»ÄÜÔÚKey-Value¶ÔµÄÒıºÅÀïÃæ
-     */
+/* ×¢Òâ£º¶àĞĞ×¢ÊÍÊÇÒÔÁ¬ÔÚÒ»ÆğµÄ/ºÍ*¿ªÊ¼
+         ÒÔÁ¬ÔÚÒ»ÆğµÄ*ºÍ/½áÎ²£¬ÖĞ¼äµÄÄÚÈİ¶¼ÊÇ×¢ÊÍ
+   ¶àĞĞ×¢ÊÍ¿ª±Õ·ûºÅ£¬±ØĞë²»ÄÜÔÚKey-Value¶ÔµÄÒıºÅÀïÃæ
+ */
 ```
 ×¢ÊÍµÄÄÚÈİÔÚ½âÎöÊ±Ö±½ÓºöÂÔÌø¹ı£¬²»»á±»ÏµÍ³½âÎöºÍ´¦Àí¡£
 
@@ -1027,26 +1029,26 @@ eJetÏµÍ³²ÉÓÃJSon×÷ÎªÅäÖÃÎÄ¼şÓï·¨¹æ·¶£¬ÎªÁË¼æÈİ´«Í³ÅäÖÃÎÄ¼şµÄ±àĞ´Ï°¹ß£¬½«JSon»ù´¡
 
 eJetÅäÖÃÎÄ¼ş¶ÔJSONÓï·¨¸ñÊ½À©Õ¹ÁËÒ»ÖÖ¹Ì¶¨Ãû³ÆµÄscript¶ÔÏó£¬½«Ãû³Æ"script"×÷ÎªÌØÊâ¶ÔÏóµÄÃû³Æ¹Ø¼ü×Ö£¬¼´ÒÔscriptÎªÃû³ÆµÄ¶ÔÏó£¬ÆäÄÚÈİ²»ÄÜ×÷ÎªJSON×Ó¶ÔÏó´¦Àí£¬¶øÊÇ×÷ÎªScript½Å±¾³ÌĞòÄÚÈİ£¬´æ·ÅÔÚ¶ÔÏóÃûÎªscriptµÄ¶ÔÏóÖĞ¡£ÆäÓï·¨¹æ·¶ÈçÏÂ£º
 ```
-    script = {
-        if ($request_uri ~* '^/topic/[0-9](*)/(.*)\.mp4$') {
-            set $video_flag 1;
-        }
-    };
+script = {
+    if ($request_uri ~* '^/topic/[0-9](*)/(.*)\.mp4$') {
+        set $video_flag 1;
+    }
+};
 ```
 ÔÚÍ¬Ò»¸öJSon¶ÔÏóÏÂ£¬¿ÉÒÔÓĞ¶à¸öscript¶ÔÏó£¬×Ô¶¯¹¹³Éscript¶ÔÏóÊı×é¡£
 
 ÁíÍâ£¬Ê¹ÓÃÌØÊâµÄ¿ª±Õ±êÇ©<script>ºÍ</script>£¬Ò²¿ÉÒÔ¶¨Òå½Å±¾³ÌĞò¡£ÔÚÕâÁ½¸ö¿ª±Õ±êÇ©ÖĞ¼äµÄÄÚÈİ£¬¼´ÊÇScript½Å±¾³ÌĞò£¬²¢½«ÕâĞ©ÄÚÈİ´æ´¢µ½ÅäÖÃÎÄ¼ş¶¨ÒåµÄÈÎÒânameÃû³Æ¶ÔÏóÖĞ£¬ÆäÓï·¨¹æ·¶ÈçÏÂ£º
 ```
-        cache file = <script>
-               if ($request_uri ~* 'laoooke')
-                   return "${host_name}_${server_port}${req_path_only}${req_file_only}";
-               else if (!-f $root$request_path) {
-                   return "${host_name}_${server_port}${req_path_only}${index}";
-               } else if (!-x $root$request_path) {
-                   return "$root$request_path is not an executable file";
-               } else
-                   return "${request_header[host]}${req_path_only}else.html";
-             </script>;
+cache file = <script>
+       if ($request_uri ~* 'laoooke')
+           return "${host_name}_${server_port}${req_path_only}${req_file_only}";
+       else if (!-f $root$request_path) {
+           return "${host_name}_${server_port}${req_path_only}${index}";
+       } else if (!-x $root$request_path) {
+           return "$root$request_path is not an executable file";
+       } else
+           return "${request_header[host]}${req_path_only}else.html";
+     </script>;
 ```
 ÕâÑù£¬"cache file"¶ÔÏóµÄÄÚÈİ¾ÍÊÇÒ»¶Î½Å±¾³ÌĞò£¬ĞèÒªÔÚ½âÊÍÖ´ĞĞµ½ÕâÀïÊ±£¬²ÅÕæÕı¾ßÓĞÊµ¼ÊÊı¾İ¡£
 
@@ -1338,16 +1340,16 @@ eJetÏµÍ³ÊÇ½¨Á¢ÔÚePump¿ò¼ÜÖ®ÉÏµÄWeb·şÎñÆ÷£¬eJetÊÇePumpµÄÊÂ¼şÇı¶¯¿ò¼Ü£¨Event-Drive
 
 Çı¶¯eJet¹¤×÷µÄePumpÊÂ¼ş°üÀ¨ÈçÏÂ£º
 ```
-    /* event types include getting connected, connection accepted, readable,
-     * writable, timeout. the working threads will be driven by these events */
-    #define IOE_CONNECTED        1
-    #define IOE_CONNFAIL         2
-    #define IOE_ACCEPT           3
-    #define IOE_READ             4
-    #define IOE_WRITE            5
-    #define IOE_INVALID_DEV      6
-    #define IOE_TIMEOUT          100
-    #define IOE_USER_DEFINED     10000
+/* event types include getting connected, connection accepted, readable,
+ * writable, timeout. the working threads will be driven by these events */
+#define IOE_CONNECTED        1
+#define IOE_CONNFAIL         2
+#define IOE_ACCEPT           3
+#define IOE_READ             4
+#define IOE_WRITE            5
+#define IOE_INVALID_DEV      6
+#define IOE_TIMEOUT          100
+#define IOE_USER_DEFINED     10000
 ```
 
 eJetÏµÍ³ÖĞ´¦ÀíÕâĞ©ÊÂ¼şµÄ»Øµ÷º¯ÊıÊÇhttp_pump£¬ÆäÔ­ĞÍÈçÏÂ£º
@@ -1357,22 +1359,22 @@ int http_pump (void * vmgmt, void * vobj, int event, int fdtype)
 
 ÆäÖĞfdtypeÊÇ²úÉúÕâĞ©ÊÂ¼şµÄÎÄ¼şÃèÊö·ûÀàĞÍ¡¢¶¨Ê±Æ÷µÈ£¬Æä¶¨ÒåÈçÏÂ£º
 ```
-    /* the definition of FD type in the EventPump device */
-    #define FDT_LISTEN            0x01
-    #define FDT_CONNECTED         0x02
-    #define FDT_ACCEPTED          0x04
-    #define FDT_UDPSRV            0x08
-    #define FDT_UDPCLI            0x10
-    #define FDT_USOCK_LISTEN      0x20
-    #define FDT_USOCK_CONNECTED   0x40
-    #define FDT_USOCK_ACCEPTED    0x80
-    #define FDT_RAWSOCK           0x100
-    #define FDT_FILEDEV           0x200
-    #define FDT_TIMER             0x10000
-    #define FDT_USERCMD           0x20000
-    #define FDT_LINGER_CLOSE      0x40000
-    #define FDT_STDIN             0x100000
-    #define FDT_STDOUT            0x200000
+/* the definition of FD type in the EventPump device */
+#define FDT_LISTEN            0x01
+#define FDT_CONNECTED         0x02
+#define FDT_ACCEPTED          0x04
+#define FDT_UDPSRV            0x08
+#define FDT_UDPCLI            0x10
+#define FDT_USOCK_LISTEN      0x20
+#define FDT_USOCK_CONNECTED   0x40
+#define FDT_USOCK_ACCEPTED    0x80
+#define FDT_RAWSOCK           0x100
+#define FDT_FILEDEV           0x200
+#define FDT_TIMER             0x10000
+#define FDT_USERCMD           0x20000
+#define FDT_LINGER_CLOSE      0x40000
+#define FDT_STDIN             0x100000
+#define FDT_STDOUT            0x200000
 ```
 
 eJetÏµÍ³Ã»ÓĞ´´½¨ÈÎºÎÏß³ÌºÍ½ø³Ì£¬È´ÄÜ³ä·ÖÀûÓÃCPUÖ´ĞĞÈ«²¿HTTPÇëÇóºÍÏìÓ¦µÄËùÓĞÁ÷³Ì£¬ÍêÈ«ÊÇ±»¶¯µÄ£¬¼´±»ÕâĞ©ÊÂ¼şËùÇı¶¯¡£
@@ -1409,15 +1411,15 @@ HTTPÇëÇóºÍÏìÓ¦¹¹³ÉHTTPÏûÏ¢£¬´Ó¿Í»§¶Ë·¢ËÍ¸ø·şÎñÆ÷¶ËµÄHTTPÏûÏ¢ÊÇHTTPÇëÇó£¬´Ó·şÎñÆ÷
 
 °´ÕÕ[RFC 2616](https://datatracker.ietf.org/doc/rfc2616/?include_text=1)¹æ·¶£¬HTTPÇëÇóÏûÏ¢°üÀ¨ÇëÇóĞĞ¡¢ÇëÇóÍ·¡¢ÏûÏ¢Ìå£¬¾ßÌå¸ñÊ½ÈçÏÂ£º
 ```
-    Method SP Request-URI SP HTTP-Version CRLF
-    *(( general-header | request-header | entity-header ) CRLF)
-    CRLF
-    [ message-body ]
+  Method SP Request-URI SP HTTP-Version CRLF
+  *(( general-header | request-header | entity-header ) CRLF)
+  CRLF
+  [ message-body ]
 ÆäÖĞ
-    Method = "OPTIONS" | "GET" | "HEAD" | "POST" | "PUT" | "DELETE" | "TRACE" | "CONNECT"
-    Request-URI    = "*" | absoluteURI | abs_path | authority
-    HTTP-Version   = "HTTP" "/" 1*DIGIT "." 1*DIGIT
-    http_URL = "http:" "//" host [ ":" port ] [ abs_path [ "?" query ]]
+  Method = "OPTIONS" | "GET" | "HEAD" | "POST" | "PUT" | "DELETE" | "TRACE" | "CONNECT"
+  Request-URI    = "*" | absoluteURI | abs_path | authority
+  HTTP-Version   = "HTTP" "/" 1*DIGIT "." 1*DIGIT
+  http_URL = "http:" "//" host [ ":" port ] [ abs_path [ "?" query ]]
 ```
 HTTPÇëÇóÏûÏ¢µÄÈı²¿·Ö£ºÇëÇóĞĞ¡¢ÇëÇóÍ·¡¢ÏûÏ¢Ìå£¬Ç°Á½²¿·Ö¶¼ÊÇ´¿ÎÄ±¾ÄÚÈİ£¬Í·ÓëÌåÖ®¼äÓÉÒ»¸ö¿ÕĞĞ\r\n¸ô¿ª¡£ÇëÇóĞĞÓÉÈı²¿·Ö¹¹³É£ºÇëÇó·½·¨¡¢ÇëÇóURIµØÖ·¡¢Ğ­Òé°æ±¾¡£ÇëÇóURLµØÖ·ÊÇ±êÊ¶×ÊÔ´Î»ÖÃµÄ¶¨Î»·û£¬Æä»ù±¾¸ñÊ½Îª£º<Ğ­Òé>://<Ö÷»ú>:[¶Ë¿Ú]/<Â·¾¶>?[²ÎÊı]
 
@@ -1425,12 +1427,12 @@ HTTPÇëÇóÏûÏ¢µÄÈı²¿·Ö£ºÇëÇóĞĞ¡¢ÇëÇóÍ·¡¢ÏûÏ¢Ìå£¬Ç°Á½²¿·Ö¶¼ÊÇ´¿ÎÄ±¾ÄÚÈİ£¬Í·ÓëÌåÖ®¼ä
 
 °´ÕÕRFC 2616¹æ·¶£¬HTTPÏìÓ¦ÏûÏ¢°üÀ¨×´Ì¬ĞĞ¡¢ÏìÓ¦Í·¡¢ÏìÓ¦Ìå£¬¾ßÌå¸ñÊ½ÈçÏÂ£º
 ```
-    HTTP-Version SP Status-Code SP Reason-Phrase CRLF
-    *(( general-header | response-header | entity-header ) CRLF)
-    CRLF
-    [ message-body ]
+  HTTP-Version SP Status-Code SP Reason-Phrase CRLF
+  *(( general-header | response-header | entity-header ) CRLF)
+  CRLF
+  [ message-body ]
 ÆäÖĞ
-    HTTP-Version   = "HTTP" "/" 1*DIGIT "." 1*DIGIT
+  HTTP-Version   = "HTTP" "/" 1*DIGIT "." 1*DIGIT
 ```
 ÏìÓ¦ĞĞÖĞµÄ×´Ì¬ÂëÊÇÓÉ3¸öÕûĞÍÊı×Ö¹¹³É£¬×´Ì¬Ô­Òò¶ÌÓïÊÇ¶Ô×´Ì¬ÂëµÄ¼òÒªÎÄ×ÖÃèÊö¡£×´Ì¬ÂëÖĞµÄµÚÒ»Î»´ú±íÏìÓ¦×´Ì¬µÄÀà±ğ£¬ºóÁ½Î»ÊÇ´ËÀà×´Ì¬µÄÔ­Òò£¬¹²ÓĞÎåÀà×´Ì¬£º
 * 1xx - ĞÅÏ¢£¬±íÊ¾ÇëÇóÒÑÊÕµ½£¬¼ÌĞø´¦ÀíÖĞ
@@ -1461,16 +1463,16 @@ Content-Length·½Ê½±È½Ï¼òµ¥£¬½«Êµ¼ÊÏûÏ¢Ìå³¤¶ÈÖ¸¶¨µ½Í·ÖĞ£¬ÏûÏ¢ÌåÄÚÈİ¸úÔÚ±àÂëÍêµÄÍ·
 
 Transfer-Encoding´«Êä±àÂëµÄÑùÀı¸ñÊ½ÈçÏÂ£º
 ```
-        Chunk format as following:
-         24E5CRLF            #chunk-sizeCRLF  (first chunk begin)
-         24E5(byte)CRLF      #(chunk-size octet)CRLF
-         38A1CRLF            #chunk-sizeCRLF  (another chunk begin)
-         38A1(byte)CRLF      #(chunk-size octet)CRLF
-         ......              #one more chunks may be followed
-         0CRLF               #end of all chunks
-         X-bid-for: abcCRLF  #0-more HTTP Headers as entity header
-         .....               #one more HTTP headers with trailing CRLF
-         CRLF
+Chunk format as following:
+ 24E5CRLF            #chunk-sizeCRLF  (first chunk begin)
+ 24E5(byte)CRLF      #(chunk-size octet)CRLF
+ 38A1CRLF            #chunk-sizeCRLF  (another chunk begin)
+ 38A1(byte)CRLF      #(chunk-size octet)CRLF
+ ......              #one more chunks may be followed
+ 0CRLF               #end of all chunks
+ X-bid-for: abcCRLF  #0-more HTTP Headers as entity header
+ .....               #one more HTTP headers with trailing CRLF
+ CRLF
 ```
 ¶ÔTransfer-Encoding: ChunkÄ£Ê½µÄ½âÎö£¬eJetÏµÍ³ÊÇÓÃHTTPChunkÊı¾İ½á¹¹ºÍº¯ÊıÀ´ÊµÏÖµÄ¡£
 
@@ -1834,7 +1836,95 @@ SSL/TLSĞ­ÒéÌá¹©µÄ·şÎñÖ÷ÒªÓĞ£º
 
 #### 4.15.2 eJet¼¯³ÉOpenSSL
 
+¿Í»§¶Ë·¢ÆğHTTPÇëÇó£¬Èç¹ûschemeÊÇhttps£¬ÔòĞèÒª½¨Á¢SSL/TLS over TCPµÄ°²È«Á¬½Óµ½eJet·şÎñÆ÷ÏµÍ³£¬
 
+eJetÏµÍ³×÷Îª·şÎñÆ÷¶Ë½ÓÊÕ¿Í»§¶ËHTTPÇëÇóºÍ×÷Îª¿Í»§¶ËÏòOrigin·şÎñÆ÷·¢ËÍHTTPÇëÇóÊ±£¬¶¼»áÊ¹ÓÃµ½SSLÁ¬½Ó£¬µ÷ÓÃOpenSSLµÄ·½·¨ÓĞÒ»Ğ©²î±ğ¡£
+
+eJet×÷Îª·şÎñÆ÷¶ËÊ¹ÓÃSSLÊ±£¬Ê¹ÓÃOpenSSLµÄ»ù±¾Á÷³Ì¹²ÓĞ¾Å¸ö²½Öè¡£
+
+* 1. ³õÊ¼»¯OpenSSL¿â
+
+ÏµÍ³³õÊ¼»¯Ê±£¬Ê×ÏÈµ÷ÓÃSSL_library_init³õÊ¼»¯OpenSSL¿â£¬µ÷ÓÃSSL_add_ssl_algorithms()Ìí¼ÓSSLÈ±Ê¡Ëã·¨£¬¼ÓÔØ´íÎóĞÅÏ¢¶¨Òå´®£¬Èç¹û¸ù¾İSSLÁ¬½ÓÊµÀıÄÜ»ñÈ¡µ½HTTPCon¶ÔÏó£¬Ğè´´½¨SSLÁ¬½ÓË÷Òı£¬²¢ÀûÓÃ¸ÃÁ¬½ÓË÷Òı£¬½«SSL SocketÁ¬½ÓÊµÀıºÍHTTPCon¶ÔÏó¹ØÁª¡£
+
+* 2. ÅäÖÃÖ¤ÊéºÍË½Ô¿
+
+ÔÚÏµÍ³ÅäÖÃListenÏÂ£¬ÉèÖÃHTTPListen¼àÌı·şÎñÏÂÊÇ·ñÖ§³ÖSSL£¬¼°È±Ê¡µÄÖ¤Êé¡¢Ë½Ô¿ºÍCAÖ¤Êé£¬²¢ÔÚÃ¿¸öÓòÃû¶ÔÓ¦µÄĞéÄâÖ÷»úÏÂ£¬ÅäÖÃÆôÓÃSSLËùĞèµÄ·şÎñÆ÷Ö¤Êé¡¢Ë½Ô¿ºÍCAÖ¤Êé¡£Ê¾ÀıÈçÏÂ£º
+```
+listen = {
+    local ip = *; # any IP address
+    port = 443;
+    forward proxy = off;
+
+    ssl = on;
+    ssl certificate = cert.pem;
+    ssl private key = cert.key;
+    ssl ca certificate = cacert.pem;
+
+    host = {
+        host name = www.yunzhai.cn
+        type = server;
+
+        ssl certificate = yzcert.pem;
+        ssl private key = yzcert.key;
+        ssl ca certificate = yzcacert.pem;
+...... 
+    }
+......
+}
+```
+
+* 3. ³õÊ¼»¯SSL_Ctx
+
+ÔÚÏµÍ³³õÊ¼»¯×îºó£¬¿ªÊ¼Æô¶¯HTTPListen·şÎñÇ°£¬¼ÓÔØ¼àÌı·şÎñºÍÆäÏÂ¸÷ĞéÄâÖ÷»úÊ±£¬·Ö±ğ¸ù¾İÖ¤Êé¡¢Ë½Ô¿ºÍCAÖ¤Êé£¬´´½¨HTTPListenµÄÈ±Ê¡SSL_CtxÊµÀı£¬»ò´´½¨¸÷ĞéÄâÖ÷»úHTTPHostÏÂµÄSSL_Ctx¡£
+
+´´½¨SSL_CtxµÄ¹ı³ÌÏÈµ÷ÓÃSSL_CTX_new´´½¨ÊµÀı£¬Ëæºó¼ÓÔØÖ¤ÊéºÍË½Ô¿£¬²¢Ğ£ÑéÖ¤ÊéºÍË½Ô¿ÊÇ·ñÆ¥Åä£¬Èç¹û´æÔÚCAÖ¤Êé£¬»¹Ğè¼ÓÔØCAÖ¤Êé¡£
+
+×îºó£¬ÆôÓÃSNI£¨Server Name Indication£©»úÖÆ£¬ÉèÖÃÒ»¸ö»Øµ÷º¯ÊıÀ´´¦Àí²»Í¬ÓòÃû¶ÔÓ¦²»Í¬µÄÖ¤ÊéºÍË½Ô¿£¬ÔÚSSLÆô¶¯HandshakeÊ±£¬ÏÈ·¢ËÍClientHelloÇëÇó£¬ÆäÖĞĞ¯´øÁËµ±Ç°Á¬½Ó¶ÔÓ¦µÄÓòÃû£¬·şÎñÆ÷¶ËÊÕµ½ClientHelloÊ±£¬»áÒÔÓòÃûÎª²ÎÊı£¬µ÷ÓÃ»Øµ÷º¯Êı£¬Ñ¡ÔñÓëÖ®Ïà¶ÔÓ¦µÄSSL_Ctx¡£
+
+* 4. ½ÓÊÜÁ¬½Ó²¢´´½¨SSL Socket
+
+eJet·şÎñÆ÷ÊÕµ½¿Í»§¶ËµÄTCPÁ¬½ÓÇëÇóÊ±£¬´´½¨HTTPConÊµÀı£¬±£´æÁ¬½ÓĞÅÏ¢ºó£¬HTTPConĞè¹ØÁªHTTPListen£¬²¢¸ù¾İHTTPListenÖĞµÄssl_linkÅäÖÃÑ¡Ïî£¬À´´´½¨SSL SocketÁ¬½ÓÊµÀı£¬Æä¹ı³ÌÖ÷Òª°üÀ¨£ºÊ¹ÓÃSSL_new´´½¨SSLÊµÀı£¬µ÷ÓÃSSL_set_fdÉèÖÃµ±Ç°Á¬½ÓµÄÎÄ¼şÃèÊö·û£¬µ÷ÓÃSSL_set_ex_data½«µ±Ç°SSL¶ÔÏóºÍHTTPConÊµÀı¶ÔÏó¹ØÁªÆğÀ´¡£×îºó£¬ÉèÖÃµ±Ç°HTTPConµÄssl_handshaked×´Ì¬ÎªÎ´½¨Á¢ÎÕÊÖ×´Ì¬¡£
+
+* 5. ¸ù¾İÓòÃûÑ¡Ôñ¶ÔÓ¦µÄSSL_Ctx
+
+Ò»¸ö¼àÌı¶Ë¿ÚÏÂ£¬¿ÉÒÔÓĞ¶à¸öÖ¤Êé£¬ÓÃÓÚ²»Í¬µÄÖ÷»úÃû£¬¿Í»§¶ËHTTPSÇëÇóµ½´ïÊ±£¬ĞèÒªÊ¹ÓÃºÏÊÊµÄÖ¤ÊéÀ´Íê³ÉºóĞøSSLÎÕÊÖºÍ¼ÓÃÜÍ¨ĞÅ£¬ÕâÊÇ²ÉÓÃTLS¹æ·¶µÄSNI»úÖÆÀ´ÊµÏÖµÄ¡£
+
+ÔÚ´´½¨SSL_CtxÊ±£¬ĞèÉèÖÃ¶àÓòÃûÑ¡ÔñµÄ»Øµ÷º¯Êı£¬SSLÎÕÊÖ¿ªÊ¼Ê±µÄClientHelloÇëÇóĞ¯´øÇëÇóµÄÓòÃûÃû³Æ£¬»Øµ÷º¯Êı¸ù¾İSSL_get_servername»ñÈ¡µ½ÓòÃûÃû³Æ£¬ÔÚµ±Ç°HTTPListenÏÂ²éÕÒ¸ÃÃû³Æ¶ÔÓ¦µÄĞéÄâÖ÷»úHTTPHost£¬²¢µ÷ÓÃSSL_set_SSL_CTX£¬½«µ±Ç°HTTPConÖĞµÄSSLÁ¬½ÓµÄSSL_CtxÉÏÏÂÎÄÊµÀıÉèÖÃÎª¸ÃHTTPHostÏÂµÄsslctx£¬¼´¿ÉÊµÏÖÖ¤ÊéÑ¡ÔñºÍÇĞ»»²Ù×÷¡£
+
+* 6. SSLÎÕÊÖ
+
+¶ÔÓÚ½ÓÊÜ¿Í»§¶ËÇëÇóµÄÇéĞÎ£¬SSLÎÕÊÖ¹ı³ÌÊÇÔÚSSL_acceptÖĞÊµÏÖµÄ£¬ÓÉÓÚÍøÂç¶¶¶¯µÈÒòËØ£¬ÎÕÊÖ¹ı³ÌÖĞÍùÀ´µÄÊı¾İĞèÒªÍ¨¹ı¶à´Î¶ÁĞ´ÊÂ¼şÀ´Çı¶¯Íê³É£¬ÔÚhttp_pump´¦ÀíIOE_READºÍIOE_WRITEÊ±£¬ĞèÒªÅĞ¶Ïµ±Ç°HTTPConµÄssl_handshaked×´Ì¬£¬Èç¹ûÃ»ÓĞÎÕÊÖ³É¹¦£¬ÔòÏìÓ¦ÕâÁ½¸öePumpÊÂ¼şÊ±£¬¶¼ĞèÒªµ÷ÓÃSSL_accept¡£
+
+eJet»¹ĞèÒª¸ù¾İSSL_acceptµÄ´íÎó×´Ì¬Âë£¬À´Ìí¼Ó¶Ôµ±Ç°TCPÁ¬½ÓµÄ¶Á¾ÍĞ÷»òĞ´¾ÍĞ÷¼àÌı´¦Àí£¬²¢ÔÚhttp_pumpÖĞ´¦Àí¶ÁĞ´ÊÂ¼ş¡£ÕâÊÇ·Ç×èÈûÍ¨ĞÅÏÂ½¨Á¢SSLÁ¬½Ó±ØĞëÒª×¢ÒâµÄ²½Öè¡£
+
+Èç¹ûSSL_accept·µ»Ø³É¹¦£¬Ôò½«HTTPConµÄssl_handshakedÉèÖÃÎªÒÑÍê³ÉÎÕÊÖ×´Ì¬£¬²¢µ÷ÓÃhttp_cli_recvÀ´½ÓÊÕSSLÉÏµÄÊı¾İ¡£
+
+* 7. ÔÚSSLÁ¬½ÓÉÏ½ÓÊÕÊı¾İ
+
+eJetÏµÍ³·â×°ÁËÒ»¸öÕë¶ÔHTTPConµÄÊı¾İ½ÓÊÕº¯Êı£¬Í¬Ê±¼æÈİÓĞSSLÁ¬½ÓºÍÃ»ÓĞSSLÁ¬½ÓÕâÁ½ÖÖÇé¿ö£¬º¯Êı¶¨ÒåÈçÏÂ£º
+```c
+int http_con_read (void * vcon, frame_p frm, int * num, int * err);
+```
+ePump¿ò¼ÜÔÚµ±Ç°Á¬½ÓÓĞÊı¾İ¿É¶ÁÊ±£¬»Øµ÷http_pump´¦ÀíIOE_READÊÂ¼ş£¬Èç¹ûÍê³ÉÁËÎÕÊÖ¹ı³Ì£¬Ôòµ÷ÓÃÕâ¸öº¯ÊıÀ´¶ÁÈ¡Êı¾İ¡£Èç¹ûÊÇSSLÁ¬½Ó£¬¸Ãº¯Êıµ÷ÓÃSSL_readÀ´¶ÁÈ¡Êı¾İ£¬Èç¹û¶ÁÈ¡³É¹¦£¬·µ»ØµÄÊÇ½âÃÜÍê³ÉºóµÄÊı¾İ³¤¶È£¬²¢½«½âÃÜºóµÄÊı¾İ´æÈë»º³åÇø£¬×¢Òâ£ºÕâÀïÓĞÁ½´Î¿½±´£¨´ÓÄÚºË¿½±´µ½ÁÙÊ±»º³åÇø£¬ÔÙ´ÓÁÙÊ±»º³åÇø¿½±´µ½Ä¿±ê»º³åÇø£©£¬ĞèÒªÓÅ»¯¡£
+
+Èç¹ûSSL_read·µ»Ø0£¬Ôòµ±Ç°Á¬½Ó³öÏÖ¹ÊÕÏ£¬Ğè¹Ø±ÕÁ¬½Ó¡£Èç¹û·µ»ØÖµĞ¡ÓÚ0£¬Ôòµ÷ÓÃSSL_get_errorÀ´´¦Àí´íÎóÂë£¬¶ÔÓÚSSL_ERROR_WANT_READºÍSSL_ERROR_WANT_WRITEÁ½ÖÖÇé¿öĞèÒªµ÷ÓÃePump½Ó¿ÚÉèÖÃÌí¼Ó¶ÁĞ´¾ÍĞ÷¼àÌı¡£
+
+* 8. ÔÚSSLÁ¬½ÓÉÏ·¢ËÍÊı¾İ
+
+eJetÏµÍ³ÖĞ·¢ËÍÊı¾İÁ÷³ÌÒ»°ãÊÇÓÃchunk_tÊı¾İ½á¹¹¹ÜÀíÊı¾İ£¬µ÷ÓÃwritevºÍsendfile½«Êı¾İÍ¨¹ıÍøÂç·¢ËÍ¸ø¶Ô·½£¬ÔÚSSLÁ¬½ÓÇé¿öÏÂ£¬eJetÏµÍ³Í¬Ñù·â×°ÁËÁ½¸öÀàËÆµÄº¯Êı£º
+```c
+int http_con_writev (void * vcon, void * piov, int iovcnt, int * num, int * err);
+int http_con_sendfile (void * vcon, int filefd, int64 pos, int64 size, int * num, int * err);
+```
+ÕâÁ½¸öº¯ÊıÍ¬Ê±¼æÈİÓĞSSLÁ¬½ÓºÍÃ»ÓĞSSLÁ¬½ÓÕâÁ½ÖÖÇé¿ö£¬ÔÚÃ»ÓĞSSLÁ¬½ÓÇé¿öÏÂ£¬Ö±½Óµ÷ÓÃtcp_writevºÍtcp_sendfile¡£
+
+ÔÚÓĞSSLÁ¬½ÓÇé¿öÏÂ£¬µ÷ÓÃSSL_writeº¯Êı£¬ÒªĞ´ÈëµÄÃ÷ÎÄÊı¾İµ÷ÓÃSSL_writeºó±»¼ÓÃÜ²¢´«Êä¸ø¶Ô·½¡£Èç¹û·¢ËÍ³É¹¦·µ»ØµÄÊÇĞ´ÈëÊı¾İµÄ³¤¶È£¬Èç¹û·µ»Ø0£¬Ôòµ±Ç°Á¬½Ó³öÏÖ¹ÊÕÏ£¬Ğè¹Ø±ÕÁ¬½Ó¡£Èç¹û·µ»ØÖµĞ¡ÓÚ0£¬ÔòĞèÒªµ÷ÓÃSSL_get_errorÀ´´¦Àí´íÎóÂë£¬¶ÔÓÚSSL_ERROR_WANT_READºÍSSL_ERROR_WANT_WRITEÁ½ÖÖÇé¿öĞèÒªµ÷ÓÃePump½Ó¿ÚÉèÖÃÌí¼Ó¶ÁĞ´¾ÍĞ÷¼àÌı¡£
+
+* 9. ¹Ø±ÕSSLÁ¬½Ó
+
+ÔÚ´¦ÀíÍê³ÉÊı¾İ¶ÁĞ´²Ù×÷£¬»òÕßÍøÂç´íÎóµÈÇé¿ö£¬µ±Ç°HTTPCon»á±»¹Ø±Õ£¬Èç¹ûÊÇSSLÁ¬½ÓÔòĞèÊÍ·ÅSSLÊµÀı£¬·Ö±ğµ÷ÓÃSSL_shutdownºÍSSL_freeÀ´Íê³É×ÊÔ´ÊÍ·Å¡£
+
+ÒÔÉÏ¾Å¸ö²½ÖèÊÇeJetÏµÍ³×÷ÎªHTTP·şÎñÆ÷Ê±Ê¹ÓÃSSLÁ¬½ÓÀ´´«ÊäÊı¾İµÄ»ù±¾Á÷³Ì£¬¶ÔÓÚeJetÏµÍ³×÷ÎªHTTP¿Í»§¶ËÇéĞÎ£¬¹ı³Ì»ù±¾ÀàËÆ£¬ÕâÀï²»ÔÙ×¸Êö¡£
 
 
 ### 4.16 Chunk´«Êä±àÂë½âÎö
