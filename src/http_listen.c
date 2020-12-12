@@ -981,8 +981,6 @@ int http_listen_build (void * vmgmt)
 #ifdef HAVE_OPENSSL
             if (hl->ssl_link) {
                 hl->sslctx = http_ssl_server_ctx_init(hl->cert, hl->prikey, hl->cacert);
-                if (!hl->sslctx)
-                    hl->ssl_link = 0;
             }
 #endif
 
