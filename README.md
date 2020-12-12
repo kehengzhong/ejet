@@ -1,6 +1,6 @@
 ## eJet - a lightweight high-performance embeded Web Server
 
-*eJet is a lightweight, high-performance, embedded Web server that implements the full-stack functions of the HTTP/1.1 protocol, including TLS/SSL, Forward/Reverse Proxy, FastCGI, Cookie, Web Cache, Access Log, HTTP Variable, HTTP Script, JSon-style configuration file, Virtual Host, HTTP Location, Directives such as Rewrite/Try_files, HTTP Tunnel, Application/Dynamic-Lib Callbacks, etc.  It's a ideal service platform hosting for upload/download of super-large files, website, PHP, CDN, Web Cache, embedded Web, etc.*
+*eJet is a lightweight, high-performance, embedded Web server that implements the full-stack functions of the HTTP/1.1 protocol, including TLS/SSL, Forward/Reverse Proxy, FastCGI, Cookie, Web Cache, Access Log, HTTP Variable, HTTP Script, JSon-style configuration file, Virtual Host, HTTP Location, Directives such as Rewrite/Try_files, HTTP Tunnel, Application/Dynamic-Lib Callbacks, etc.  It's an ideal service platform hosting for upload/download of super-large files, website, PHP, CDN, Web Cache, embedded Web, etc.*
 
 *eJet 是一个轻量级、高性能、嵌入式Web服务器，实现HTTP/1.1协议全栈功能，包括TLS/SSL、正向代理、反向代理、FastCGI、Cookie、Web Cache、访问日志、HTTP变量、HTTP Script脚本程序、JSon配置文件、虚拟主机、HTTP Location、Rewrite/Try_files等指令、HTTP Tunnel、应用回调和动态库回调等，是承载超大文件上传下载、网站、PHP、CDN、Web Cache、嵌入式Web等服务的理想平台。*
 
@@ -1929,8 +1929,25 @@ int http_con_sendfile (void * vcon, int filefd, int64 pos, int64 size, int * num
 
 ### 4.16 Chunk传输编码解析
 
+HTTP 1.1协议增加了Transfer-Encoding: chunked的头类型，表示消息体的内容长度不能确定，需采用分块传输编码方式，将消息体发送给对方。
+
+Chunked Transfer Coding分块传输编码是由多个Chunk块组成，每个Chunk块包括两部分，十六进制的分块数据长度加上可选的分块扩展加上\r\n、实际分块数据加上\r\n，分块传输编码的结尾是以分块数据长度为0的分块组成。
+
+分块传输数据格式如下：
+```
+chunked body = chunk-size[; chunk-ext-nanme [= chunk-ext-value]]\r\n
+               ...
+               0\r\n
+               [footer]
+               \r\n
+```
+chunk size是以16进制表示的长度，footer一般是以\r\n结尾的entity-header，一般都忽略掉。
+
+
 
 ### 4.17 反向代理
+
+反向代理是将不同的Origin服务器代理给客户端，让客户端认为反向代理服务器就是其访问的Origin服务器。
 
 
 ### 4.18 FastCGI机制和启动PHP的流程
