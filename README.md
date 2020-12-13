@@ -118,7 +118,7 @@
         * [4.15.1 TLS/SSL、OpenSSL介绍](#4151-tlssslopenssl介绍)
         * [4.15.2 eJet集成OpenSSL](#4152-ejet集成openssl)
     * [4.16 Chunk传输编码解析](#416-chunk传输编码解析)
-    * [4.17 反向代理](#417-反向代理)
+    * [4.17 反向代理和正向代理](#417-反向代理和正向代理)
     * [4.18 FastCGI机制和启动PHP的流程](#418-fastcgi机制和启动php的流程)
     * [4.19 两个通信连接的串联Pipeline](#419-两个通信连接的串联pipeline)
     * [4.20 HTTP Cache系统](#420-http-cache系统)
@@ -1943,14 +1943,108 @@ chunked body = chunk-size[; chunk-ext-nanme [= chunk-ext-value]]\r\n
 ```
 chunk size是以16进制表示的长度，footer一般是以\r\n结尾的entity-header，一般都忽略掉。
 
+eJet系统使用HTTPChunk数据结构来解析chunk分块传输编码的消息体数据，使用chunk_t数据结构来打包分块传输编码。HTTPChunk数据结构包含chunk_t成员实例，用于存储解析成功的Chunk数据块，每一个Chunk数据块解析状态和信息用ChunkItem来存储管理，HTTPChunk中用item_list来管理多个ChunkItem。
+
+采用chunk分块传输编码的消息体，实际情况是一边传输一边解析，解析过程要充分考虑到当前接收缓冲区内容的不完整性，这是由HTTPChunk里的http_chunk_add_bufptr来实现的，函数定义如下：
+```c
+int http_chunk_add_bufptr (void * vchk, void * vbgn, int len, int * rmlen);
+```
+vbgn和len指向需解析的消息体数据，rmlen是解析成功后实际用于chunk分块传输编码的字节数量。
+
+eJet在遇到chunk分块传输编码的消息体时，每次收到读事件，就将数据读取到缓冲区，将缓冲区所有数据交给这个解析函数解析处理，返回的rmlen值是被解析和处理的字节数，将处理完的数据从缓冲区移除掉。通过http_chunk_gotall来判断是否接收到全部chunk分块传输编码的所有数据，如果没有，循环地用新接收的数据调用该函数来解析和处理，直至成功接收完毕。
 
 
-### 4.17 反向代理
+### 4.17 反向代理和正向代理
 
-反向代理是将不同的Origin服务器代理给客户端，让客户端认为反向代理服务器就是其访问的Origin服务器。
+#### 4.17.1 判断是否为代理请求
 
+反向代理是将不同的Origin服务器代理给客户端，客户端不做任何代理配置发起正常的HTTP请求到反向代理服务器，反向代理服务器根据配置的路径规则，代理访问不同的Origin服务器并将响应结果返回给客户端，让客户端认为反向代理服务器就是其访问的Origin服务器。
+
+正向代理需要求客户端设置正向代理服务器地址，明确给定Origin服务器地址，要求正向代理服务器想给定的Origin服务器转发请求和响应。
+
+上面描述的反向代理服务器，在这里就是eJet Web服务器，除了充当Web服务器功能外，还可以充当正向代理服务器和反向代理服务器。
+
+eJet系统在HTTPMsg实例化完成后，首先要检查的是当前请求是否为Proxy代理请求:
+* 是否在rewrite时启动forward到一个新的Origin服务器的动作，如果是则代理转发到新的URL
+* 是否为正向代理，正向代理的请求地址request URI是绝对URI，如果是则代理转发到绝对URI上
+* 判断当前资源位置HTTPLoc是否配置了反向代理，以及反向代理指向的Origin服务器，如果是，根据规则生成访问Origin服务器的URL地址
+
+以上三种情况中，第一种和第三种为反向代理，第二种为正向代理，对应的配置样例如下：
+```
+location = { #rewrite ... forward
+    type = server;
+    path = ['/5g/', '^~' ];
+    script = {
+        rewrite ^/5g/.*tpl$ http://temple.ejetsrv.com/getres.php forword;
+    }
+}
+
+# HTTP请求行是绝对URI地址
+GET http://cdn.ejetsrv.com/view/23C87F23D909B47E2187A0DB83AF07D3 HTTP/1.1
+....
+
+location = { # 反向代理配置
+    path = [ '^/view/([0-9A-Fa-f]{32})$', '~*' ];
+    type = proxy;
+    passurl = http://cdn.ejetsrv.com/view/$1;
+......
+}
+```
+
+无论是正向代理，还是反向代理，最后转发请求的操作流程基本类似，即需明确指向新Origin服务器的URL地址，作为下一步转发地址，主动建立到Origin服务器的HTTPCon连接，组装新的HTTPMsg请求，发送请求并等候响应，将响应结果转发到源HTTPMsg中，发送给客户端。
+
+如果是代理请求，包括正向代理或反向代理，eJet需要做Proxy代理转发处理，基本流程已经在[2.10 Proxy代理转发](#210-proxy代理转发)中描述过了，这里不多介绍。
+
+#### 4.17.2 代理请求的实时转发
+
+需要重点介绍的是实时转发源请求到Origin服务器的流程。代理转发时先创建一个代理转发的HTTPMsg实例，将源请求HTTPMsg实例的请求数据复制到代理请求HTTPMsg中，如果HTTP请求含有请求消息体时，代理转发流程有两种实现方式：
+* 一种方式是存储转发，即接收完所有的HTTP请求消息体后，再复制到代理转发HTTPMsg中，最后发送出去
+* 另一种方式实时转发，即接收一部分消息体就发送一部分消息体，直到全部发送完毕
+
+为了确保代理转发效率和降低存储消耗，eJet系统采用实时转发模式。
+
+源请求的消息体内容保存在HTTPCon的rcvstream中，响应IOE_READ事件时将网络内容读取到该缓冲区后，就要调用http_proxy_srv_send来实时转发。转发的数据包括代理请求头、上次未发送成功的消息体、及当期位于HTTPCon缓冲区中的rcvstream，严格按照接收的顺序来发送。
+
+每次未发送成功的消息体，将会从HTTPCon的rcvstream中拷贝出来，转存到代理请求HTTPMsg中的req_body_stream中，作为临时缓冲区保存累次未能发送的消息体。当从源HTTPCon中接收到新数据、或到Origin服务器的目的HTTPCon中可写就绪时，都会启动http_proxy_srv_send的实时发送流程，而优先发送的消息体就是代理请求中req_body_stream中的内容。
+
+源请求的消息体有三种情况：
+* 没有消息体内容
+* 存在以Content-Length来标识大小的消息体内容
+* 存在以Transfer-Encoding标识分块传输编码的消息体内容
+
+实时转发需要处理这三种情况，最终通过http_con_writev来发送给对方。发送不成功的剩余内容，需要从源HTTPCon中拷贝到代理请求HTTPMsg中的req_body_stream中。
+
+实时转发最大问题是拥塞问题，即源HTTPCon上的请求数据发送速度很快，但到Origin服务器的目的HTTPCon连接的发送速度比较慢，导致大量的数据会堆积到代理消息HTTPMsg中req_body_stream中，消耗大量内存，严重时会导致内存消耗过大系统崩溃。
+
+代理消息实时转发模式的拥塞问题根源在于两条线路传输速度不对等导致，只要发送侧速度大于接收侧速度，拥塞问题就会出现。解决拥塞问题需从源头来考虑，判断是否拥塞的标准是堆积的内存缓冲区超过一定的阈值，一旦内存堆积超过阈值，就断定为拥塞，需限制客户端继续发送任何内容，直到解除拥塞后继续发送。
+
+拥塞控制的细节参见4.19章节的内容。
+
+#### 4.17.3 代理响应的实时转发
+
+代理请求转发给Origin服务器后，会返回响应消息，包括响应头和响应体，响应头的接收和处理可参见[4.6 HTTP请求和响应](#46-http请求和响应)。
+
+和HTTP请求消息的实时转发类似，代理消息的响应也需要实时转发给客户端。
+
+根据代理HTTPMsg内部成员proxiedl连判断当前消息是否为代理，对Origin返回的响应头信息进行预处理：
+* 如果是301/302跳转，当前代理消息是反向代理，并且系统允许自动重定向，则需重新发送重定向请求；
+* 如果需要缓存到本地存储系统，采用缓存处理流程，见4.20章节
+* 其他情形就按照代理响应来处理
+
+复制所有的响应状态码和响应头到源HTTPMsg中，并将响应HTTPCon的接收缓冲区rcvstream数据实时转发到源HTTPCon中，同样地，HTTPCon中没有发送不成功的数据，转存到源HTTPMsg中的res_body_stream中临时缓存起来。每次当源HTTPCon可写就绪、或代理HTTPCon有数据可读并读取成功后，都会调用http_proxy_cli_send，优先发送的是堆积在res_body_stream中的数据。
+
+其他后续流程类似请求消息的实时转发。
 
 ### 4.18 FastCGI机制和启动PHP的流程
+
+FastCGI是CGI（Common Gateway Interface）的开放式扩展规范，其技术规范见网址[http://www.mit.edu/~yandros/doc/specs/fcgi-spec.html](http://www.mit.edu/~yandros/doc/specs/fcgi-spec.html)
+
+对静态HTML页面中嵌入动态脚本程序的内容，如PHP、ASP等，需要由特定的脚本解释器来解释运行并动态生成新的页面，这个过程需要eJet Web服务器和这类脚本程序解释器之间有一个数据交互接口，这个接口就是CGI接口，考虑到性能局限，早期的独立创建进程模式的CGI接口发展成FastCGI接口规范。习惯地，我们把解释器称之为CGI服务器。
+
+使用CGI接口规范的页面脚本程序可以使用任何支持标准输入STDIN、标准输出STDOUT、环境变量的编程语言来编写，如PHP、Perl、Python、TCL等。传统CGI规范的fork-and-execute模式，每个请求都会创建新进程、执行解释器返回响应、销毁进程，是个很重的工作模式。FastCGI简化了脚本解释器和Web服务器之间的交互，通过Unix Socket或TCP协议，建立并维持通信连接到CGI服务器，大大提升了性能和并发处理能力。
+
+PHP解释器名称为php-fpm（php FastCGI Processor Manager），作为FastCGI通信服务器监听来自Web服务器的连接请求，并接收连接上的数据，进行解析、解释执行后，返回响应给Web服务器端。
+
 
 
 ### 4.19 两个通信连接的串联Pipeline
