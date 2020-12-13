@@ -2040,13 +2040,39 @@ location = { # 反向代理配置
 
 ### 4.18 FastCGI机制和启动PHP的流程
 
+#### 4.18.1 FastCGI基本信息
+
 FastCGI是CGI（Common Gateway Interface）的开放式扩展规范，其技术规范见网址[http://www.mit.edu/~yandros/doc/specs/fcgi-spec.html](http://www.mit.edu/~yandros/doc/specs/fcgi-spec.html)
 
-对静态HTML页面中嵌入动态脚本程序的内容，如PHP、ASP等，需要由特定的脚本解释器来解释运行并动态生成新的页面，这个过程需要eJet Web服务器和这类脚本程序解释器之间有一个数据交互接口，这个接口就是CGI接口，考虑到性能局限，早期的独立创建进程模式的CGI接口发展成FastCGI接口规范。习惯地，我们把解释器称之为CGI服务器。
+对静态HTML页面中嵌入动态脚本程序的内容，如PHP、ASP等，需要由特定的脚本解释器来解释运行，并动态生成新的页面，这个过程需要eJet Web服务器和脚本程序解释器之间有一个数据交互接口，这个接口就是CGI接口，考虑到性能局限，早期的独立进程模式的CGI接口发展成FastCGI接口规范。习惯地，我们把解释器称之为CGI服务器。
 
-使用CGI接口规范的页面脚本程序可以使用任何支持标准输入STDIN、标准输出STDOUT、环境变量的编程语言来编写，如PHP、Perl、Python、TCL等。传统CGI规范的fork-and-execute模式，每个请求都会创建新进程、执行解释器返回响应、销毁进程，是个很重的工作模式。FastCGI简化了脚本解释器和Web服务器之间的交互，通过Unix Socket或TCP协议，建立并维持通信连接到CGI服务器，大大提升了性能和并发处理能力。
+使用CGI接口规范的页面脚本程序可以使用任何支持标准输入STDIN、标准输出STDOUT、环境变量的编程语言来编写，如PHP、Perl、Python、TCL等。在传统CGI规范的fork-and-execute模式中，Web服务器会为每个HTTP请求，创建一个新进程、解释执行、返回响应、销毁进程，这是个很重的工作流程。
 
-PHP解释器名称为php-fpm（php FastCGI Processor Manager），作为FastCGI通信服务器监听来自Web服务器的连接请求，并接收连接上的数据，进行解析、解释执行后，返回响应给Web服务器端。
+FastCGI对CGI这种重模式进行了简化，脚本解释器和Web服务器之间的交互，通过Unix Socket或TCP协议来实现，Web服务器收到需要解释执行的HTTP请求时，建立并维持通信连接到CGI服务器，按照FastCGI通信规范发送请求，并接收响应，这个流程相比CGI模式，大大提升了性能和并发处理能力。
+
+PHP解释器名称为php-fpm（php FastCGI Processor Manager），作为FastCGI通信服务器监听来自Web服务器的连接请求，并接收连接上的数据，进行解析、解释执行后，返回响应给Web服务器端。php-fpm的配置项中，启动监听服务：
+```
+; The address on which to accept FastCGI requests.
+; Valid syntaxes are:
+;   'ip.add.re.ss:port'    - to listen on a TCP socket to a specific IPv4 address on
+;                            a specific port;
+;   '[ip:6:addr:ess]:port' - to listen on a TCP socket to a specific IPv6 address on
+;                            a specific port;
+;   'port'                 - to listen on a TCP socket to all addresses
+;                            (IPv6 and IPv4-mapped) on a specific port;
+;   '/path/to/unix/socket' - to listen on a unix socket.
+; Note: This value is mandatory.
+listen = /run/php-fpm/www.sock
+;listen = 9000
+```
+
+#### 4.18.2 eJet如何启用FastCGI
+
+
+#### 4.18.3 FastCGI的通信规范
+
+
+#### 4.18.4 FastCGI消息的实时转发
 
 
 
@@ -2066,9 +2092,11 @@ PHP解释器名称为php-fpm（php FastCGI Processor Manager），作为FastCGI通信服务器监
 
 ### 4.21 HTTP Tunnel
 
+HTTP Tunnel是在客户端和Origin服务器之间，通过Tunnel网关，建立传输隧道的通信方式，eJet服务器可以充当HTTP Tunnel网关，分别与客户端和Origin服务器之间建立两个TCP连接，并在这两个连接之间进行数据的实时转发。根据RFC 2616规范，HTTP CONNECT请求方法是建立HTTP Tunnel的基本方式。
 
 ### 4.22 HTTP Cookie机制
 
+HTTP Cookie是对事务型协议增加会话维持的机制。
 
 
 五. eJet为什么高性能
