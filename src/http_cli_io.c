@@ -149,6 +149,8 @@ int http_cli_recv (void * vcon)
     HTTPCon    * pcon = (HTTPCon *)vcon;
     HTTPMgmt   * mgmt = NULL;
     HTTPMsg    * msg = NULL;
+    HTTPMsg    * srvmsg = NULL;
+    HTTPCon    * srvcon = NULL;
     int          ret = 0, num = 0;
     int          err = 0;
 
@@ -156,6 +158,29 @@ int http_cli_recv (void * vcon)
 
     mgmt = (HTTPMgmt *)pcon->mgmt;
     if (!mgmt) return -2;
+
+    msg = http_con_msg_first(pcon);
+    if (msg && msg->proxied == 1 && (srvmsg = msg->proxymsg) &&
+            frameL(srvmsg->req_body_stream) >= mgmt->proxy_buffer_size)
+    {
+        /* congestion control: by neglecting the read-ready event,
+           underlying TCP stack recv-buffer will be full soon.
+           TCP stack will start congestion control mechanism */
+        iodev_del_notify(pcon->pdev, RWF_READ);
+        pcon->read_ignored++;
+ 
+        srvcon = srvmsg->pcon;
+ 
+        if (!tcp_connected(iodev_fd(pcon->pdev)) ||
+            (srvcon && !tcp_connected(iodev_fd(srvcon->pdev)))
+           ) {
+           http_con_close(srvmsg->pcon);
+           http_con_close(pcon);
+           return -100;
+        }
+ 
+        return 0;
+    }
 
     while (1) {
         ret = http_con_read(pcon, pcon->rcvstream, &num, &err);

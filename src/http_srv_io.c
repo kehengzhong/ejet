@@ -672,7 +672,7 @@ int http_srv_recv_parse (void * vcon)
 
             http_proxy_climsg_dup(msg);
 
-            /* bind srvcon and clicon, the events of two pcon are handled in one thread */
+            /* bind srvcon and clicon, the events of two HTTPCon are handled in one thread */
             clicon = proxymsg->pcon;
             if (clicon) iodev_workerid_set(pcon->pdev, iodev_workerid(clicon->pdev));
 

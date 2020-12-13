@@ -229,6 +229,7 @@ int http_proxy_srv_send (void * vsrvcon, void * vsrvmsg)
 {
     HTTPCon   * srvcon = (HTTPCon *)vsrvcon;
     HTTPMsg   * srvmsg = (HTTPMsg *)vsrvmsg;
+    HTTPMgmt  * mgmt = NULL;
     HTTPCon   * clicon = NULL;
     HTTPMsg   * climsg = NULL;
     HTTPChunk * chunk = NULL;
@@ -258,6 +259,9 @@ int http_proxy_srv_send (void * vsrvcon, void * vsrvmsg)
 
     clicon = climsg->pcon;
     if (!clicon) return -4;
+
+    mgmt = (HTTPMgmt *)climsg->httpmgmt;
+    if (!mgmt) return -5;
 
     if (climsg->proxied != 1) return -10;
     if (srvmsg->proxied != 2) return -11;
@@ -495,6 +499,15 @@ int http_proxy_srv_send (void * vsrvcon, void * vsrvmsg)
         iodev_add_notify(srvcon->pdev, RWF_WRITE);
     }
  
+    /* read the blocked data in client-side kernel socket for
+       server-side congestion control */
+    if (ret > 0 && clicon->read_ignored > 0 &&
+        frameL(srvmsg->req_body_stream) < mgmt->proxy_buffer_size)
+    {
+        iodev_add_notify(clicon->pdev, RWF_READ);
+        http_cli_recv(clicon);
+    }
+
     return 0;
  
 succ:
