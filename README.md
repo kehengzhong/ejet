@@ -2131,12 +2131,12 @@ eJetÏµÍ³¾ß±¸¸ßÐÔÄÜÌØÕ÷£¬Ö÷ÒªÌåÏÖÔÚÄÜ³ä·ÖÊ¹ÓÃCPUÔËËãÄÜÁ¦¡¢Ê¹ÓÃ¸üÐ¡µÄÄÚ´æ¿ªÏúÍê³É¸
 Æß. eJetÏà¹ØµÄÁíÍâÁ½¸ö¿ªÔ´ÏîÄ¿
 ------
 
-### adif ÏîÄ¿
+### [adif ÏîÄ¿](https://github.com/kehengzhong/adif)
  
 ePump¿ò¼ÜÏîÄ¿ÒÀÀµÓÚ adif ÏîÄ¿Ìá¹©µÄ»ù´¡Êý¾Ý½á¹¹ºÍËã·¨¿â¡£adif ÊÇÓÃ±ê×¼ c ÓïÑÔ¿ª·¢µÄ³£ÓÃÊý¾Ý½á¹¹ºÍËã·¨»ù´¡¿â£¬×÷ÎªÓ¦ÓÃ³ÌÐò¿ª·¢½Ó¿Ú»ù´¡¿â£¬Îª±àÐ´¸ßÐÔÄÜ³ÌÐòÌá¹©±ãÀû£¬¿É¼«´óµØËõ¶ÌÈí¼þÏîÄ¿µÄ¿ª·¢ÖÜÆÚ£¬ÌáÉý¹¤³Ì¿ª·¢Ð§ÂÊ£¬²¢È·±£Èí¼þÏµÍ³ÔËÐÐµÄ¿É¿¿ÐÔ¡¢ÎÈ¶¨ÐÔ¡£adif ÏîÄ¿Ìá¹©µÄÊý¾Ý½á¹¹ºÍËã·¨¿â£¬Ö÷Òª°üÀ¨»ù´¡Êý¾Ý½á¹¹¡¢ÌØÊâÊý¾Ý½á¹¹¡¢³£ÓÃÊý¾Ý´¦ÀíËã·¨£¬³£ÓÃµÄ×Ö·û´®¡¢×Ö½ÚÁ÷¡¢×Ö·û¼¯¡¢ÈÕÆÚÊ±¼äµÈ´¦Àí£¬ÄÚ´æºÍÄÚ´æ³ØµÄ·ÖÅäÊÍ·Å¹ÜÀí£¬ÅäÖÃÎÄ¼þ¡¢ÈÕÖ¾µ÷ÊÔ¡¢ÎÄ¼þ·ÃÎÊ¡¢ÎÄ¼þ»º´æ¡¢JSon¡¢MIMEµÈ¹ÜÀí>£¬Í¨ÐÅ±à³Ì¡¢ÎÄ¼þËø¡¢ÐÅºÅÁ¿¡¢»¥³âËø¡¢ÊÂ¼þÍ¨Öª¡¢¹²ÏíÄÚ´æµÈµÈ¡£
  
 
-### ePumpÏîÄ¿
+### [ePumpÏîÄ¿](https://github.com/kehengzhong/epump)
  
 ÒÀÀµÓÚ adif ÏîÄ¿Ìá¹©µÄ»ù´¡Êý¾Ý½á¹¹ºÍËã·¨¿â£¬×÷Õß¿ª·¢²¢¿ªÔ´ÁË ePump ÏîÄ¿¡£ePump ÊÇÒ»¸ö»ùÓÚI/OÊÂ¼þÍ¨Öª¡¢·Ç×èÈûÍ¨ÐÅ¡¢¶à> Â·¸´ÓÃ¡¢¶àÏß³ÌµÈ»úÖÆ¿ª·¢µÄÊÂ¼þÇý¶¯Ä£ÐÍµÄ C ÓïÑÔÓ¦ÓÃ¿ª·¢¿ò¼Ü£¬ÀûÓÃ¸Ã¿ò¼Ü¿ÉÒÔºÜÈÝÒ×µØ¿ª·¢³ö¸ßÐÔÄÜ¡¢´ó²¢·¢Á¬½ÓµÄ·þÎñÆ÷³Ì Ðò¡£ePump ¿ò¼Ü¸ºÔð¹ÜÀíºÍ¼à¿Ø´¦ÓÚ·Ç×èÈûÄ£Ê½µÄÎÄ¼þÃèÊö·ûºÍ¶¨Ê±Æ÷£¬¸ù¾ÝÆä×´Ì¬±ä»¯²úÉúÏàÓ¦µÄÊÂ¼þ£¬²¢µ÷¶ÈÅÉ·¢µ½ÏàÓ¦Ïß³ÌµÄÊÂ¼þ¶ÓÁÐÖÐ£¬ÕâÐ©Ïß³ÌÍ¨¹ýµ÷ÓÃ¸ÃÊÂ¼þ¹ØÁªµÄ»Øµ÷º¯Êý£¨Callback£©À´´¦ÀíÊÂ¼þ¡£ePump ¿ò¼Ü·â×°ºÍÌá¹©ÁË¸÷ÖÖÍ¨ÐÅºÍÓ¦ÓÃ½Ó¿Ú£¬²¢ÈÚºÏÁËµ±½ñÁ÷ÐÐµÄÍ¨ÐÅºÍÏß³Ì¼Ü¹¹Ä£ÐÍ£¬ÊÇÒ»¸öÇáÁ¿¼¶¡¢¸ßÐÔÄÜµÄ event-driven ¿ª·¢¼Ü¹¹£¬ÀûÓÃ ePump£¬ÈëÃÅ¼¶³ÌÐòÔ±Ò²ÄÜÇáÒ×µØ¿ª·¢³öÉÌÒµ¼¶µÄ¸ßÐÔÄÜ·þÎñÆ÷ÏµÍ³¡£ 
 
