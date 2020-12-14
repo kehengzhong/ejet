@@ -123,6 +123,10 @@
         * [4.17.2 代理请求的实时转发](#4172-代理请求的实时转发)
         * [4.17.3 代理响应的实时转发](#4173-代理响应的实时转发)
     * [4.18 FastCGI机制和启动PHP的流程](#418-fastcgi机制和启动php的流程)
+        * [4.18.1 FastCGI基本信息](#4181-fastcgi基本信息)
+        * [4.18.2 eJet如何启用FastCGI](#4182-ejet如何启用fastcgi)
+        * [4.18.3 FastCGI的通信规范](#4183-fastcgi的通信规范)
+        * [4.18.4 FastCGI消息的实时转发](#4184-fastcgi消息的实时转发)
     * [4.19 两个通信连接的串联Pipeline](#419-两个通信连接的串联pipeline)
     * [4.20 HTTP Cache系统](#420-http-cache系统)
     * [4.21 HTTP Tunnel](#421-http-tunnel)
@@ -2068,12 +2072,129 @@ listen = /run/php-fpm/www.sock
 
 #### 4.18.2 eJet如何启用FastCGI
 
+eJet收到客户端的HTTP请求并创建HTTPMsg和完成HTTPMsg实例化后，根据资源位置HTTPLoc是否将资源类型设置为FastCGI、并且设置了指向CGI服务器地址的passurl，如果都设置这两个参数，则当前请求会被当做FastCGI请求转发给CGI服务器。
+
+启用FastCGI的参数配置如下：
+```
+location = {
+    type = fastcgi;
+    path = [ "\.(php|php?)$", '~*'];
+
+    passurl = fastcgi://127.0.0.1:9000;
+    #passurl = unix:/run/php-fpm/www.sock;
+
+    index = [ index.php ];
+    root = /data/wwwroot/php;
+}
+```
+只要是请求DocURL中路径名称是以.php或.php5等结尾，当前请求都会被FastCGI转发。
+
+在获取转发URL地址时，是复制配置中的passurl地址，即CGI服务器地址，不能把HTTP请求中的路径和query参数信息添加在这个转发URL后面。转发地址有两种形态：
+* 采用TCP协议的CGI服务器地址，以fastcgi://打头，后跟IP地址和端口，或域名和端口；
+* 采用Unix Socket的CGI服务器地址，以unix:打头，后跟Unix Socket的路径文件名。
+
+passurl地址指向CGI服务器，eJet服务器可以支持很多个CGI服务器。
+
+eJet获取到FastCGI转发地址后，根据该地址创建或打开CGI服务器FcgiSrv对象实例，建立TCP连接或Unix Socket连接到该服务器的FcgiCon实例，为当前HTTP请求创建FcgiMsg消息实例，将HTTP请求信息按照FastCGI规范封装到FcgiMsg中，并启动发送流程，将请求发送到CGI服务器。
 
 #### 4.18.3 FastCGI的通信规范
 
+FastCGI通信依赖于C/S模式的可靠的流式的连接，协议定义了十种通信PDU（Protocol Data Unit）类型，每个PDU都由两部分组成：一部分是FastCGI Header头部，另一部分是FastCGI消息体，FastCGI的PDU是严格8字节对齐，PDU总长度不足8的倍数，需要添加Padding补齐8字节对齐。FastCGI的PDU头格式如下：
+```c
+typedef struct fastcgi_header {
+    uint8           version;
+    uint8           type;
+    uint16          reqid;
+    uint16          contlen;
+    uint8           padding;
+    uint8           reserved;
+} FcgiHeader, fcgi_header_t;
+```
+上面定义的协议头格式中，version版本号1个字节，缺省值为1，type为PDU类型1个字节，共计定义了10种类型，reqid为PDU的序号，两字节BigEndian整数，contlen是PDU消息体的内容长度，两字节BigEndian整数，1字节的padding是PDU消息体不是8字节的倍数时，需要补齐8字节对齐所填充的字节数，保留1字节。
+
+其中PDU类型共有十种，分别定义如下：
+```c
+/* Values for type component of FCGI_Header */
+#define FCGI_BEGIN_REQUEST       1
+#define FCGI_ABORT_REQUEST       2
+#define FCGI_END_REQUEST         3
+#define FCGI_PARAMS              4
+#define FCGI_STDIN               5
+#define FCGI_STDOUT              6
+#define FCGI_STDERR              7
+#define FCGI_DATA                8
+#define FCGI_GET_VALUES          9
+#define FCGI_GET_VALUES_RESULT  10
+#define FCGI_UNKNOWN_TYPE       11
+#define FCGI_MAXTYPE            (FCGI_UNKNOWN_TYPE)
+```
+其中从Web服务器发送给CGI服务器的PDU类型为：BEGIN_REQUEST、ABORT_REQUEST、PARAMS、STDIN、GET_VALUES等，从CGI服务器返回给Web服务器的PDU类型为：END_REQUEST、STDOUT、STDERR、GET_VALUES_RESULT等。
+
+根据PDU type值，PDU消息体格式也都不一样，分别定义为：
+```c
+typedef struct {
+    uint8  roleB1;
+    uint8  roleB0;
+    uint8  flags;
+    uint8  reserved[5];
+} FCGI_BeginRequest;
+
+/* Values for role component of FCGI_BeginRequest */
+#define FCGI_RESPONDER           1
+#define FCGI_AUTHORIZER          2
+#define FCGI_FILTER              3
+```
+BEGIN_REQUEST是发送数据到CGI服务器时，第一个必须发送的PDU。其中的角色role是两个字节组成，高位在前、低位在后，一般情况role值为RESPONSER，即要求CGI服务器充当Responder来处理后续的PARAMS和STDIN请求数据。字段flags是指当前连接keep-alive还是返回数据后立即关闭。
+
+第二个需发送到CGI服务器的PDU是PARAMS，其格式是由FcgiHeader加上带有长度的name/value对组成，PDU消息体格式如下：
+```c
+typedef struct {
+    uint8    namelen;    //namelen < 0x80
+    uint32   lnamelen;   //namelen >= 0x80
+    uint8    valuelen;   //valuelen < 0x80
+    uint32   lvaluelen;  //valuelen >= 0x80
+    uint8  * name;       //[namelen];
+    uint8  * value;      //[valuelen];
+} FCGI_PARAMS;
+```
+FastCGI中的PARAMS PDU是将HTTP请求头信息和预定义的Key-Value头信息发送给CGI服务器，这些信息都是Key-Value键值对。如果key或value的数据长度在128字节以内，其长度字段只需一个字节即可，如果大于或等于128字节，则其长度字段必须用BigEndian格式的4字节。在对HTTP请求头和预定义头Key-Value对信息封装编码成PARAMS PDU时，每个Header字段的编码格式为：先是Header的name长度，再是value长度，随后是name长度的name数据内容，最后是value长度的value数据内容。
+```
+1字节namelen或4字节namelen + 1字节valuelen或4字节valuelen + name + value
+```
+所有头信息按照上述编码格式打包完成后，总长度如果不是8的倍数，计算需不全8字节对齐的padding数量，将这些数据填充到FcgiHeader中。
+
+第三个要发送到CGI服务器的PDU是STDIN，STDIN PDU是由FcgiHeader加上实际数据组成。注意的是STDIN数据长度不能大于65535，如果HTTP请求中消息体数据大于65535，需要对消息体拆分成多个STDIN包，使得每个STDIN PDU的消息体长度都在65536字节以下。需要特别注意的是，所有数据内容拆分成多个STDIN PDU完成后，最后还需要添加一个消息体长度为0的STDIN PDU，表示所有的STDIN数据发送完毕。
+
+当eJet系统收到HTTP请求并需要FastCGI转发是，按照以上三类数据包协议格式，将HTTP请求打包封装，并发送成功后，就等等CGI服务器的处理和响应了。
+
+CGI服务器返回的PDU一般如下：
+
+如果出现请求格式错误或其他错误，会返回STDERR数据，其消息体是错误内容，将错误内容取出来可以直接返回给客户端。
+
+正常情况下，CGI服务器会返回一个到多个STDOUT PDU，STDOUT的消息体是实际的数据内容，最大长度小于65536。需要将这些STDOUT的内容整合在一起，作为HTTP响应内容。需注意的是STDOUT内容中，也包含部分HTTP响应头信息，其格式遵循HTTP规范，每个响应头有key-value对构成，以\r\n换行符结束，响应头和响应体之间相隔一个空行\r\n。
+
+全部STDOUT数据结束后，紧接着返回的是END_REQUEST PDU，其格式是8字节的FcgiHeader，加上8字节的消息体，其消息体定义如下：
+```c
+typedef struct {
+    uint32     app_status;
+    uint8      protocol_status;
+    uint8      reserved[3];
+} FCGI_EndRequest;
+
+/* Values for protocolStatus component of FCGI_EndRequest */
+#define FCGI_REQUEST_COMPLETE    0
+#define FCGI_CANT_MPX_CONN       1
+#define FCGI_OVERLOADED          2
+#define FCGI_UNKNOWN_ROLE        3
+```
+
+eJet服务器收到END_REQUEST时，就表示CGI服务器已经返回全部的响应数据了，将这些数据发送给客户端，即可结束当前处理。
 
 #### 4.18.4 FastCGI消息的实时转发
 
+eJet系统将HTTP请求实时转发给CGI服务器，基本过程跟Proxy代理转发类似，包括实时转发、流量拥塞控制等。
+
+细节不多赘述。
 
 
 ### 4.19 两个通信连接的串联Pipeline
