@@ -128,6 +128,8 @@
         * [4.18.3 FastCGIµÄÍ¨ÐÅ¹æ·¶](#4183-fastcgiµÄÍ¨ÐÅ¹æ·¶)
         * [4.18.4 FastCGIÏûÏ¢µÄÊµÊ±×ª·¢](#4184-fastcgiÏûÏ¢µÄÊµÊ±×ª·¢)
     * [4.19 Á½¸öÍ¨ÐÅÁ¬½ÓµÄ´®ÁªPipeline](#419-Á½¸öÍ¨ÐÅÁ¬½ÓµÄ´®Áªpipeline)
+        * [4.19.1 Á½¸öÍ¨ÐÅÁ¬½Ó´®Áª³É¹ÜµÀ](#4191-Á½¸öÍ¨ÐÅÁ¬½Ó´®Áª³É¹ÜµÀ)
+        * [4.19.2 Á½¸öÁ¬½ÓËÙ¶È²»¶ÔµÈµ¼ÖÂµÄÁ÷Á¿ÓµÈû](#4192-Á½¸öÁ¬½ÓËÙ¶È²»¶ÔµÈµ¼ÖÂµÄÁ÷Á¿ÓµÈû)
     * [4.20 HTTP CacheÏµÍ³](#420-http-cacheÏµÍ³)
     * [4.21 HTTP Tunnel](#421-http-tunnel)
     * [4.22 HTTP Cookie»úÖÆ](#422-http-cookie»úÖÆ)
@@ -2194,22 +2196,50 @@ eJet·þÎñÆ÷ÊÕµ½END_REQUESTÊ±£¬¾Í±íÊ¾CGI·þÎñÆ÷ÒÑ¾­·µ»ØÈ«²¿µÄÏìÓ¦Êý¾ÝÁË£¬½«ÕâÐ©Êý¾Ý
 
 eJetÏµÍ³½«HTTPÇëÇóÊµÊ±×ª·¢¸øCGI·þÎñÆ÷£¬»ù±¾¹ý³Ì¸úProxy´úÀí×ª·¢ÀàËÆ£¬°üÀ¨ÊµÊ±×ª·¢¡¢Á÷Á¿ÓµÈû¿ØÖÆµÈ¡£
 
+ÆäÖÐÔÚ½ÓÊÕCGI·þÎñÆ÷µÄÏìÓ¦Êý¾ÝÊ±£¬ÐèÒª½âÎöÒÔÁ÷Ê½·µ»ØµÄSTDOUT PDUµÄÊý¾Ý£¬µ«ÏìÓ¦Êý¾ÝµÄ×Ü³¤¶È²¢Î´·µ»Ø£¬eJet¶ÔÕâÐ©ÏìÓ¦Êý¾ÝµÄÊµÊ±×ª·¢ÊÇ²ÉÓÃTransfer-Encoding·Ö¿é´«Êä±àÂëÄ£Ê½¡£ÎªÁË¼õÉÙÏìÓ¦Êý¾ÝµÄ¶à´Î¿½±´£¬FcgiConÖÐÃ¿´ÎÊý¾Ý¶Á¾ÍÐ÷Ê±£¬´æÈërcvstream»º³åÇøµÄÊý¾Ý£¬Á¬Í¬rcvstreamÒ»ÆðÒÆÈëµ½·¢ÆðHTTPÇëÇóµÄÔ´HTTPMsgÄÚµÄres_rcvs_listÁÐ±íÖÐ£¬²¢½«½âÎö³É¹¦µÄÄÚÈÝÖ¸Õë´æÈëµ½res_body_chunkÀï£¬ÀàËÆ¿Í»§¶Ë·ÃÎÊ±¾µØÎÄ¼þÒ»Ñù£¬Í¨¹ýhttp_cli_send·¢ËÍ¸ø¿Í»§¶Ë¡£
+
 Ï¸½Ú²»¶à×¸Êö¡£
 
 
 ### 4.19 Á½¸öÍ¨ÐÅÁ¬½ÓµÄ´®ÁªPipeline
 
- Á½¸öÍ¨ÐÅÁ¬½Ó´®Áª±ä³É¹ÜµÀÊ±£¬FDÊÂ¼þ´¦Àí±ØÐëÔÚÍ¬Ò»¸öÏß³Ì
+#### 4.19.1 Á½¸öÍ¨ÐÅÁ¬½Ó´®Áª³É¹ÜµÀ
 
- ´®ÁªµÄÁ½¸öÍ¨ÐÅÁ¬½ÓÊý¾Ý×ª·¢Ä£ÐÍ
+eJet·þÎñÆ÷³äµ±×ª·¢·þÎñ£¬Èç´úÀí×ª·¢·þÎñ¡¢FastCGI×ª·¢·þÎñ¡¢HTTP Tunnel·þÎñµÈ£¬ÐèÒª½¨Á¢Ò»¸ö¹ÜµÀÒ»ÑùµÄÉèÊ©£¬½«Í¨ÐÅÁ½¶ËµÄÊý¾Ý·¢ËÍºÍ½ÓÊÕ£¬½øÐÐÊµÊ±×ª·¢¡£eJetÏµÍ³·Ö±ðÓÚÁ½¶ËÎ¬³ÖÁ½¸öÍ¨ÐÅÁ¬½Ó£¬ÕâÁ½¸öÁ¬½ÓÉÏÈÎºÎÒ»¸öÁ¬½ÓÉÏµÄÊý¾Ý´«Êä£¬¶¼ÒªÊµÊ±×ª·¢µ½ÁíÍâÒ»¸öÁ¬½ÓÉÏ£¬ÒÔÈ·±£Í¨ÐÅµÄ¸ßÐ§ÂÊ£¬ÕâÁ½¸öÁ¬½ÓÊÂÊµÉÏ¹¹½¨ÁËÒ»¸ö´«Êä¹ÜµÀPipe£¬ÔÚ¹ÜµÀÉÏÁ÷¶¯µÄÊý¾Ý×ñÑ­ÏßÐÔ´®ÐÐ·½Ê½£¬¼´PipelineÊý¾Ý´«Êä¡£
 
- ´®ÁªµÄÁ½¸öÍ¨ÐÅÁ¬½ÓI/OËÙ¶È²»¶ÔµÈÊ±µÄÁ÷Á¿¿ØÖÆ
-    HTTP Proxy»òFastCGIÄ£Ê½ÏÂÊµÊ±×ª·¢µÄÁ÷Á¿¿ØÖÆ
-    Á÷Á¿ÏÞËÙ»úÖÆ
+ÔÚÊ¹ÓÃePump¿ò¼Ü¹ÜÀíÕâÁ½¸öÍ¨ÐÅÁ¬½Ó¹ÜµÀÊ±£¬Ã¿¸öÁ¬½Ó¶ÔÓ¦µÄiodev_tÉè±¸£¬»á±»ePump¿ò¼Ü¼àÌýµ½¶Á¾ÍÐ÷£¨Readable Readiness£©¡¢Ð´¾ÍÐ÷£¨Writable Readiness£©×´Ì¬±ä»¯£¬½ø¶ø²úÉúIOE_READºÍIOE_WRITEÊÂ¼þ¡£ePump¿ò¼Ü»ùÓÚ¸ºÔØ¾ùºâ£¬¿ÉÄÜ»á°ÑÁ½¸öiodev_tÉè±¸°ó¶¨µ½²»Í¬µÄworker¹¤×÷Ïß³ÌÖÐ£¬µ¼ÖÂ´¦ÀíÕâÁ½¸öiodev_tÉè±¸¶ÁÐ´ÊÂ¼þµÄÏß³Ì²»Í¬£¬Õâ»áµ¼ÖÂÇ±ÔÚµÄÍ¬²½ºÍ·ÃÎÊ³åÍ»µÈÎÊÌâ£¬ËùÒÔ£¬ÐèÒªÈ·±£¹ÜµÀÁ½²àµÄÍ¨ÐÅÁ¬½ÓµÄ¶ÁÐ´ÊÂ¼þ£¬±ØÐëÓÉÒ»¸öÏß³ÌÀ´´¦Àí¡£
+
+ÎªÁË±£ÕÏ¹ÜµÀÁ½²àµÄÍ¨ÐÅÁ¬½ÓÔËÐÐÔÚÍ¬Ò»¸öworker¹¤×÷Ïß³ÌÀï£¬eJetÏµÍ³ÔÚ´´½¨ÎªÔ´ÇëÇóHTTPCon´´½¨´úÀíÁ¬½ÓHTTPConºó£¬Ðèµ÷ÓÃePump¿ò¼ÜµÄiodev_workerid_setº¯Êý£¬½«ÐÂ½¨Á¢µÄiodev_tÉè±¸Á¬½ÓµÄ¹¤×÷Ïß³ÌÉèÖÃÎªµ±Ç°Ïß³Ì£¬µ±Ç°Ïß³ÌÒ»°ãÎªÔ´HTTPConµÄÊÂ¼þ´¦ÀíÏß³Ì¡£
+
+ÓÉÓÚ´´½¨µÄTCPÁ¬½ÓÊÇ·Ç×èÈûÄ£Ê½£¬Á¬½Ó³É¹¦ÊÂ¼þIOE_CONNECTEDÒ»°ãÔÚµ÷ÓÃ´´½¨²Ù×÷ºó¹ýÒ»¶ÎÊ±¼äµ½À´£¬ÓÉÓÚÏß³ÌÍ¬²½ÎÊÌâÔÚ´´½¨´úÀíÁ¬½Óºóµ÷ÓÃiodev_workerid_set£¬¿ÉÄÜÓÐ½ÏµÍµÄ¼¸ÂÊÉèÖÃ²»³É¹¦¡£ËùÒÔ£¬»¹ÐèÒªÔÚÊÕµ½ÏìÓ¦Í·ºó£¬¼ÌÐøµ÷ÓÃ¸Ãº¯Êý£º
+```c
+if (clicon) iodev_workerid_set(pcon->pdev, iodev_workerid(clicon->pdev));
+```
+
+#### 4.19.2 Á½¸öÁ¬½ÓËÙ¶È²»¶ÔµÈµ¼ÖÂµÄÁ÷Á¿ÓµÈû
+
+eJet·þÎñÆ÷³äµ±ProxyÊ±£¬Origin·þÎñÆ÷µ½ProxyÖ®¼äµÄÁ´Â·´«ÊäËÙ¶ÈÒ»°ã¶¼¸ßÓÚProxyµ½¿Í»§¶ËÖ®¼äµÄ´«ÊäËÙ¶È£¬ÕâÑù»áµ¼ÖÂÊý¾ÝÔÚÄÚ´æÖÐµÄ¶Ñ»ý£¬Èç¹ûÇëÇóµÄÊÇÁ÷Ã½ÌåÎÄ¼þÇÒÊý¾ÝÊý¾Ý×ã¹»´ó¡¢ÕâÖÖ´«ÊäËÙ¶È²»¶ÔµÈµÄÊ±¼ä³ÖÐøÔ½¾Ã£¬¾Í»áµ¼ÖÂÁ÷Á¿ÓµÈûÔÚËÙ¶ÈÂýµÄÍ¨ÐÅÁ¬½ÓÄÇÒ»²àµÄ»º³åÇøÀï£¬ÄÚ´æÖÕ½«ÏûºÄ¹ý´ó¶øÊ¹µÃÏµÍ³±ÀÀ£¡£
+
+½â¾öË«Á¬½Ó´®Áª¹ÜµÀ´«ÊäËÙ¶È²»¶ÔµÈµ¼ÖÂµÄÁ÷Á¿ÓµÈûÎÊÌâ£¬¹²ÓÐÁ½ÖÖË¼Â·£º
+* ½â¾öË¼Â·Ò»£º½«Origin·þÎñÆ÷ÉÏÊÕµ½µÄÊý¾ÝÈ«²¿Ð´Èëµ½±¾µØÎÄ¼þ»º´æÖÐ£¬¿É²Î¼û[4.20 HTTP CacheÏµÍ³](#420-http-cacheÏµÍ³)¡£
+* ½â¾öË¼Â·¶þ£º¶ÔOrigin·þÎñÆ÷ÉÏµÄ´«ÊäÁ´Â·½øÐÐÏÞËÙ£¬ÒÔ´ïµ½¸ú¿Í»§²àÁ´Â·ËÙ¶ÈÒ»ÑùµÄ´«ÊäËÙ¶È¡£
+
+ÀíÂÛÉÏÏÞËÙµÄÊµÏÖÐèÒªÒÀÀµTCPÐ­ÒéÕ»ÖÐµÄÁ÷Á¿¿ØÖÆ»úÖÆ£¬µ±¿Í»§¶ËÊý¾Ý¶ÂÈûÊÇ£¬¸æÖªOrigin·¢ËÍ·½TCPÐ­ÒéÕ»£¬½ÓÊÕ·½µÄÊý¾ÝÓµÈûÁË£¬»ùÓÚ»¬¶¯´°¿ÚÌ½²â»úÖÆÀ´ÊµÏÖÁ÷Á¿¿ØÖÆ¡£
+
+ÓÐ¹ØTCPÓµÈû¿ØÖÆËã·¨¿É²Î¿¼ÂýÆô¶¯£¨Slow Start£©¡¢ÓµÈû±ÜÃâ£¨Congestion Avoidance£©¡¢¿ìËÙÖØ´«£¨Fast Restransmission£©¡¢¿ìËÙ»Ö¸´£¨Fast Recovery£©µÈÐ­ÒéÁ÷³Ì¡£
+
+´ÓÓ¦ÓÃ²ãÀ´Ëµ£¬¼¤»îTCPÓµÈû¿ØÖÆ»úÖÆµÄ·½·¨ÊÇ·ÅÆú½ÓÊÕTCP RecvBufferÖÐµÄÊý¾Ý£¬Ê¹µÃÏµÍ³ÖÐ¸ÃSocketÄÚºËµÄRecvBufferÌîÂú£¬½ø¶øÒýÆðTCPµÄ´«ÊäÓµÈû£¬Ê¹µÃ·¢ËÍ·½²»ÔÙ·¢ËÍÊý¾Ý¡£
+
+eJetÏµÍ³ÖÐ£¬µ±¸øÍ¨ÐÅËÙ¶È½ÏÂýµÄ¿Í»§²à×ª·¢Êý¾ÝÊ§°Ü£¬²¢ÇÒÎ´·¢ËÍÊý¾ÝÀÛ»ýµ½ÄÚ´æÖÐ³¬¹ýÒ»¶¨ãÐÖµÊ±£¬¾Í°ÑÁíÒ»²àËÙ¶È¿ìµÄÄÇ¸öÁ¬½ÓµÄiodev_tµÄ¶ÁÊÂ¼þ¼àÌýÉ¾³ý£¬ÕâÑù¾Í½ÓÊÕ²»µ½Origin·þÎñÆ÷µÄ¶ÁÊÂ¼þ£¬RecvBufferÊý¾Ý²»»á±»¶Á³öÀ´£¬¼¤·¢ÄÚºËÆô¶¯ÓµÈû¿ØÖÆ»úÖÆ¡£¶øµ±¿Í»§¶ËµÄÊý¾Ý¿ÉÐ´ÈëÊÂ¼þµ½À´²¢³É¹¦Ð´ÈëÁËÄÚ´æÀÛ»ýµÄÊý¾Ýºó£¬ÅÐ¶ÏÀÛ¼ÆÎ´·¢ËÍÊý¾ÝÊÇ·ñ½µµÍµ½ãÐÖµÒÔÏÂ£¬Èç¹û½µµÍÁË£¬¾Í½«ËÙ¶È¿ìµÄÄÇ¸öÍ¨ÐÅÁ¬½Óiodev_tµÄ¶Á¼àÌýÖØÐÂÌí¼Ó£¬²¢¶ÁÈ¡ÓµÈûÔÚÄÚºËÖÐµÄÊý¾Ýµ½Ó¦ÓÃ²ãÖÐ¡£
 
 ### 4.20 HTTP CacheÏµÍ³
 
- ProxyÄ£Ê½ÏÂµÄCacheËéÆ¬´æ´¢´¦ÀíÁ÷³Ì
+ProxyÄ£Ê½ÏÂµÄCacheËéÆ¬´æ´¢´¦ÀíÁ÷³Ì
+ÐèÒªÊµÏÖÒ»Ì×±¾µØ»º´æÐ´ÈëºÍ¶Á³ö¹¦ÄÜÄ£¿é¡£
+»º´æµÄ¶ÁÐ´Ä£¿éÖØµãÒª½â¾öµÄÊÇÒÑÓÐ²¿·ÖÊý¾ÝÊ±ÊÇ·ñÖØ¸´Ð´ÈëÎÊÌâ¡¢ÍøÂçÒì³£µÈÔ­Òòµ¼ÖÂµÄ²¿·ÖËéÆ¬Êý¾Ý´æ´¢¹ÜÀíÎÊÌâ¡¢
+ÊµÊ±·µ»Ø¸ø¿Í»§¶ËµÄÊý¾ÝÊÇ´ÓÄÚ´æÈ¡×ß»¹ÊÇµ÷ÓÃsendfile·½Ê½·¢ËÍÎÊÌâ¡£
+
+
 
 ### 4.21 HTTP Tunnel
 
@@ -2218,6 +2248,14 @@ HTTP TunnelÊÇÔÚ¿Í»§¶ËºÍOrigin·þÎñÆ÷Ö®¼ä£¬Í¨¹ýTunnelÍø¹Ø£¬½¨Á¢´«ÊäËíµÀµÄÍ¨ÐÅ·½Ê½£
 ### 4.22 HTTP Cookie»úÖÆ
 
 HTTP CookieÊÇ¶ÔÊÂÎñÐÍÐ­ÒéÔö¼Ó»á»°Î¬³ÖµÄ»úÖÆ¡£
+
+ÊµÏÖÁËSet-CookieµÄ½âÎöºÍ´æ´¢´¦Àí£¬·¢ËÍÇëÇóÊ±£¬´ÓCookie±¾µØ´æ´¢ÖÐ£¬¸ù¾Ýrequest hostºÍpath£¬¶ÁÈ¡ÏàÓ¦µÄCookie£¬Ìí¼ÓCookieµ½ÇëÇóÍ·ÖÐ¡£
+ 
+»ùÓÚDomainºÍPathÀ´¹ÜÀí²»Í¬ÓòÃûÏÂµÄCookie£¬ÏµÍ³¸ù¾ÝCookieÉèÖÃ²»Í¬µÄDomainÓòÃû£¬À´¹ÜÀíCookie£»Ã¿¸öDomainÏÂ¿ÉÒÔÓÐ¶à¸öPath£¬Ã¿¸öPathÏÂ¿ÉÒÔÓÐ¶à¸öCookie¶ÔÏó¡£ÓÉÓÚCookieÓÐÊ±Ð§ÐÔ£¬ÏµÍ³Ã¿¸ô3·ÖÖÓ¾ÍÉ¨ÃèÒ»±éCookie±í£¬½«¹ýÆÚµÄCookie´ÓÏµÍ³ÖÐÉ¾³ýµô¡£
+ 
+ÀûÓÃSet-CookieÖÐµÄDomainÃû¹¹½¨AC Trie·´Ïò×ÖµäÊ÷£¬ÀûÓÃDomainÖÐµÄPath¹¹½¨AC TrieÕýÏò×ÖµäÊ÷¡£Ã¿µ±·¢ËÍHTTPÇëÇóÊ±£¬¸ù¾ÝHostÕÒµ½Domain¶ÔÏó£¬¸ù¾Ýrequest pathÕÒµ½Path¶ÔÏó£¬½«Path¶ÔÏóÏÂ´¦ÓÚÓÐÐ§ÆÚÄÚµÄCookieÈ¡³öÀ´£¬Æ´³ÉCookieÇëÇóÍ·¡£
+ 
+Ä¿Ç°ËùÓÐµÄCookie¶¼´æ´¢ÔÚÒ»¸öÎÄ¼þÖÐ£¬ÀíÏëµÄÊµÏÖÊÇ½¨Á¢Ò»¸ö¶ÀÁ¢µÄCookieÄ¿Â¼£¬¶ÔÃ¿¸öDomain½¨Á¢Ò»¸öCookie´æ´¢ÎÄ¼þ£¬½«¸ÃDomainÏÂ²»Í¬PathµÄCookieÒÔÎÄ±¾·½Ê½ÖðÐÐ´æ´¢ÆðÀ´¡£ÏµÍ³ÔÚ¼ÓÔØÆÚ¼äÒ²²»ÓÃÈ«²¿¼ÓÔØÕâÐ©CookieÎÄ¼þ£¬¶øÊÇµ±·ÃÎÊÄ³¸öURLÊ±£¬¶¯Ì¬µØ·ÃÎÊÊÇ·ñ´æÔÚ¸ÃHost¶ÔÓ¦µÄDomainÎÄ¼þ£¬Èç¹û´æÔÚCookie£¬½âÎö²¢Ìí¼ÓÓÐÐ§Cookie¶ÔÏó¡£
 
 
 Îå. eJetÎªÊ²Ã´¸ßÐÔÄÜ
