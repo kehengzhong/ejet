@@ -131,6 +131,9 @@
         * [4.19.1 两个通信连接串联成管道](#4191-两个通信连接串联成管道)
         * [4.19.2 两个连接速度不对等导致的流量拥塞](#4192-两个连接速度不对等导致的流量拥塞)
     * [4.20 HTTP Cache系统](#420-http-cache系统)
+        * [4.20.1 HTTP Cache功能设置](#4201-http-cache功能设置)
+        * [4.20.2 eJet系统Cache存储架构](#4202-ejet系统cache存储架构)
+        * [4.20.3 eJet系统缓存处理流程](#4203-ejet系统缓存处理流程)
     * [4.21 HTTP Tunnel](#421-http-tunnel)
     * [4.22 HTTP Cookie机制](#422-http-cookie机制)
 * [五. eJet为什么高性能](#五-ejet为什么高性能)
@@ -2234,24 +2237,207 @@ eJet系统中，当给通信速度较慢的客户侧转发数据失败，并且未发送数据累积到内存中超过
 
 ### 4.20 HTTP Cache系统
 
-Proxy模式下的Cache碎片存储处理流程
-需要实现一套本地缓存写入和读出功能模块。
-缓存的读写模块重点要解决的是已有部分数据时是否重复写入问题、网络异常等原因导致的部分碎片数据存储管理问题、
-实时返回给客户端的数据是从内存取走还是调用sendfile方式发送问题。
+#### 4.20.1 HTTP Cache功能设置
 
+HTTP Cache是指Web服务器充当HTTP Proxy代理服务器（包括正向代理和反向代理），通过HTTP协议向Origin服务器下载文件，然后转发给客户端，这些文件在转发给客户端的同时，缓存在代理服务器的本地存储中，下次再有相同请求时，根据相关缓存策略决定本地文件是否被命中，如果命中，则该请求无需向Origin服务器请求下载，直接将缓存中命中的文件读取出来返回给客户端，从而节省网络开销。
+ 
+在配置文件中配置正向代理或反向代理的地方，都可以开启cache功能，并基于配置脚本动态设置缓存文件名等缓存选项。
+```
+location = {
+    path = [ '^/view/([0-9A-Fa-f]{32})$', '~*' ];
+    type = proxy;
+    passurl = http://cdn.yunzhai.cn/view/$1;
+
+    # 反向代理配置缓存选项
+    root = /opt/cache/;
+    cache = on;
+    cache file = /opt/cache/${request_header[host]}/view/$1;
+}
+
+send request = {
+    max header size = 32K;
+
+    /* 正向代理配置的缓存选项 */
+    root = /opt/cache/fwpxy;
+    cache = on;
+    cache file = <script>
+                   if ($req_file_only)
+                       return "${host_name}_${server_port}${req_path_only}${req_file_only}";
+                   else if ($index)
+                       return "${host_name}_${server_port}${req_path_only}${index}";
+                   else
+                       return "${host_name}_${server_port}${req_path_only}index.html";
+                 </script>;
+}
+```
+ 
+在配置中启动了缓存功能后，还要根据Origin服务器返回的响应头指定的缓存策略，来决定当前下载文件是否保存在本地、缓存文件保存多长时间等。HTTP响应头中有几个头是负责缓存策略的：
+```
+Expires: Wed, 21 Oct 2020 07:28:00 GMT            (Response Header)
+Cache-Control: max-age=73202                      (Response Header)
+Cache-Control: public, max-age=73202              (Response Header)
+
+Last-Modified: Mon, 18 Dec 2019 12:35:00 GMT      (Response Header)
+If-Modified-Since: Fri, 05 Jul 2019 02:14:23 GMT  (Request Header)
+ 
+ETag: 627Af087-27C8-32A9E7B10F                    (Response Header)
+If-None-Match: 627Af087-27C8-32A9E7B10F           (Request Header)
+```
+Proxy代理服务器需要处理Origin服务器返回的响应头，主要是Expires、Cache-Control、Last-Modified、ETag等。根据Cache-Control的缓存策略决定当前文件是否缓存：如果是no-cache或no-store，或者设定了max-age=0，或者设定了must-revalidate等都不能将当前文件保存到缓存文件中。如果设置了max-age大于0则根据max-age值、Expires值、Last-Modified值、ETag值来判断下次请求是否使用该缓存文件。
+
+#### 4.20.2 eJet系统Cache存储架构
+
+eJet系统是否启动缓存由配置信息来设定。如果是反向代理，HTTP请求对应的HTTPLoc下的反向代理开关cache是否开启，即cache=on，cache file项是否设置，来决定是否启动缓存功能；如果是正向代理，在send request选项中，是否启动cache，以及cache file命名规则是否设置，决定是否启动缓存管理。
+
+启动了cache功能，还需要根据当前请求转发给Origin后，返回的响应头中，是否有Cache管理的头信息，来确定当前返回的响应体是否缓存，以及确定当前缓存的相关信息。
+ 
+缓存的Raw文件内容存储在上述配置中以cache file命名的文件中，当文件所有内容全都下载并存储起来前，文件名后需要增加扩展名.tmp，以表示当前存储文件正在下载中，还不是一个完整的文件，但已经缓存的内容则可以被命中使用。
+ 
+cache管理信息则存储在缓存信息管理文件（Cache Information Management File）中，简称为CacheInfo文件，CacheInfo文件的存储位置在Raw缓存文件所在目录下建立一个隐藏目录.cacheinfo，CacheInfo文件就存放该隐藏目录下，CacheInfo文件名是在Raw存储文件后增加后缀.cacinf，譬如Raw缓存文件为foo.jpg，则缓存信息管理文件路径为：
+        .cacheinfo/foo.jpg.cacinf
+ 
+CacheInfo文件的结构包括三部分：Cache头信息（96字节）、Raw存储碎片管理信息。Cache头信息是固定的96字节，其结构如下：
+```c
+/* 96 bytes header of cache information file */
+typedef struct cache_info_s {
+    char         * cache_file;
+    void         * hcache;
+    char         * info_file;
+    void         * hinfo;
+
+    uint8          initialized;
+ 
+    uint32         mimeid;
+    uint8          body_flag;
+    int            header_length;
+    int64          body_length;
+    int64          body_rcvlen;
+ 
+    /* Cache-Control: max-age=0, private, must-revalidate
+       Cache-Control: max-age=7200, public
+       Cache-Control: no-cache */
+    uint8          directive;     //0-max-age  1-no cache  2-no store
+    uint8          revalidate;    //0-none  1-must-revalidate
+    uint8          pubattr;       //0-unknonw  1-public  2-private(only browser cache)
+ 
+    time_t         ctime;
+    time_t         expire;
+    int            maxage;
+    time_t         mtime;
+    char           etag[36];
+ 
+    FragPack     * frag;
+ 
+} CacheInfo;
+```
+ 
+在头信息之后存放的是存储内容碎片管理信息，每个碎片单元为8字节：
+```c
+typedef struct frag_pack {
+    int64    offset;
+    int64    length;
+} FragPack;
+```
+
+内存中采用动态有序数组来管理每一个碎片块，相邻块就需要合并成一个块，完整文件只有一个块。将这些碎片块信息按照8字节顺序存储在这个区域中。每当文件有新内容写入时，内存碎片块数组要完成合并等更新，并将最新结果更新到这个区域。碎片块信息管理的是Raw存储文件中从Origin服务器下载并实际存储的数据存储状态，每块是以偏移量和长度来唯一标识，相邻的碎片块合并，完整文件只有一个碎片块。
+
+#### 4.20.3 eJet系统缓存处理流程
+
+eJet系统作为正向代理或反向代理服务器，实现边下载边缓存、完整缓存时无需代理转发直接返回缓存内容给客户端等功能，可以实现对大大小小的Origin文件的实时缓存功能，包括碎片存储、随机存储等。
+ 
+**（1）全局管理CacheInfo对象**
+
+系统维护一个全局的CacheInfo对象哈希表，以Raw缓存文件名作为唯一标识和索引，如果存在多个用户请求同一个需要缓存的Origin文件时，只打开或创建一个CacheInfo对象，该对象成员由互斥锁来保护。而每个对同一Origin文件的HTTP请求，请求位置、偏移量、读写Raw缓存文件的句柄等都保存在各自的HTTPMsg实例对象中。
+
+CacheInfo对象是管理和存放Raw缓存文件的各项元信息，对外暴露的主要接口是：
+    `cache_info_open, cache_info_create, cache_info_close, cache_info_add_frag等`
+
+用户发起Origin文件请求时，先调用cache_info_open打开CacheInfo对象，如果不存在，则在收到Origin的成功响应后，调用cache_info_create创建CacheInfo对象。每次调用cache_info_open时，如果CacheInfo对象已经在内存中，则将count计数加1，只有count计数为0时才可以删除释放CacheInfo对象。当HTTPMsg成功返回给用户后，需要关闭CacheInfo对象，调用cache_info_close，首先将count计数减1，如果count大于0，直接返回不做资源释放。
+ 
+**（2）向Origin服务器转发Proxy代理请求**
+
+eJet收到HTTP客户请求时，如果是Proxy请求，则调用http_proxy_cache_open检测并打开缓存，先根据请求URL对应的HTTPLoc配置信息或正向代理对应的send request配置信息，决定当前代理模式下的HTTP请求是否启用了Cache功能，如果启用了Cache功能，并且Cache File变量设置了正确的Raw缓存文件名，将该缓存文件名保存在HTTPMsg对象的res_file_name中。
+
+检查该缓存文件是否存在，如果存在则直接将该缓存文件返回给客户端即可。注：在没有收到全部字节数据之前Raw缓存文件名是实际缓存文件后加.tmp做扩展名。
+
+如果该文件不存在，以该缓存文件名为参数，调用cache_info_open打开CacheInfo对象，如果不存在缓存信息对象CacheInfo，则返回并直接将客户端请求转发到Origin服务器。
+
+如果存在CacheInfo对象，也就是存在以.tmp为扩展名的Raw缓存文件和以.cacinf为扩展名的缓存信息文件，则判断当前请求的内容（Range规范指定的请求区域）是否全部包含在Raw缓存文件中，如果包含了，则直接将该部分内容返回给客户端，无需向Origin服务器发送HTTP下载请求；如果不包含，则需要向Origin服务器发送请求，但本地缓存中已经有的内容不必重新请求，而是将客户端请求的区域（Range规范指定的范围）中尚未缓存到本地的起始位置和长度计算出来，组成新的Range规范，向Origin发送HTTP请求。
+ 
+**（3）处理Origin服务器返回的响应头**
+
+当HTTP请求转发到Origin服务器并返回响应后，正常情况是将Proxy代理请求HTTPMsg中所有的响应头全部复制一份到源请求HTTPMsg的响应头中，包括状态码也复制过去。
+
+但对于启用了Cache=on并且CacheInfo也已经打开的情况，则需要修正源请求HTTPMsg的响应头，即调用http_cache_response_header来完成：删除掉不必要的响应头，修正HTTP响应体的内容传输格式，即选择Content-Length方式还是Transfer-Encoding: chunked方式，并将状态码修改成206还是200，修改Content-Range的值内容，因为源请求的Range和向Origin服务器发起的Proxy代理请求的Range不一定是一致的。并根据CacheInfo信息决定是否增加Expires和Cache-Control等响应头，等等
+ 
+随后，对Origin服务器返回的HTTP响应头进行解析，调用http_proxy_cache_parse来完成：分别解析Expires、ETag、Last-Modified、Cache-Control等响应头，基于这些响应头信息，再次判断当前响应内容是否需要缓存Cache=on。
+ 
+如果不需要缓存：则将Cache设置为off，并关闭已经打开的CacheInfo（甚至删除掉CacheInfo文件和Raw缓存文件），最主要的是检查源请求的Range范围和Proxy代理请求的Range范围是否一致，如果不一致，则需要重新将源HTTP请求原样再发送一次，并清除当前Proxy代理请求的所有信息。由于将源HTTP请求HTTPMsg中Cache设置为off了，后续重新发送的Proxy代理请求将不启用缓存功能，直接使用实时转发模式。如果两个请求的Range一致，则直接将当前代理请求的响应体内容采用实时转发模式，发送给客户端。
+ 
+如果需要缓存：解析出响应头中的Content-Range中的信息，如果之前用cache_info_open打开CacheInfo对象失败，则此时需调用cache_info_create来创建CacheInfo对象，如果创建失败（内存不够、目录不存在等）则关闭缓存功能，用实时转发模式发送响应。随后，提取此次响应的信息，并保存到CacheInfo对象中，打开或创建Raw缓存文件，最重要的几点是：打开或创建的Raw缓存文件句柄存放在源请求的HTTPMsg中，并将该文件seek写定位到Range或Content-Range头中指定的偏移位置上，在此位置上存放Proxy代理请求中的响应体。最后，将CacheInfo对象的最新内容写入到缓存信息文件中。
+ 
+**（4）存储Origin服务器返回的响应体**
+
+任何开启了Cache功能的HTTP请求，只要请求的内容不在本地缓存中，都需要向Origin服务器以Proxy模式转发HTTP请求，在处理完代理请求的响应头后，需要将响应体存储到Raw缓存文件适当位置，将存储位置信息更新到缓存信息文件中，并启动向客户端发送响应。
+ 
+存储Proxy代理请求的响应体是调用http_proxy_srv_cache_store来实现的：先验证当前源HTTPMsg是否为pipeline后面的请求消息，是否Cache=on等。将代理请求HTTPcon接收缓冲区中的内容作为要存储的响应体内容，进行简单解析判断，
+ 
+（a）如果响应体是Content-Length格式：计算还剩余多少内容没收到，并对比接收缓冲区内容。如果剩余内容为0，则已经全部收到了请求的内容，关闭当前HTTP代理消息，并将res_body_chunk设置为结束。如果还有很多剩余内容没收到，则将接收缓冲区写入到.tmp的Raw缓存文件中，写文件句柄在源HTTPMsg对象中，将写入成功数据块的文件位置和长度信息，追加到CacheInfo对象中，并更新到缓存信息文件里，将代理请求HTTPCon缓冲区中已经写入Raw缓存文件的内容删除掉。最后再判断，刚才从缓冲区追加写入到文件的内容是否全部收齐了，如果收齐了，关闭当前HTTP代理消息。
+ 
+（b）如果响应体是Transfer-Encoding: chunked格式：这种格式并不知道响应体总长度是多少，也不知道剩余还有多少内容，返回的响应体是以一块一块数据块编码方式，每个数据块前面是当前数据块长度（16进制）加上\r\n，每个数据块结尾也加上\r\n为结尾。只有收到一个长度为0的数据块，才知道全部响应体已经结束和收齐了。由于网络传输的复杂性，每次接收数据时，并不一定会完整地收齐一个完整的数据块，所以需要将接收缓冲区的数据交给http_chunk模块判断，是否为接续块、是否收到结尾块等。
+ 
+处理接收缓冲区数据前，先判断是否收齐了全部响应体，如果收齐了，设置res_body_chunk结束状态，关闭当前代理消息。将接收缓冲区的所有内容添加到http_chunk中解析判断，得出缓冲区的内容哪些是接续的数据块，是否收齐等，将接收缓冲区中那些接续数据块部分写入到.tmp的Raw缓存文件中，其中写文件句柄存放在源HTTPMsg对象中，更新总长度，删除接收缓冲区中已经写入的内容，并将写入成功的数据块的文件位置和长度信息，追加到CacheInfo对象中，并更新到缓存信息文件里。最后判断，如果全部数据块都接收齐全了，关闭当前HTTP代理消息，关闭当前HTTP代理消息，同时正式计算并确定当前收齐了所有数据，设置实际的文件长度。
+ 
+（c）最后启动发送缓存文件数据到客户端。
+ 
+**（5）向源HTTPMsg的客户端发送响应**
+
+发送的响应包括响应头和位于缓存文件中的响应体，调用http_proxy_cli_cache_send来处理：
+ 
+通过HTTP的承载协议TCP来发送数据前，需要有序地整理待发送的数据内容，一般情况下，待发送的数据内容包括缓冲区数据、文件数据（完整文件内容、部分文件内容等）、未知的需要网络请求的数据等等，这些数据的总长度有可能知道、也可能不知道，这些待发送数据一般情况下，都位于不同存储位置，譬如在内存中、硬盘上、网络里等，其特点是分布式的、不连续的、碎片化的、甚至内容长度非常大（大到内存都不可能全部容纳的极端情况），管理这些不连续的、碎片化、甚至超大块头数据，是由数据结构chunk_t来实现的。
+
+chunk_t数据结构提供了各类功能接口，包括添加各种数据（内存块、文件名、文件描述符、文件指针等）、有序整理、统一输出、检索等访问接口，最主要的功能是该数据结构解决了不同类别数据整合在一起，模拟成为了一个大缓冲区，大大减少了数据读写拷贝产生的巨额性能开销，大大减少了内存消耗。使用该数据结构，只需将要发送的各种数据内容，通过chunk_t的各类数据追加接口，添加到该数据结构的实例对象中，最后通过tcp_writev或tcp_sendfile来实现数据高效、快速、零拷贝方式的传输发送。
+ 
+基于以上逻辑，向客户端发送数据的主要工作是如何将待发送内容添加到源HTTPMsg中的res_body_chunk中：
+ 
+（a）首先计算出res_body_chunk中累计存放的响应体数据总长度，加上源HTTP请求文件的起始位置（如果有Range取其起始位置，如果没有Range，缺省为0），得到当前要追加发送给客户端的数据在缓存文件中的位置偏移量。分别考虑两种响应体编码格式的处理情况；
+ 
+（b）如果响应体是通过Content-Length来标识：
+
+先用HTTP消息响应总长度减去chunk中的响应体总长度，就计算出剩余的有待添加的数据长度。通过CacheInfo的碎片数据管理接口，查询出当前Raw缓存文件中，以(a)中计算出的缓存文件偏移量位置，查出可用的数据长度有多少。
+ 
+如果Raw缓存文件中存在可用数据，对比剩余数据长度，截取多余部分。将该Raw缓存文件名、文件偏移位置、截取处理过的可用数据长度等作为参数，调用chunk添加数据接口，添加到res_body_chunk中，如果跟chunk中之前存储且未发送出去的数据是接续的，合并处理。如果添加到chunk中的数据总长度达到或超过源请求HTTPMsg消息的响应总长度，则将res_body_chunk设置结束状态，启动TCP发送流程。
+ 
+如果Raw缓存文件中不存在可用数据，则判断是否向Origin服务器发送HTTP代理请求：当前源HTTP请求中没有其他的代理请求存在、Raw缓存文件数据不完整、源HTTP请求的数据范围不在Raw缓存文件中，这三个条件都满足时，则需要向Origin服务器发送HTTP代理请求。这个代理请求是HTTP GET请求，可能跟源HTTP请求方法不一样，只是获取缓存数据的某一部分内容，其Range值是从源请求起始位置开始，去查找实际Raw缓存文件存储情况，得出的空缺处偏移位置。该HTTP代理请求，只负责下载数据存储到本地缓存文件，其响应头信息并不更新到缓存信息文件中。
+ 
+（c）如果响应体的编码格式为Transfer-Encoding: chunked时：
+
+通过CacheInfo的碎片数据管理接口，查询出当前Raw缓存文件中，以(a)中计算出的缓存文件偏移量位置，查出可用的数据长度有多少。
+ 
+如果Raw缓存文件中存在可用数据，将可用数据长度截成最多50个1M大小的数据块，将Raw缓存文件名、1M数据块起始位置、长度作为参数添加到res_body_chunk中。如果添加到chunk中的数据总长度达到或超过源请求HTTPMsg消息的响应总长度，则将res_body_chunk设置结束状态，启动TCP发送流程。
+ 
+如果Raw缓存文件中不存在可用数据，则与上述（b）流程类似。
+ 
+（d）如果源HTTPMsg中统计发送给客户端的响应数据总长度小于res_body_chunk中的总长度，开始发送chunk中的数据。
+ 
+**（6）发送响应给客户端的流程是标准通用的流程**
+ 
+基于HTTP Proxy的缓存数据存储、发送、缓存信息管理维护等功能全部实现完成。这部分文档完稿于2020-11-7 15:17北屋，今天立冬，开始供应暖气。
 
 
 ### 4.21 HTTP Tunnel
 
 HTTP Tunnel是在客户端和Origin服务器之间，通过Tunnel网关，建立传输隧道的通信方式，eJet服务器可以充当HTTP Tunnel网关，分别与客户端和Origin服务器之间建立两个TCP连接，并在这两个连接之间进行数据的实时转发。根据RFC 2616规范，HTTP CONNECT请求方法是建立HTTP Tunnel的基本方式。
 
+HTTP Tunnel最常用的场景是HTTP Proxy正向代理服务器，代理转发客户端https的安全连接请求到Origin服务器，一般情况下，需要采用端到端的TLS/SSL连接，这时，客户端会尝试发送CONNECT方法的HTTP请求，建立一条通过Proxy服务器，到达Origin服务器的连接隧道，即两个TCP连接串联来实时转发数据，通过这个连接隧道，进行TLS/SSL的安全握手、认证、密钥交换、数据加密等，从而实现端到端的安全数据传输。
+
 ### 4.22 HTTP Cookie机制
 
 HTTP Cookie是对事务型协议增加会话维持的机制。
 
-实现了Set-Cookie的解析和存储处理，发送请求时，从Cookie本地存储中，根据request host和path，读取相应的Cookie，添加Cookie到请求头中。
+eJet系统实现了Set-Cookie的解析和存储处理，每次向Origin发送HTTP请求时，根据request host和path，从Cookie本地存储中，读取相应的Cookie，并将Cookie添加到请求头中。
  
-基于Domain和Path来管理不同域名下的Cookie，系统根据Cookie设置不同的Domain域名，来管理Cookie；每个Domain下可以有多个Path，每个Path下可以有多个Cookie对象。由于Cookie有时效性，系统每隔3分钟就扫描一遍Cookie表，将过期的Cookie从系统中删除掉。
+基于Domain和Path来管理不同域名下的Cookie，eJet系统根据Cookie设置不同的Domain域名，来管理Cookie；每个Domain下可以有多个Path，每个Path下可以有多个Cookie对象。由于Cookie有时效性，系统每隔3分钟就扫描一遍Cookie表，将过期的Cookie从系统中删除掉。
  
 利用Set-Cookie中的Domain名构建AC Trie反向字典树，利用Domain中的Path构建AC Trie正向字典树。每当发送HTTP请求时，根据Host找到Domain对象，根据request path找到Path对象，将Path对象下处于有效期内的Cookie取出来，拼成Cookie请求头。
  
