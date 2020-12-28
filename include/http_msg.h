@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2003-2020 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
  */
 
@@ -175,6 +175,12 @@ typedef struct http_msg {
     int64              req_stream_sent;
     int64              req_stream_recv;
 
+    /* by adopting zero-copy for higher performance, frame buffers of HTTPCon, which stores
+       octets from sockets,  will be moved to following list, for further parsing or handling,
+       when receiving octest from client connection and forwarding to origin server.
+       the overhead of memory copy will be lessened significantly. */
+    arr_t            * req_rcvs_list;
+
     /* if content type of POST request is multipart form, every part is stored in list */
     arr_t            * req_formlist;
     void             * req_form_json;
@@ -270,7 +276,8 @@ typedef struct http_msg {
     int64              res_stream_recv;
 
     /* by adopting zero-copy for higher performance, frame buffers of HTTPCon, which stores 
-       octets from sockets,  will be moved to following list, for further parsing or handling.
+       octets from sockets,  will be moved to following list, for further parsing or handling,
+       when receiving octest from origin server connection and forwarding to client.
        the overhead of memory copy will be lessened significantly. */
     arr_t            * res_rcvs_list;
 

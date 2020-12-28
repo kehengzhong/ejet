@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2003-2020 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
  */
 
@@ -11,7 +11,8 @@ extern "C" {
 #endif
 
 int http_srv_send_probe (void * vcon);
-int http_srv_send (void * vcon);
+int http_srv_send       (void * vcon);
+int http_srv_send_final (void * vmsg);
 
 int http_srv_recv (void * vcon);
 

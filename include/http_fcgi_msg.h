@@ -76,13 +76,18 @@ typedef struct fastcgi_msg_s {
 
     int               req_body_flag;   //BC_CONTENT_LENGTH or BC_TE
     int64             req_body_length;
-    void            * req_chunk;
-
+    int64             req_body_iolen;
+ 
     int64             req_stream_sent; //total sent length including header and body
-    int64             req_header_sent;  //body length that read or write already
-    int64             req_body_sent;    //body length that read or write already
     uint8             reqsent;         //0-not sent or in sending  1-already sent
-
+ 
+    /* by adopting zero-copy for higher performance, frame buffers of HTTPCon, which stores
+       octets from sockets,  will be moved to following list, for further parsing or handling.
+       the overhead of memory copy will be lessened significantly. */
+    arr_t           * req_rcvs_list;
+ 
+    /* the fragmented data blocks to be sent to CGI-Server are stored in chunk_t */
+    chunk_t         * req_body_chunk;
 
     unsigned          fcgi_role       : 16;
     unsigned          fcgi_keep_alive : 1;
@@ -170,11 +175,13 @@ int    http_fcgimsg_abort_encode   (void * vmsg);
 
 int    http_fcgimsg_stdin_init         (void * vmsg);
 int    http_fcgimsg_stdin_encode       (void * vmsg, void * pbyte, int bytelen, int end);
-int    http_fcgimsg_stdin_encode_end   (void * vmsg);
+int    http_fcgimsg_stdin_end_encode   (void * vmsg);
 int    http_fcgimsg_stdin_body_sentnum (void * vmsg, int sentlen);
 
 int http_fcgimsg_pre_crash (void * vmsg, int status);
 
+int http_fcgimsg_stdin_encode_chunk     (void * vmsg, void * pbyte, int bytelen, void * porig, int end);
+int http_fcgimsg_stdin_end_encode_chunk (void * vmsg);
 
 #ifdef __cplusplus
 }

@@ -14,6 +14,7 @@ int    http_fcgicon_crash_handle (void * vcon);
 
 int    http_fcgi_send_probe (void * vcon);
 int    http_fcgi_send       (void * vcon);
+int    http_fcgi_send_final (void * vmsg);
 
 int    http_fcgi_recv       (void * vcon);
 int    http_fcgi_recv_parse (void * vcon);

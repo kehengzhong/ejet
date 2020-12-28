@@ -178,6 +178,12 @@ typedef struct http_msg {
     int64              req_stream_sent;
     int64              req_stream_recv;
 
+    /* by adopting zero-copy for higher performance, frame buffers of HTTPCon, which stores
+       octets from sockets,  will be moved to following list, for further parsing or handling,
+       when receiving octest from client connection and forwarding to origin server.
+       the overhead of memory copy will be lessened significantly. */
+    arr_t            * req_rcvs_list;
+
     /* if content type of POST request is multipart form, every part is stored in list */
     arr_t            * req_formlist;
     void             * req_form_json;
@@ -273,7 +279,8 @@ typedef struct http_msg {
     int64              res_stream_recv;
 
     /* by adopting zero-copy for higher performance, frame buffers of HTTPCon, which stores 
-       octets from sockets,  will be moved to following list, for further parsing or handling.
+       octets from sockets,  will be moved to following list, for further parsing or handling,
+       when receiving octest from origin server connection and forwarding to client.
        the overhead of memory copy will be lessened significantly. */
     arr_t            * res_rcvs_list;
 
@@ -290,6 +297,7 @@ typedef struct http_msg {
     uint8              reshandle_called;
     void             * reshandle_para;
     void             * reshandle_cbval;
+
     char             * res_store_file;
     int64              res_store_offset;
 
@@ -302,8 +310,8 @@ typedef struct http_msg {
 
     int    (*SetTearDownNotify)(void * vmsg, void * func, void * para);
     int    (*SetResponseHandle)(void * vmsg, void * func, void * para, void * cbval,
-                                char * storefile, int64 offset,
-                                void * procnotify, void * notifypara);
+                                  char * storefile, int64 offset,
+                                  void * procnotify, void * notifypara);
 
     char * (*GetMIME)        (void * vmsg, char * extname, uint32 * mimeid);
     void * (*GetMIMEMgmt)    (void * vmsg);
