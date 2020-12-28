@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2003-2020 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
  */
 
@@ -20,6 +20,7 @@
 #include "http_variable.h"
 #include "http_form.h"
 #include "http_cache.h"
+#include "http_cc.h"
 
 #include "http_fcgi_srv.h"
 #include "http_fcgi_msg.h"
@@ -149,8 +150,6 @@ int http_cli_recv (void * vcon)
     HTTPCon    * pcon = (HTTPCon *)vcon;
     HTTPMgmt   * mgmt = NULL;
     HTTPMsg    * msg = NULL;
-    HTTPMsg    * srvmsg = NULL;
-    HTTPCon    * srvcon = NULL;
     int          ret = 0, num = 0;
     int          err = 0;
 
@@ -159,30 +158,16 @@ int http_cli_recv (void * vcon)
     mgmt = (HTTPMgmt *)pcon->mgmt;
     if (!mgmt) return -2;
 
-    msg = http_con_msg_first(pcon);
-    if (msg && msg->proxied == 1 && (srvmsg = msg->proxymsg) &&
-            frameL(srvmsg->req_body_stream) >= mgmt->proxy_buffer_size)
-    {
-        /* congestion control: by neglecting the read-ready event,
-           underlying TCP stack recv-buffer will be full soon.
-           TCP stack will start congestion control mechanism */
-        iodev_del_notify(pcon->pdev, RWF_READ);
-        pcon->read_ignored++;
- 
-        srvcon = srvmsg->pcon;
- 
-        if (!tcp_connected(iodev_fd(pcon->pdev)) ||
-            (srvcon && !tcp_connected(iodev_fd(srvcon->pdev)))
-           ) {
-           http_con_close(srvmsg->pcon);
-           http_con_close(pcon);
-           return -100;
-        }
- 
+    /* If the receiving speed of client side is greater than the sending  
+       speed of server side, a great deal of data will be piled up in memory.
+       Congestion control should be activated by neglecting the read-ready event.
+       After that, receving buffer of underlying TCP will be full soon.
+       TCP stack will start congestion control mechanism */
+    if (http_cli_recv_cc(pcon) > 0)
         return 0;
-    }
 
     while (1) {
+
         ret = http_con_read(pcon, pcon->rcvstream, &num, &err);
         if (ret < 0) {
             http_cli_con_crash(pcon, 1);
@@ -190,6 +175,8 @@ int http_cli_recv (void * vcon)
         }
 
         time(&pcon->stamp);
+        if (pcon->read_ignored > 0)
+            pcon->read_ignored = 0;
 
         if (num > 0) {
             http_overhead_recv(mgmt, num);
@@ -223,6 +210,7 @@ int http_cli_recv (void * vcon)
                pcon may have multiple msg instances being handled by 
                callback function before the msg.
              */
+            /* msg = http_con_msg_last(pcon); */
             msg = pcon->msg;
             pcon->msg = NULL;
 
@@ -285,7 +273,7 @@ int http_cli_recv_parse (void * vcon)
 
     if (pcon->rcv_state == HTTP_CON_WAITING_BODY) {
         /* msg assignments as following 2 methods are right */
-        /* msg = http_con_msg_last(pcon); */
+        /* msg = http_con_msg_first(pcon); */
         msg = pcon->msg;
         if (!msg) {
             return -101;
@@ -390,7 +378,9 @@ int http_cli_recv_parse (void * vcon)
         }
 
         /* set DocURI and match the request path with configured Host and Location */
-        http_req_set_docuri(msg, frameP(msg->uri->uri), frameL(msg->uri->uri), 0, 0);
+        if (msg->req_url_type == 0 && msg->req_methind != HTTP_METHOD_CONNECT) { //CONNECT method
+            http_req_set_docuri(msg, frameP(msg->uri->uri), frameL(msg->uri->uri), 0, 0);
+        }
 
         /* determine if request body is following, set the rcv_state of HTTPCon */
         if ( ( msg->req_body_flag == BC_CONTENT_LENGTH &&
@@ -669,8 +659,10 @@ int http_cli_send (void * vcon)
     void        * chunk = NULL;
     chunk_vec_t   iovec;
  
+    uint8         httpchunk = 0;
     int           ret = 0;
     int64         filepos = 0;
+    int64         sentnum = 0;
     int           num = 0;
     int           err = 0;
     uint8         shutdown = 0;
@@ -701,36 +693,21 @@ int http_cli_send (void * vcon)
             break;
         }
  
-        /* if the msg is proxied for the client msg, call proxy_cli_send */
-        if (msg->proxied) {
-            if (msg->cacheon/* && msg->res_cache_info*/) {
-                /* cacheon in proxy mode indicates that cache file is 
-                   content source for client request. 
-                   go on sending file to client */
-            } else {
-                /* cacheoff in proxy means that any bytes from origin will directly
-                   divert to write to client */
-                pcon->snd_state = HTTP_CON_SEND_READY;
-                return http_proxy_cli_send(pcon, msg);
-            }
+        if (msg->proxied && (!msg->cacheon || !msg->res_cache_info)) {
+            httpchunk = 0;
+        } else {
+            httpchunk = msg->res_body_flag == BC_TE ? 1 : 0;
         }
 
-        if (msg->issued <= 0 ||
-                 ( msg->res_body_flag == BC_CONTENT_LENGTH &&
-                   msg->res_stream_sent >= msg->res_header_length + msg->res_body_length ) ||
-                 ( msg->res_body_flag == BC_NONE && msg->res_stream_sent >= msg->res_header_length ) ||
-                 ( msg->res_body_flag == BC_TE && chunk_get_end(msg->res_body_chunk, msg->res_stream_sent, 1) )
-           )
-        {
+        chunk = msg->res_body_chunk;
+        filepos = msg->res_stream_sent;
+
+        if (msg->issued <= 0 || chunk_get_end(chunk, filepos, httpchunk)) {
             /* when the callback of http request not finished handling,
                or the reponse has been sent to client, just do nothing and return */
             pcon->snd_state = HTTP_CON_SEND_READY;
             return 0;
         }
- 
-        chunk = msg->res_body_chunk;
-
-        filepos = msg->res_stream_sent;
  
         if (chunk_has_file(chunk) > 0) {
             if (iodev_tcp_nodelay(pcon->pdev) == TCP_NODELAY_SET) {
@@ -742,11 +719,10 @@ int http_cli_send (void * vcon)
             }
         }
  
-        for ( ; chunk_get_end(chunk, filepos, msg->res_body_flag==BC_TE?1:0) == 0; ) {
+        for (sentnum = 0; chunk_get_end(chunk, filepos, httpchunk) == 0; ) {
  
             memset(&iovec, 0, sizeof(iovec));
-            ret = chunk_vec_get(chunk, filepos, &iovec, msg->res_body_flag==BC_TE?1:0);
- 
+            ret = chunk_vec_get(chunk, filepos, &iovec, httpchunk);
             if (ret < 0 || (iovec.size > 0 && iovec.vectype != 1 && iovec.vectype != 2)) {
                 pcon->snd_state = HTTP_CON_IDLE;
                 http_cli_con_crash(pcon, 1);
@@ -761,6 +737,11 @@ int http_cli_send (void * vcon)
                     /* read cache file again, if no data in cache file, request it from origin */
                     return http_proxy_cli_cache_send(pcon, msg);
                 }
+
+                /* all octets in buffer are sent to client and de-congesting process 
+                   should be started. connection of server-side is checked to add Read notification
+                   if it's removed before */
+                http_cli_send_cc(pcon);
 
                 return 0;
             }
@@ -781,6 +762,7 @@ int http_cli_send (void * vcon)
 
             filepos += num;
             msg->res_stream_sent += num;
+            sentnum += num;
  
             http_overhead_sent(pcon->mgmt, num);
             msg->stamp = time(&pcon->stamp);
@@ -800,13 +782,19 @@ int http_cli_send (void * vcon)
             if (num == 0) {
 #endif
                 pcon->snd_state = HTTP_CON_SEND_READY;
-
                 iodev_add_notify(pcon->pdev, RWF_WRITE);
+
+                /* all octets in buffer are sent to client and de-congesting process 
+                   should be started. connection of server-side is checked to add Read notification
+                   if it's removed before */
+                if (sentnum > 0)
+                    http_cli_send_cc(pcon);
+
                 return 0;
             }
         }
  
-        if (chunk_get_end(chunk, msg->res_stream_sent, msg->res_body_flag==BC_TE?1:0) == 1) {
+        if (chunk_get_end(chunk, msg->res_stream_sent, httpchunk) == 1) {
             /* send response to client successfully */
             http_con_msg_del(pcon, msg);
             http_msg_close(msg);
@@ -842,15 +830,12 @@ int http_cli_send_final (void * vmsg)
     frame_p    frm = NULL;
     int        i, num;
     int        fnum = 0;
-    FcgiSrv  * cgisrv = NULL;
-    FcgiCon  * cgicon = NULL;
-    FcgiMsg  * cgimsg = NULL;
  
     if (!msg) return -1;
  
     mgmt = (HTTPMgmt *)msg->httpmgmt;
     if (!mgmt) return -2;
- 
+
     fnum = chunk_remove(msg->res_body_chunk,
                         msg->res_stream_sent,
                         msg->res_body_flag == BC_TE ? 1 : 0);
@@ -866,19 +851,6 @@ int http_cli_send_final (void * vmsg)
             arr_delete(msg->res_rcvs_list, i);
             frame_free(frm);
             i--; num--;
-        }
-    }
- 
-    if (msg->fastcgi == 1 && (cgimsg = msg->fcgimsg)) {
-        cgisrv = (FcgiSrv *)cgimsg->srv;
-        cgicon = http_fcgisrv_con_get(cgisrv, cgimsg->conid);
- 
-        /* read the blocked data in server-side kernel socket for
-           client-side congestion control */
-        if (cgicon && cgicon->read_ignored > 0 &&
-            chunk_rest_size(msg->res_body_chunk, 0) < mgmt->fcgi_buffer_size)
-        {
-            iodev_add_notify(cgicon->pdev, RWF_READ);
         }
     }
  

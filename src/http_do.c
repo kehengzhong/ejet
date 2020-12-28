@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2003-2020 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
  */
 
@@ -8,6 +8,7 @@
 #include "http_header.h"
 #include "http_msg.h"
 #include "http_mgmt.h"
+#include "http_chunk.h"
 #include "http_srv.h"
 #include "http_srv_io.h"
 #include "http_con.h"
@@ -55,6 +56,13 @@ int http_redirect_request (void * vmsg)
     /* the original Cookie should be removed before encoding */
     http_header_del(msg, 0, "Cookie", -1);
 
+    http_chunk_zero(msg->req_chunk);
+    chunk_zero(msg->req_body_chunk);
+ 
+    while (arr_num(msg->req_rcvs_list) > 0)
+        frame_free(arr_pop(msg->req_rcvs_list));
+    arr_zero(msg->req_rcvs_list);
+
     http_msg_init_res(msg);
 
     /* detach the msg from original httpcon */
@@ -68,6 +76,8 @@ int http_redirect_request (void * vmsg)
     http_req_encoding(msg, 1);
     msg->issued = 1;
  
+    chunk_set_end(msg->req_body_chunk);
+
     /* now bind the HTTPMsg to one HTTPCon allocated by HTTPSrv, and start sending it */
     srv = http_srv_open(mgmt, msg->dstip, msg->dstport, msg->ssl_link, 15);
     if (!srv) {
@@ -85,44 +95,6 @@ int http_redirect_request (void * vmsg)
     }
 
     return 0;
-}
- 
- 
-int http_net_active (void * vmgmt, int oldstate)
-{
-    HTTPMgmt   * mgmt = (HTTPMgmt *)vmgmt;
-    HTTPSrv    * srv = NULL;
-    int          i, num;
-    rbtnode_t  * rbtn = NULL;
-    //time_t     curt = 0;
-    int          nolinked = 0;
-    int          linked = 0;
- 
-    if (!mgmt) return oldstate;
- 
-    //curt = time(0);
-    EnterCriticalSection(&mgmt->srvCS);
- 
-    num = rbtree_num(mgmt->srv_tree);
-    rbtn = rbtree_min_node(mgmt->srv_tree);
- 
-    for (i = 0; i < num && rbtn; i++) {
-        srv = (HTTPSrv *)RBTObj(rbtn);
-        rbtn = rbtnode_next(rbtn);
-        if (!srv) continue;
- 
-        if (srv->active/* && curt-srv->active_stamp < 10*/)
-            linked++;
-        else if (!srv->active)
-            nolinked++;
-    }
- 
-    LeaveCriticalSection(&mgmt->srvCS);
- 
-    if (nolinked > 0) return 0;
-    if (linked > 0) return 1;
- 
-    return oldstate;
 }
  
  
@@ -213,53 +185,6 @@ void * do_http_get_msg (void * vmgmt, char * url, int urllen,
 }
  
  
-void * load_http_get_msg (void * vmgmt, char * url, int urllen,
-                        void * resfunc, void * para, void * cbval,
-                        void * rcvprocfunc, void * funcpara,
-                        char * resfile, long resoff, uint64 start, uint64 size,
-                        char * route, char * opaque)
-{
-    HTTPMgmt * mgmt = (HTTPMgmt *)vmgmt;
-    HTTPMsg  * msg = NULL;
-    char       buf[512];
-    char     * agent = "User-Agent: Mozilla/5.0 (Windows NT 6.3; WOW64) "
-                       "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/45.0.2454.101 Safari/537.36";
- 
- 
-    if (!mgmt || !url) return NULL;
-    if (urllen < 0) urllen = strlen(url);
-    if (urllen < 8) return NULL;
- 
-    msg = http_msg_fetch(mgmt);
-    if (!msg) return NULL;
- 
-    msg->SetMethod(msg, "GET", 3);
-    msg->SetURL(msg, url, urllen, 1);
- 
-    msg->req_body_flag = BC_NONE;
- 
-    sock_addr_get(msg->req_host, msg->req_hostlen, msg->req_port, 0,
-                  msg->dstip, &msg->dstport, NULL);
- 
-    msg->SetResponseHandle(msg, resfunc, para, cbval, resfile, resoff, rcvprocfunc, funcpara);
- 
-    http_header_append(msg, 0, "Accept", -1, hdr_accept, strlen(hdr_accept));
-    http_header_append(msg, 0, "Accept-Charset", -1, hdr_accept_charset, strlen(hdr_accept_charset));
-    http_header_append(msg, 0, "Accept-Language", -1, hdr_accept_lang, strlen(hdr_accept_lang));
-    http_header_append(msg, 0, "Connection", -1, "keep-alive", -1);
-    //http_header_append(msg, 0, "User-Agent", -1, mgmt->useragent, strlen(mgmt->useragent));
-    http_header_append(msg, 0, "User-Agent", -1, agent, strlen(agent));
- 
-    sprintf(buf, "bytes=%llu-%llu", start, start+size);
-    http_header_append(msg, 0, "Range", -1, buf, strlen(buf));
- 
-    if (route) http_header_append(msg, 0, "Route-Via", -1, route, strlen(route));
-    if (opaque) http_header_append(msg, 0, "OriginNode", -1, opaque, strlen(opaque));
- 
-    return msg;
-}
- 
- 
 void * do_http_get (void * vmgmt, char * url, int urllen, void * resfunc, void * para, void * cbval,
                  void * rcvprocfunc, void * funcpara, char * resfile, long resoff)
 {
@@ -279,30 +204,6 @@ void * do_http_get (void * vmgmt, char * url, int urllen, void * resfunc, void *
  
     return msg;
 }
- 
- 
-void * origin_http_get (void * vmgmt, char * url, int urllen, void * resfunc, void * para,
-                 void * cbval, void * rcvprocfunc, void * funcpara, char * resfile,
-                 long resoff, uint64 start, uint64 size, char * route, char * opaque)
-{
-    HTTPMgmt * mgmt = (HTTPMgmt *)vmgmt;
-    HTTPMsg  * msg = NULL;
- 
-    if (!mgmt) return NULL;
- 
-    msg = load_http_get_msg(mgmt, url, urllen, resfunc, para, cbval,
-                            rcvprocfunc, funcpara, 
-                            resfile, resoff, start, size, route, opaque);
-    if (!msg) return NULL;
- 
-    if (do_http_request(msg) < 0) {
-        http_msg_close(msg);
-        msg = NULL;
-    }
- 
-    return msg;
-}
- 
  
 void * do_http_post_msg (void * vmgmt, char * url, int urllen, char * mime,
                          char * body, int bodylen,

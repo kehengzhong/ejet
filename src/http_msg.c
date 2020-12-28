@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2003-2020 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
  */
 
@@ -35,6 +35,7 @@ int http_msg_cmp_http_msg(void * a, void * b)
     return -1;
 }
 
+
 int http_msg_cmp_msgid (void * a, void * pat)
 {
     HTTPMsg * msg = (HTTPMsg *)a;
@@ -47,11 +48,13 @@ int http_msg_cmp_msgid (void * a, void * pat)
     return -1;
 }
 
+
 ulong http_msg_hash_msgid (void * key)
 {
     ulong msgid = *(ulong *)key;
     return msgid;
 }
+
 
 
 int http_msg_free (void * vmsg)
@@ -104,6 +107,11 @@ int http_msg_free (void * vmsg)
     if (msg->req_body_chunk) {
         chunk_free(msg->req_body_chunk);
         msg->req_body_chunk = NULL;
+    }
+
+    if (msg->req_rcvs_list) {
+        arr_pop_free(msg->req_rcvs_list, frame_free);
+        msg->req_rcvs_list = NULL;
     }
 
     if (msg->req_formlist) {
@@ -532,6 +540,10 @@ int http_msg_recycle (void * vmsg)
     http_chunk_zero(msg->req_chunk);
     chunk_zero(msg->req_body_chunk);
 
+    while (arr_num(msg->req_rcvs_list) > 0)
+        frame_free(arr_pop(msg->req_rcvs_list));
+    arr_zero(msg->req_rcvs_list);
+
     while (arr_num(msg->req_formlist) > 0)
         http_form_free(arr_pop(msg->req_formlist));
 
@@ -599,6 +611,8 @@ int http_msg_recycle (void * vmsg)
     msg->cache_req_start = 0;
     msg->cache_req_off = 0;
     msg->cache_req_len = -1;
+
+    //msg->msgid = 0;
 
     /* recycle the msg to memory pool */
     bpool_recycle(mgmt->msg_pool, msg);
@@ -746,6 +760,11 @@ int http_msg_init_req (void * vmsg)
         msg->req_body_chunk = chunk_new(8192);
     }
     chunk_zero(msg->req_body_chunk);
+
+    if (msg->req_rcvs_list == NULL) {
+        msg->req_rcvs_list = arr_new(2);
+    }
+    arr_zero(msg->req_rcvs_list);
 
     if (msg->req_formlist == NULL) {
         msg->req_formlist = arr_new(4);

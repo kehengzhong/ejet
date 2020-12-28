@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2003-2020 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
  */
 
@@ -114,16 +114,20 @@ int http_fcgimsg_init (void * vmsg)
 
     msg->req_body_flag = 0;
     msg->req_body_length = 0;
-
-    if (msg->req_chunk == NULL) {
-        msg->req_chunk = http_chunk_alloc();
-    }
-    http_chunk_zero(msg->req_chunk);
+    msg->req_body_iolen = 0;
 
     msg->req_stream_sent = 0;
-    msg->req_header_sent = 0;
-    msg->req_body_sent = 0;
     msg->reqsent = 0;
+
+    if (msg->req_rcvs_list == NULL) {
+        msg->req_rcvs_list = arr_new(4);
+    }
+    arr_zero(msg->req_rcvs_list);
+
+    if (msg->req_body_chunk == NULL) {
+        msg->req_body_chunk = chunk_new(8192);
+    }
+    chunk_zero(msg->req_body_chunk);
 
     msg->fcgi_role = FCGI_RESPONDER;
     msg->fcgi_keep_alive = 1; //1;
@@ -159,9 +163,14 @@ int http_fcgimsg_free (void * vmsg)
 
     if (!msg) return -1;
 
-    if (msg->req_chunk) {
-        http_chunk_free(msg->req_chunk);
-        msg->req_chunk = NULL;
+    if (msg->req_rcvs_list) {
+        arr_pop_free(msg->req_rcvs_list, frame_free);
+        msg->req_rcvs_list = NULL;
+    }
+
+    if (msg->req_body_chunk) {
+        chunk_free(msg->req_body_chunk);
+        msg->req_body_chunk = NULL;
     }
 
     frame_delete(&msg->fcgi_request);
@@ -212,7 +221,11 @@ int http_fcgimsg_recycle (void * vmsg)
         return http_fcgimsg_free(msg);
     }
 
-    http_chunk_zero(msg->req_chunk);
+    while (arr_num(msg->req_rcvs_list) > 0)
+        frame_free(arr_pop(msg->req_rcvs_list));
+    arr_zero(msg->req_rcvs_list);
+
+    chunk_zero(msg->req_body_chunk);
 
     frame_empty(msg->fcgi_request);
 
@@ -236,14 +249,15 @@ void * http_fcgimsg_open  (void * vsrv, void * vhttpmsg)
 
     msg->req_body_flag = httpmsg->req_body_flag;
     msg->req_body_length = httpmsg->req_body_length;
+    msg->req_body_iolen = 0;
 
     msg->req_stream_sent = 0;
-    msg->req_header_sent = 0;
-    msg->req_body_sent = 0;
     msg->reqsent = 0;
 
     http_fcgimsg_request_encode(msg);
     http_fcgimsg_abort_encode(msg);
+
+    chunk_prepend_bufptr(msg->req_body_chunk, frameP(msg->fcgi_request), frameL(msg->fcgi_request), 1);
 
     return msg;
 }
@@ -565,12 +579,12 @@ int http_fcgimsg_stdin_encode (void * vmsg, void * pbyte, int bytelen, int end)
     }
  
     if (end) 
-        http_fcgimsg_stdin_encode_end(msg);
+        http_fcgimsg_stdin_end_encode(msg);
 
     return pos;
 }
 
-int http_fcgimsg_stdin_encode_end (void * vmsg)
+int http_fcgimsg_stdin_end_encode (void * vmsg)
 {
     FcgiMsg    * msg = (FcgiMsg *)vmsg;
 
@@ -602,8 +616,10 @@ int http_fcgimsg_stdin_body_sentnum (void * vmsg, int sentlen)
             sentbody += msg->fcgi_stdin_body_len[i] - (acclen - sentlen);
             return sentbody;
         }
-
         sentbody += msg->fcgi_stdin_body_len[i];
+
+        acclen += msg->fcgi_stdin_padding_len[i]; 
+        if (acclen >= sentlen) return sentbody;
     }
 
     return sentbody;
@@ -632,3 +648,57 @@ int http_fcgimsg_pre_crash (void * vmsg, int status)
     return 0;
 }
 
+
+int http_fcgimsg_stdin_encode_chunk (void * vmsg, void * pbyte, int bytelen, void * porig, int end)
+{
+    FcgiMsg    * msg = (FcgiMsg *)vmsg;
+    static int   MAXCONT = 65528; //8-byte alignment assuring that no padding is appended
+    static uint8 padarr[8] = {0};
+    uint8        hdrbuf[16];
+    int          i, pos = 0;
+    int          num = 0;
+    uint16       contlen = 0;
+    int          padding = 0;
+ 
+    if (!msg) return -1;
+ 
+    num = (bytelen + MAXCONT - 1) / MAXCONT;
+ 
+    for (i = 0, pos = 0; i < num; i++) {
+        if (i == num - 1) contlen = bytelen % MAXCONT;
+        else contlen = MAXCONT;
+ 
+        fcgi_header_encode2(hdrbuf, FCGI_STDIN, /*msg->msgid*/1, contlen);
+        chunk_add_buffer(msg->req_body_chunk, hdrbuf, 8);
+
+        chunk_add_bufptr(msg->req_body_chunk, pbyte + pos, contlen, porig);
+ 
+        padding = contlen % 8;
+        if (padding > 0) padding = 8 - padding;
+        chunk_add_buffer(msg->req_body_chunk, padarr, padding);
+ 
+        pos += contlen;
+    }
+ 
+    if (end)
+        http_fcgimsg_stdin_end_encode_chunk(msg);
+ 
+    return pos;
+}
+ 
+int http_fcgimsg_stdin_end_encode_chunk (void * vmsg)
+{
+    FcgiMsg    * msg = (FcgiMsg *)vmsg;
+    uint8        hdrbuf[16];
+ 
+    if (!msg) return -1;
+ 
+    fcgi_header_encode2(hdrbuf, FCGI_STDIN, /*msg->msgid*/1, 0);
+    chunk_add_buffer(msg->req_body_chunk, hdrbuf, 8);
+
+    /* set the current size as the end-size of chunk object */
+    chunk_set_end(msg->req_body_chunk);
+
+    return 0;
+}
+ 

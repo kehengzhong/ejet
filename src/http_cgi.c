@@ -1935,7 +1935,7 @@ int AddResFile (void * vmsg, char * filename, int64 startpos, int64 len)
     }
 
 addfile:
-    if (startpos >= st.st_size) return -100;
+    if (startpos >= st.st_size && st.st_size > 0) return -100;
     if (len < 0 || len > st.st_size - startpos)
         len = st.st_size - startpos;
 

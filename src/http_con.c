@@ -122,6 +122,8 @@ int http_con_init (void * vcon)
         http_msg_close(arr_pop(pcon->msg_list));
     arr_zero(pcon->msg_list);
  
+    pcon->srv = NULL;
+
     return 0;
 }
 
@@ -342,6 +344,8 @@ void * http_con_open (void * vsrv, char * dstip, int dstport, int ssl_link)
         pcon->casetype = HTTP_CLIENT;
 
         pcon->ssl_link = ssl_link;
+
+        pcon->srv = NULL;
     }
  
     time(&pcon->stamp);

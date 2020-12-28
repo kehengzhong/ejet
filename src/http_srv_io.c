@@ -1,11 +1,10 @@
 /*
- * Copyright (c) 2003-2020 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
  */
 
 #include "adifall.ext"
 #include "epump.h"
-
 #include "http_con.h"
 #include "http_msg.h"
 #include "http_mgmt.h"
@@ -21,6 +20,7 @@
 #include "http_chunk.h"
 #include "http_ssl.h"
 #include "http_cookie.h"
+#include "http_cc.h"
 
 
 int http_srv_con_crash (void * vcon, int closelad)
@@ -75,12 +75,8 @@ int http_srv_send_probe (void * vcon)
  
     msg = http_con_msg_first(pcon);
     if (msg && (msg->reqsent > 0 || 
-                 ( msg->req_body_flag == BC_CONTENT_LENGTH &&
-                   msg->req_stream_sent >= msg->req_header_length + msg->req_body_length ) || 
-                 ( msg->req_body_flag == BC_NONE && msg->req_stream_sent >= msg->req_header_length ) ||
-                 ( msg->req_body_flag == BC_TE && http_chunk_gotall(msg->req_chunk) )
-               )
-       )
+                chunk_get_end(msg->req_body_chunk, msg->req_stream_sent,
+                              msg->req_body_flag == BC_TE ? 1 : 0)))
     {
         if (pcon->snd_state == HTTP_CON_FEEDING)
             pcon->snd_state = HTTP_CON_SEND_READY;
@@ -107,9 +103,11 @@ int http_srv_send (void * vcon)
     void        * chunk = NULL;
     chunk_vec_t   iovec;
  
+    uint8         httpchunk = 0;
     int           ret = 0;
     int64         filepos = 0;
     int64         bodypos = 0;
+    int64         sentnum = 0;
     int           num = 0;
     int           err = 0;
     time_t        curt = 0;
@@ -138,29 +136,20 @@ int http_srv_send (void * vcon)
     {
         msg = http_con_msg_first(pcon);
         if (msg) {
-
-            /* if the msg is proxing for the client msg, call proxy_srv_send */
-            if (msg->proxied) {
-                pcon->snd_state = HTTP_CON_SEND_READY;
-                ret = http_proxy_srv_send(pcon, msg);
-
-                pcon->transact = 0;
-
-                return ret;
-            }
-
             if (msg->conid == 0) {
                 msg->conid = pcon->conid;
                 msg->pcon = pcon;
             }
  
+            if (msg->proxied) {
+                httpchunk = 0;
+            } else {
+                httpchunk = msg->req_body_flag == BC_TE ? 1 : 0;
+            }
+
             /* if HTTPMsg has been sent, just return */
             if (msg->reqsent > 0 || 
-                 ( msg->req_body_flag == BC_CONTENT_LENGTH &&
-                   msg->req_stream_sent >= msg->req_header_length + msg->req_body_length ) || 
-                 ( msg->req_body_flag == BC_NONE && msg->req_stream_sent >= msg->req_header_length ) ||
-                 ( msg->req_body_flag == BC_TE && http_chunk_gotall(msg->req_chunk) )
-               )
+                chunk_get_end(msg->req_body_chunk, msg->req_stream_sent, httpchunk))
             {
                 pcon->snd_state = HTTP_CON_SEND_READY;
                 pcon->transact = 0;
@@ -183,13 +172,10 @@ int http_srv_send (void * vcon)
  
                 http_con_msg_add(pcon, msg);
 
-                /* if the msg is proxing for the client msg, call proxy_srv_send */
                 if (msg->proxied) {
-                    pcon->snd_state = HTTP_CON_SEND_READY;
-                    ret = http_proxy_srv_send(pcon, msg);
-
-                    pcon->transact = 0;
-                    return ret;
+                    httpchunk = 0;
+                } else {
+                    httpchunk = msg->req_body_flag == BC_TE ? 1 : 0;
                 }
 
                 break;
@@ -202,7 +188,6 @@ int http_srv_send (void * vcon)
         }
  
         chunk = msg->req_body_chunk;
-
         filepos = msg->req_stream_sent;
  
         if (chunk_has_file(chunk) > 0) {
@@ -215,10 +200,10 @@ int http_srv_send (void * vcon)
             }
         }
  
-        for ( ; chunk_get_end(chunk, filepos, msg->req_body_flag == BC_TE?1:0) == 0; ) {
+        for (sentnum = 0; chunk_get_end(chunk, filepos, httpchunk) == 0; ) {
  
             memset(&iovec, 0, sizeof(iovec));
-            ret = chunk_vec_get(chunk, filepos, &iovec, msg->req_body_flag == BC_TE?1:0);
+            ret = chunk_vec_get(chunk, filepos, &iovec, httpchunk);
  
             if (ret < 0 || (iovec.size > 0 && iovec.vectype != 1 && iovec.vectype != 2)) {
                 pcon->snd_state = HTTP_CON_IDLE;
@@ -229,6 +214,13 @@ int http_srv_send (void * vcon)
             if (iovec.size == 0) {
                 /* no available data to send, waiting for more data... */
                 pcon->snd_state = HTTP_CON_SEND_READY;
+                pcon->transact = 0;
+
+                /* all octets in buffer are sent to Origin server and de-congesting process
+                   should be started. Connection of client-side is checked to add Read notification
+                   if it's removed before */
+                http_srv_send_cc(pcon);
+
                 return 0;
             }
 
@@ -250,6 +242,7 @@ int http_srv_send (void * vcon)
             }
  
             filepos += num;
+            sentnum += num;
 
             if (msg->req_send_procnotify && num > 0 && filepos > msg->req_header_length) {
                 bodypos = msg->req_stream_sent - msg->req_header_length;
@@ -264,6 +257,11 @@ int http_srv_send (void * vcon)
             http_overhead_sent(pcon->mgmt, num);
             msg->stamp = time(&pcon->stamp);
  
+            /* remove the sent ChunkEntity-es in msg->req_body_chunk.
+               release the already sent frame objects holding received data from
+               client for zero-copy purpose. */
+            http_srv_send_final(msg);
+
 #ifdef UNIX
             if (err == EINTR || err == EAGAIN || err == EWOULDBLOCK) { //EAGAIN
 #elif defined _WIN32
@@ -272,19 +270,30 @@ int http_srv_send (void * vcon)
             if (num == 0) {
 #endif
                 pcon->snd_state = HTTP_CON_SEND_READY;
-                return http_srv_send_probe(pcon);
+                pcon->transact = 0;
+
+                iodev_add_notify(pcon->pdev, RWF_WRITE);
+
+                /* all octets in buffer are sent to Origin server and de-congesting process
+                   should be started. Connection of client-side is checked to add Read notification
+                   if it's removed before */
+                http_srv_send_cc(pcon);
+
+                return 0;
             }
         }
  
         if (pcon->srv) time(&((HTTPSrv *)(pcon->srv))->stamp);
 
-        if (chunk_get_end(chunk, msg->req_stream_sent, msg->req_body_flag == BC_TE?1:0) == 1) {
+        if (chunk_get_end(chunk, msg->req_stream_sent, httpchunk) == 1) {
             /* do not send any ohter httpmsg, just wait for the response after sending request */
             msg->reqsent = 1;
             pcon->reqnum++;
 
             /* should not send other HTTPMsg before got the response */
             pcon->snd_state = HTTP_CON_SEND_READY;
+            pcon->transact = 0;
+
             return 0;
         }
  
@@ -303,14 +312,40 @@ int http_srv_send (void * vcon)
     return 0;
 }
 
+int http_srv_send_final (void * vmsg)
+{
+    HTTPMsg  * msg = (HTTPMsg *)vmsg;
+    frame_p    frm = NULL;
+    int        i, num;
+    int        fnum = 0;
+ 
+    if (!msg) return -1;
+ 
+    fnum = chunk_remove(msg->req_body_chunk, msg->req_stream_sent, 0);
+    if (fnum <= 0)
+        return 0;
+ 
+    num = arr_num(msg->req_rcvs_list);
+    for (i = 0; i < num; i++) {
+        frm = arr_value(msg->req_rcvs_list, i);
+ 
+        fnum = chunk_bufptr_porig_find(msg->req_body_chunk, frm);
+        if (fnum <= 0) {
+            arr_delete(msg->req_rcvs_list, i);
+            frame_free(frm);
+            i--; num--;
+        }
+    }
+
+    return 0;
+}
+
 
 int http_srv_recv (void * vcon)
 {
     HTTPCon    * pcon = (HTTPCon *)vcon;
     HTTPMgmt   * mgmt = NULL;
     HTTPMsg    * msg = NULL;
-    HTTPMsg    * climsg = NULL;
-    HTTPCon    * clicon = NULL;
     int          ret = 0, num = 0;
     int          err = 0;
     uint8        crashed = 0;
@@ -321,55 +356,13 @@ int http_srv_recv (void * vcon)
     mgmt = (HTTPMgmt *)pcon->mgmt;
     if (!mgmt) return -2;
 
-    if (pcon->tunnelcon && frameL(pcon->rcvstream) >= mgmt->proxy_buffer_size) {
-        /* As the tunnel connection of client request, if server-side
-           receiving speed is greater than client-side sending speed,
-           large data will be piled up in rcvstream. Limiting receiving
-           speed is needed by neglecting the READ event to activate
-           TCP Congestion Control mechanism */
-
-        iodev_del_notify(pcon->pdev, RWF_READ);
-        pcon->read_ignored++;
-
-        if (!tcp_connected(iodev_fd(pcon->pdev))) {
-           http_con_close(pcon->tunnelcon);
-           http_con_close(pcon);
-           return -100;
-        }
-
-        time(&pcon->stamp);
-        if (pcon->srv)
-            time(&((HTTPSrv *)(pcon->srv))->stamp);
-
+    /* If the receiving speed of server side is greater than the sending
+       speed of client side, a great deal of data will be piled up in memory.
+       Congestion control should be activated by neglecting the read-ready event.
+       After that, receving buffer of underlying TCP will be full soon.
+       TCP stack will start congestion control mechanism */
+    if (http_srv_recv_cc(pcon) > 0)
         return 0;
-    }
-
-    msg = http_con_msg_first(pcon);
-    if (msg && msg->proxied == 2 && (climsg = msg->proxymsg) && 
-            frameL(climsg->res_body_stream) >= mgmt->proxy_buffer_size)
-    {
-        /* congestion control: by neglecting the read-ready event, 
-           underlying TCP stack recv-buffer will be full soon.
-           TCP stack will start congestion control mechanism */
-        iodev_del_notify(pcon->pdev, RWF_READ);
-        pcon->read_ignored++;
-
-        clicon = climsg->pcon;
-
-        if (!tcp_connected(iodev_fd(pcon->pdev)) || 
-            (clicon && !tcp_connected(iodev_fd(clicon->pdev)))
-           ) {
-           http_con_close(climsg->pcon);
-           http_con_close(pcon);
-           return -100;
-        }
-
-        time(&pcon->stamp);
-        if (pcon->srv)
-            time(&((HTTPSrv *)(pcon->srv))->stamp);
-
-        return 0;
-    }
 
     while (1) {
 
@@ -891,7 +884,6 @@ int http_srv_con_lifecheck (void * vcon)
     if (pcon->snd_state < HTTP_CON_SEND_READY && curt - pcon->stamp >= mgmt->srv_connecting_time) {
         /* if exceeds the max time that builds TCP connection to remote server, close it.
            seems that it never go here */
-        //return http_con_close(pcon);
         return http_srv_con_crash(pcon, 1);
     }
 

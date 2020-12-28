@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2003-2020 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
  */
 
@@ -179,7 +179,7 @@ int http_req_reqline_decode (void * vmsg, char * pline, int linelen)
     if (pval >= pend) return -200;
     poct = skipTo(pval, pend-pval, " \t\r", 3);
 
-    if (msg->req_methind == 1) { //CONNECT method
+    if (msg->req_methind == HTTP_METHOD_CONNECT) { //CONNECT method
         /* A CONNECT method requests that a proxy establish a tunnel connection
            on its behalf. The Request-URI portion of the Request-Line is always
            an 'authority' as defined by URI Generic Syntax [2], which is to say
@@ -202,14 +202,14 @@ int http_req_reqline_decode (void * vmsg, char * pline, int linelen)
     pval = skipOver(poct, pend-poct, " \t\r\n", 4);
     if (pval >= pend) return -100;
     poct = skipTo(pval, pend-pval, " \t\r", 3);
- 
+
     str_secpy(msg->req_ver, sizeof(msg->req_ver)-1, pval, poct-pval);
- 
+
     pval = skipTo(pval, poct-pval, "/", 1);
     if (pval < poct) {
         pval += 1;
         msg->req_ver_major = str_to_int(pval, poct-pval, 10, (void **)&pval);
- 
+
         pval = skipOver(pval, poct-pval, ". \t", 3);
         if (pval < poct)
             msg->req_ver_minor = str_to_int(pval, poct-pval, 10, (void **)&pval);
@@ -409,6 +409,7 @@ int http_req_set_docuri (void * vmsg, char * puri, int urilen, int decode, int i
 
     /* only directory request needs to append its index file */
     if (msg->GetLocFile(msg, NULL, 0, NULL, 0, udoc, sizeof(udoc)-1) == 2) {
+
         return http_req_set_docuri(msg, udoc, strlen(udoc), 0, 0);
     }
 
@@ -428,6 +429,17 @@ int http_req_set_uri (void * vmsg, char * puri, int urilen, int decode)
     if (ret < 0) return ret;
 
     msg->req_url_type = msg->uri->type;
+    if (msg->req_methind == HTTP_METHOD_CONNECT) {
+        /* It's an URL of CONNECT method.
+           eg. CONNECT content-autofill.googleapis.com:443 */
+        msg->req_url_type = 0;
+
+        msg->req_host = msg->uri->host;
+        msg->req_hostlen = msg->uri->hostlen;
+        msg->req_port = msg->uri->port;
+
+        return 0;
+    }
 
     msg->req_path = msg->uri->path;
     msg->req_pathlen = msg->uri->pathlen;
@@ -435,6 +447,7 @@ int http_req_set_uri (void * vmsg, char * puri, int urilen, int decode)
     msg->req_querylen = msg->uri->querylen;
 
     if (msg->uri->type > 0) {
+        /* It's an absolute URL */
         msg->ssl_link = msg->uri->ssl_link;
 
         msg->req_scheme = msg->uri->scheme;
@@ -720,28 +733,28 @@ int http_req_parse_header (void * vmsg)
 int http_req_verify (void * vmsg)
 {
     HTTPMsg    * msg = (HTTPMsg *)vmsg;
- 
+
     if (!msg) return -1;
- 
+
     if (strncasecmp(msg->req_ver, "HTTP/", 5) != 0) {
         msg->SetStatus(msg, 400, NULL);
         msg->Reply(msg);
         return -100;
     }
- 
+
     if (msg->req_ver_major != 1) {
         msg->SetStatus(msg, 505, NULL);
         msg->Reply(msg);
         return -101;
     }
- 
+
     if (msg->req_ver_minor > 0) {
         if (http_header_get(msg, 0, "Host", 4) == NULL) {
             msg->SetStatus(msg, 400, NULL);
             msg->Reply(msg);
             return -102;
-        }    
-    }    
+        }
+    }
 
     return 0;
 }
@@ -827,21 +840,24 @@ int http_req_encoding (void * vmsg, int encode)
     }
 
     http_header_del(msg, 0, "Proxy-Connection", 16);
-    http_header_del(msg, 0, "Transfer-Encoding", 17);
+    //http_header_del(msg, 0, "If-Modified-Since", 17);
+    //http_header_del(msg, 0, "If-None-Match", 13);
 
-    if (msg->req_body_flag == BC_NONE) // && strncasecmp(msg->req_meth, "CONNECT", 7) != 0)
+    if (msg->req_body_flag == BC_NONE && msg->proxied == 0) {
+        /* when Proxy mode, do not remove the body format such as 
+           transfer-encoding or content-length */
         http_header_del(msg, 0, "Content-Length", 14);
-
-    num = chunk_size(msg->req_body_chunk, 0);
+        http_header_del(msg, 0, "Transfer-Encoding", 17);
+    }
 
     /* checking non-proxied HTTPMsg if it's body-length is equal to the length of body-stream */
     if (msg->req_body_flag == BC_CONTENT_LENGTH && msg->proxied == 0 &&
-        msg->req_body_length <= 0 && num > 0)
+        msg->req_body_length <= 0)
     {
-        msg->req_body_length = num;
+        msg->req_body_length = chunk_size(msg->req_body_chunk, 0);
 
         http_header_del(msg, 0, "Content-Length", -1);
-        http_header_append_int64(msg, 0, "Content-Length", 14, num);
+        http_header_append_int64(msg, 0, "Content-Length", 14, msg->req_body_length);
     }
 
     /* append all the headers */
@@ -883,83 +899,82 @@ int print_request (void * vmsg, FILE * fp)
     int            len = 0;
     int            i, num;
     char         * poct = NULL;
- 
+
     /* printf the request line */
     if (fp == stdout || fp == stderr)
-        fprintf(fp, "\n-------------Request ConID=%lu MsgID=%ld  reqfd=%d peer_addr=%s:%d ---------------\n",
-               http_con_id(msg->pcon), msg->msgid,
+        fprintf(fp, "\n-------------Request ConID=%lu MsgID=%ld  reqfd=%d peer_addr=%s:%d ---------------\n", 
+               http_con_id(msg->pcon), msg->msgid, 
                iodev_fd(http_con_iodev(msg->pcon)),
                msg->srcip, msg->srcport);
-    //fprintf(fp, "%s %s %s\n", msg->req_meth, frameS(msg->uri->uri), msg->req_ver);
- 
+
     fprintf(fp, "  SourceAddr: %s : %d\n", msg->srcip, msg->srcport);
- 
+
     if (msg->req_host && msg->req_hostlen > 0) {
         str_secpy(buf, sizeof(buf)-1, msg->req_host, msg->req_hostlen);
         fprintf(fp, "  RemoteHost: %s : %d\n", buf, msg->req_port);
- 
+
     } else {
         fprintf(fp, "  RemoteHost:  : %d\n", msg->req_port);
     }
- 
+
     if (msg->req_path && msg->req_pathlen > 0) {
         str_secpy(buf, sizeof(buf)-1, msg->uri->path, msg->uri->pathlen);
         fprintf(fp, "  %s %s", msg->req_meth, buf);
- 
+
     } else if (msg->req_methind == HTTP_METHOD_CONNECT) {
         str_secpy(buf, sizeof(buf)-1, msg->req_host, msg->req_hostlen);
         fprintf(fp, "  %s %s:%d", msg->req_meth, buf, msg->req_port);
- 
+
     } else {
         fprintf(fp, "  %s <NULL>", msg->req_meth);
     }
- 
+
     if (msg->req_querylen > 0 && msg->req_query) {
         str_secpy(buf, sizeof(buf)-1, msg->req_query, msg->req_querylen);
         fprintf(fp, "?%s", buf);
     }
     fprintf(fp, " %s\n", msg->req_ver);
- 
+
     /* printf the request header */
     num = arr_num(msg->req_header_list);
     for (i = 0; i < num; i++) {
         unit = (HeaderUnit *)arr_value(msg->req_header_list, i);
         if (!unit) continue;
- 
-        poct = HUName(unit);
+
+        poct = HUName(unit); 
         if (unit->namelen > 0) {
             str_secpy(buf, sizeof(buf)-1, poct, unit->namelen);
             fprintf(fp, "  %s: ", buf);
- 
+
         } else fprintf(fp, "   : ");
- 
-        poct = HUValue(unit);
+
+        poct = HUValue(unit); 
         if (unit->valuelen > 0) {
             str_secpy(buf, sizeof(buf)-1, poct, unit->valuelen);
             fprintf(fp, "%s\n", buf);
- 
+
         } else fprintf(fp, "\n");
     }
- 
+
     /* printf the request body */
     if ((len = frameL(msg->req_body_stream)) > 0) {
         fprintf(fp, "request body %d bytes:\n", frameL(msg->req_body_stream));
         if (len > 256) len = 256;
         printOctet(fp, frameP(msg->req_body_stream), 0, len, 2);
     }
- 
+
     if (msg->req_file_cache > 0) {
         printf("request body stored %lld bytes in file:\n", msg->req_body_length);
         printf("  TempCacheFile: %s\n", msg->req_file_name);
     }
- 
+
     print_hashtab(msg->req_header_table, fp);
- 
+
     if (fp == stdout || fp == stderr)
         fprintf(fp, "--------------------------end of the request: id=%ld ------------------------\n", msg->msgid);
- 
+
     fflush(fp);
- 
+
     return 0;
 }
 

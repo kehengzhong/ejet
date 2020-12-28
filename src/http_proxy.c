@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2003-2020 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
  */
 
@@ -20,6 +20,7 @@
 #include "http_chunk.h"
 #include "http_ssl.h"
 #include "http_cache.h"
+#include "http_cc.h"
 #include "http_proxy.h"
 
 
@@ -53,11 +54,11 @@ int http_proxy_check (void * vmsg, void * purl, int urlen)
         /* current server is also served as proxy for the requesting client,
            the url in request line is absolute address. */
 
-        str_secpy(url, urlen, frameP(msg->docuri->uri), frameL(msg->docuri->uri));
+        str_secpy(url, urlen, frameP(msg->uri->uri), frameL(msg->uri->uri));
 
         if (msg->fwdurl) kfree(msg->fwdurl);
-        msg->fwdurllen = frameL(msg->docuri->uri);
-        msg->fwdurl = str_dup(frameP(msg->docuri->uri), frameL(msg->docuri->uri));
+        msg->fwdurllen = frameL(msg->uri->uri);
+        msg->fwdurl = str_dup(frameP(msg->uri->uri), frameL(msg->uri->uri));
 
         return 1;
     }
@@ -197,6 +198,8 @@ void * http_proxy_srvmsg_open (void * vmsg, char * url, int urllen)
         http_header_append(proxymsg, 0, "Connection", -1, "keep-alive", -1);
     }
 
+    /* Using req_body_chunk to store body with the format of Content-Length or
+       Transfer-Encoding-chunked. There is no parsing for the chunked body */
     proxymsg->req_body_flag = msg->req_body_flag;
     proxymsg->req_body_length = msg->req_body_length;
 
@@ -225,299 +228,93 @@ void * http_proxy_srvmsg_open (void * vmsg, char * url, int urllen)
     return proxymsg;
 }
 
+
 int http_proxy_srv_send (void * vsrvcon, void * vsrvmsg)
 {
     HTTPCon   * srvcon = (HTTPCon *)vsrvcon;
     HTTPMsg   * srvmsg = (HTTPMsg *)vsrvmsg;
-    HTTPMgmt  * mgmt = NULL;
     HTTPCon   * clicon = NULL;
     HTTPMsg   * climsg = NULL;
     HTTPChunk * chunk = NULL;
-    int         num = 0;
-    int         hdrlen = 0;
-    int         bodylen = 0;
-    int         rcvslen = 0;
-    int         tosend = 0;
-    int         sentnum = 0;
-    int         cursentbody = 0;
-    int         sentbody = 0;
-    uint8       justsaveit = 0;
-    uint8     * pbgn = NULL;
-    int         ret = 0;
+    frame_t   * frm = NULL;
 
-    struct iovec  iov[4];
-    int           iovcnt = 0;
+    uint8       isend = 0;
+    int         ret;
+    int         rcvslen = 0;
+    uint8     * pbgn = NULL;
+    int         num = 0;
 
     if (!srvcon) return -1;
     if (!srvmsg) return -2;
 
-    if (srvcon->snd_state < HTTP_CON_SEND_READY)
-        return -100;
-
     climsg = srvmsg->proxymsg;
     if (!climsg) return -3;
-
+ 
     clicon = climsg->pcon;
     if (!clicon) return -4;
-
-    mgmt = (HTTPMgmt *)climsg->httpmgmt;
-    if (!mgmt) return -5;
-
+ 
     if (climsg->proxied != 1) return -10;
     if (srvmsg->proxied != 2) return -11;
 
+    frm = clicon->rcvstream;
+ 
+    pbgn = frameP(frm);
+    num = frameL(frm);
+    if (num > 0) {
+        arr_push(srvmsg->req_rcvs_list, frm);
+        clicon->rcvstream = frame_new(8192);
+    }
+ 
     chunk = (HTTPChunk *)srvmsg->req_chunk;
-
-    if (srvmsg != http_con_msg_first(srvcon)) {
-        justsaveit = 1;
-    }
-
-    if (srvmsg->req_stream_sent < srvmsg->req_header_length) {
-        iov[iovcnt].iov_base = frameP(srvmsg->req_stream) + srvmsg->req_stream_sent;
-        hdrlen = iov[iovcnt].iov_len = srvmsg->req_header_length - srvmsg->req_stream_sent;
-        tosend += hdrlen;
-        iovcnt++;
-    }
-
-    /* already sent body-length calculating */
-    if (srvmsg->req_stream_sent > srvmsg->req_header_length)
-        sentbody = srvmsg->req_stream_sent - srvmsg->req_header_length;
-    else 
-        sentbody = 0;
-
-    /* clicon received bytes from client and delivered to srvcon, but not all data
-     * realtime-sent successfully for the reason of network fluctuation.
-     * unsent bytes removed from clicon->rcvstream to srvmsg->req_body_stream. 
-     * when write-ready of srvcon, this bytes will be sent firstly */
-    pbgn = frameP(srvmsg->req_body_stream);
-    num = frameL(srvmsg->req_body_stream);
  
-    if (srvmsg->req_body_flag == BC_CONTENT_LENGTH &&
-        srvmsg->req_body_length - sentbody > 0 && num > 0)
+    if (climsg->req_body_flag == BC_CONTENT_LENGTH &&
+        climsg->req_body_length - srvmsg->req_body_iolen > 0 && num > 0)
     {
         /* remaining body to be sent */
-        bodylen = srvmsg->req_body_length - sentbody;
- 
-        bodylen = min(num, bodylen);
-        if (bodylen > 0) {
-            iov[iovcnt].iov_base = pbgn;
-            iov[iovcnt].iov_len = bodylen;
-            tosend += bodylen;
-            iovcnt++;
-        }
-        sentbody += bodylen;
- 
-    } else if (srvmsg->req_body_flag == BC_TE && num > 0) {
-        bodylen = num;
- 
-        iov[iovcnt].iov_base = pbgn;
-        iov[iovcnt].iov_len = bodylen;
-        tosend += bodylen;
-        iovcnt++;
- 
-        sentbody += bodylen;
-    }
-
-    pbgn = frameP(clicon->rcvstream);
-    num = frameL(clicon->rcvstream);
-
-    if (srvmsg->req_body_flag == BC_CONTENT_LENGTH && 
-        srvmsg->req_body_length - sentbody > 0 && num > 0)
-    {
-        /* remaining body to be sent */
-        rcvslen = srvmsg->req_body_length - sentbody;
- 
+        rcvslen = climsg->req_body_length - srvmsg->req_body_iolen;
         rcvslen = min(num, rcvslen);
+ 
+        climsg->req_body_iolen += rcvslen;
+        srvmsg->req_body_iolen += rcvslen;
+        climsg->req_stream_recv += rcvslen;
+ 
+        isend = srvmsg->req_body_iolen >= climsg->req_body_length;
+ 
         if (rcvslen > 0) {
-            iov[iovcnt].iov_base = pbgn;
-            iov[iovcnt].iov_len = rcvslen;
-            tosend += rcvslen;
-            iovcnt++;
+            chunk_add_bufptr(srvmsg->req_body_chunk, pbgn, rcvslen, frm);
         }
-        sentbody += rcvslen;
-        climsg->req_stream_recv += rcvslen;
-
-    } else if (srvmsg->req_body_flag == BC_TE && num > 0) {
+ 
+    } else if (climsg->req_body_flag == BC_TE && num > 0) {
+ 
         ret = http_chunk_add_bufptr(chunk, pbgn, num, &rcvslen);
-
+ 
+        isend = chunk->gotall;
+ 
         if (ret >= 0 && rcvslen > 0) {
-            iov[iovcnt].iov_base = pbgn;
-            iov[iovcnt].iov_len = rcvslen;
-            tosend += bodylen;
-            iovcnt++;
+            chunk_add_bufptr(srvmsg->req_body_chunk, pbgn, rcvslen, frm);
         }
-        sentbody += rcvslen;
+ 
+        climsg->req_body_iolen += rcvslen;
+        srvmsg->req_body_iolen += rcvslen;
         climsg->req_stream_recv += rcvslen;
+ 
+    } else if (climsg->req_body_flag == BC_NONE || climsg->req_body_length == 0) {
+        isend = 1;
     }
-
-    if (!justsaveit && iovcnt > 0) {
-        ret = http_con_writev(srvcon, iov, iovcnt, &sentnum, NULL);
-        if (ret < 0) {
-            http_con_close(srvcon);
-
-            climsg->proxied = 0;
-            climsg->SetStatus(climsg, 503, NULL);
-            climsg->Reply(climsg);
-            return -200;
-        }
-
-        srvmsg->req_stream_sent += sentnum;
-
-        time(&srvcon->stamp);
+ 
+    if (isend && num > rcvslen) {
+        frame_put_nlast(clicon->rcvstream, pbgn + rcvslen, num - rcvslen);
     }
-
-    /* already sent body-length */
-    if (srvmsg->req_stream_sent > srvmsg->req_header_length)
-        sentbody = srvmsg->req_stream_sent - srvmsg->req_header_length;
-    else 
-        sentbody = 0;
-
-    if (srvmsg->req_body_flag == BC_CONTENT_LENGTH) {
-
-        if (sentnum > hdrlen) {
-            cursentbody = sentnum - hdrlen;
-            srvmsg->req_body_iolen += cursentbody;
  
-            if (cursentbody >= bodylen) {
-                frame_empty(srvmsg->req_body_stream);
- 
-                cursentbody -= bodylen;
-                if (cursentbody >= rcvslen) {
-                    /* all bytes in current clicon->rcvstream have been sent */
-                    frame_del_first(clicon->rcvstream, rcvslen);
- 
-                    /* all bytes remaining in 2 buffers are sent out, 
-                       check if full response is sent successfully */
-                    if (srvmsg->req_body_iolen >= srvmsg->req_body_length)
-                        goto succ;
- 
-                } else {
-                    frame_del_first(clicon->rcvstream, cursentbody);
- 
-                    /* part of rcvstream sent, remaining bytes should be put into res_body_stream
-                       for next sending */
-                    frame_put_nlast(srvmsg->req_body_stream, frameP(clicon->rcvstream), rcvslen - cursentbody);
-                    frame_del_first(clicon->rcvstream, rcvslen - cursentbody);
-                }
- 
-            } else {
-                frame_del_first(srvmsg->req_body_stream, cursentbody);
- 
-                /* put the not-sent bytes in srvcon->rcvstream into climsg->res_body_stream
-                   for next sending */
-                frame_put_nlast(srvmsg->req_body_stream, pbgn, rcvslen);
-                frame_del_first(clicon->rcvstream, rcvslen);
-            }
- 
-        } else {
-            /* put the not-sent bytes in clicon->rcvstream into srvmsg->req_body_stream
-               for next sending */
-            frame_put_nlast(srvmsg->req_body_stream, pbgn, rcvslen);
-            frame_del_first(clicon->rcvstream, rcvslen);
-        }
- 
-        if (srvmsg->req_body_iolen + frameL(srvmsg->req_body_stream) < srvmsg->req_body_length) {
-            clicon->rcv_state = HTTP_CON_WAITING_BODY;
-        } else {
-            clicon->rcv_state = HTTP_CON_READY;
-        }
- 
-        if (srvmsg->req_stream_sent >= srvmsg->req_header_length + srvmsg->req_body_length)
-            goto succ;
-
-    } else if (srvmsg->req_body_flag == BC_TE) {
-
-        if (sentnum > hdrlen) {
-            if (!chunk)
-                chunk = (HTTPChunk *)srvmsg->req_chunk;
- 
-            cursentbody = sentnum - hdrlen;
-            srvmsg->req_chunk_iolen += cursentbody;
- 
-            if (cursentbody >= bodylen) {
-                /* all bytes in req_stream_body sent succ */
-                frame_empty(srvmsg->req_body_stream);
- 
-                cursentbody -= bodylen;
-                if (cursentbody >= rcvslen) {
-                    /* all data in clicon->rcvstream have been sent */
-                    frame_del_first(clicon->rcvstream, rcvslen);
- 
-                    /* all data remaining in 2 buffers are sent out, 
-                       check if full request is sent successfully */
-                    if (chunk->gotall)
-                        goto succ;
- 
-                } else {
-                    /* only partial bytes for TE entity sent */
-                    frame_del_first(clicon->rcvstream, cursentbody);
- 
-                    /* part of rcvstream sent, remaining bytes should be put into req_body_stream
-                       for next sending */
-                    frame_put_nlast(srvmsg->req_body_stream, frameP(clicon->rcvstream), rcvslen - cursentbody);
-                    frame_del_first(clicon->rcvstream, rcvslen - cursentbody);
-                }
- 
-            } else {
-                /* only partial bytes in req_stream_body sent out */
-                frame_del_first(srvmsg->req_body_stream, cursentbody);
- 
-                /* put the not-sent bytes in clicon->rcvstream into srvmsg->req_body_stream
-                   for next sending */
-                frame_put_nlast(srvmsg->req_body_stream, pbgn, rcvslen);
-                frame_del_first(clicon->rcvstream, rcvslen);
-            }
- 
-        } else {
-            /* put the not-sent bytes in clicon->rcvstream into srvmsg->req_body_stream
-               for next sending */
-            frame_put_nlast(srvmsg->req_body_stream, pbgn, rcvslen);
-            frame_del_first(clicon->rcvstream, rcvslen);
-        }
- 
-        if (chunk->gotall) {
-            clicon->rcv_state = HTTP_CON_READY;
-
-            if (srvmsg->req_stream_sent >= srvmsg->req_header_length &&
-                frameL(srvmsg->req_body_stream) == 0)
-                goto succ;
-
-        } else {
-            clicon->rcv_state = HTTP_CON_WAITING_BODY;
-        }
+    if (isend) {
+        clicon->rcv_state = HTTP_CON_READY;
+        chunk_set_end(srvmsg->req_body_chunk);
 
     } else {
-        clicon->rcv_state = HTTP_CON_READY;
-
-        if (srvmsg->req_stream_sent >= srvmsg->req_header_length)
-            goto succ;
-    }
-
-    if (srvmsg->req_stream_sent < srvmsg->req_header_length || 
-        frameL(srvmsg->req_body_stream) > 0)
-    {
-        iodev_add_notify(srvcon->pdev, RWF_WRITE);
+        clicon->rcv_state = HTTP_CON_WAITING_BODY;
     }
  
-    /* read the blocked data in client-side kernel socket for
-       server-side congestion control */
-    if (ret > 0 && clicon->read_ignored > 0 &&
-        frameL(srvmsg->req_body_stream) < mgmt->proxy_buffer_size)
-    {
-        iodev_add_notify(clicon->pdev, RWF_READ);
-        http_cli_recv(clicon);
-    }
-
-    return 0;
- 
-succ:
-    clicon->rcv_state = HTTP_CON_READY;
-
-    srvmsg->reqsent = 1;
-    srvcon->reqnum++;
-
-    /* Server-request Message has been sent successfully */
-    return 1;
+    return http_srv_send(srvcon);
 }
 
 
@@ -588,313 +385,98 @@ int http_proxy_climsg_dup (void * vsrvmsg)
     return 0;
 }
 
-
 int http_proxy_cli_send (void * vclicon, void * vclimsg)
 {
     HTTPCon    * clicon = (HTTPCon *)vclicon;
     HTTPMsg    * climsg = (HTTPMsg *)vclimsg;
     HTTPCon    * srvcon = NULL;
     HTTPMsg    * srvmsg = NULL;
-    HTTPMgmt   * mgmt = NULL;
-    int          num = 0;
-    int          sentnum = 0;
-    int          sentbody = 0;
-    int          hdrlen = 0;
-    int          bodylen = 0;
-    int          rcvslen = 0;
-    int          cursentbody = 0;
-    int          tosend = 0;
-    uint8        justsaveit = 0;
-    uint8      * pbgn = NULL;
-    int          ret = 0;
     HTTPChunk  * chunk = NULL;
+    frame_t    * frm = NULL;
  
-    struct iovec  iov[4];
-    int           iovcnt = 0;
+    uint8        isend = 0;
+    int          ret;
+    int          rcvslen = 0;
+    uint8      * pbgn = NULL;
+    int          num = 0;
 
     if (!clicon) return -1;
     if (!climsg) return -2;
-
+ 
     srvmsg = climsg->proxymsg;
     if (!srvmsg) return -3;
-
+ 
     srvcon = srvmsg->pcon;
     if (!srvcon) return -4;
-
-    mgmt = (HTTPMgmt *)climsg->httpmgmt;
-    if (!mgmt) return -5;
-
+ 
     if (climsg->proxied != 1) return -10;
     if (srvmsg->proxied != 2) return -11;
+ 
+    frm = srvcon->rcvstream;
+ 
+    pbgn = frameP(frm);
+    num = frameL(frm);
+    if (num > 0) {
+        arr_push(climsg->res_rcvs_list, frm);
+        srvcon->rcvstream = frame_new(8192);
+    }
 
     chunk = (HTTPChunk *)climsg->res_chunk;
-
-    /* allow the multiple HTTPMsg in HTTPCon queue and handled in pipeline */
-    if (climsg != http_con_msg_first(clicon)) {
-        justsaveit = 1;
-    }
-
-    if (climsg->res_stream_sent < climsg->res_header_length) {
-        iov[iovcnt].iov_base = frameP(climsg->res_stream) + climsg->res_stream_sent;
-        hdrlen = iov[iovcnt].iov_len = climsg->res_header_length - climsg->res_stream_sent;
-        tosend += hdrlen;
-        iovcnt++;
-    }
  
-    /* already sent body-length */
-    if (climsg->res_stream_sent > climsg->res_header_length)
-        sentbody = climsg->res_stream_sent - climsg->res_header_length;
-    else 
-        sentbody = 0;
-
-    /* srvcon received bytes delivered but not all sent successfully, remaining 
-     * bytes removed from srvcon->rcvstream to climsg->res_body_stream. 
-     * when write-ready of clicon, this part sent firstly */
-    pbgn = frameP(climsg->res_body_stream);
-    num = frameL(climsg->res_body_stream);
- 
-    if (climsg->res_body_flag == BC_CONTENT_LENGTH &&
-        climsg->res_body_length - sentbody > 0 && num > 0)
+    if (srvmsg->res_body_flag == BC_CONTENT_LENGTH &&
+        srvmsg->res_body_length - climsg->res_body_iolen > 0 && num > 0)
     {
         /* remaining body to be sent */
-        bodylen = climsg->res_body_length - sentbody;
- 
-        bodylen = min(num, bodylen);
-        if (bodylen > 0) {
-            iov[iovcnt].iov_base = pbgn;
-            iov[iovcnt].iov_len = bodylen;
-            tosend += bodylen;
-            iovcnt++;
-        }
-        sentbody += bodylen;
- 
-    } else if (climsg->res_body_flag == BC_TE && num > 0) {
-        bodylen = num;
-
-        iov[iovcnt].iov_base = pbgn;
-        iov[iovcnt].iov_len = bodylen;
-        tosend += bodylen;
-        iovcnt++;
-
-        sentbody += bodylen;
-    }
-
-    pbgn = frameP(srvcon->rcvstream);
-    num = frameL(srvcon->rcvstream);
- 
-    if (climsg->res_body_flag == BC_CONTENT_LENGTH &&
-        climsg->res_body_length - sentbody > 0 && num > 0)
-    {
-        /* remaining body to be sent */
-        rcvslen = climsg->res_body_length - sentbody;
- 
+        rcvslen = srvmsg->res_body_length - climsg->res_body_iolen;
         rcvslen = min(num, rcvslen);
+ 
+        srvmsg->res_body_iolen += rcvslen;
+        climsg->res_body_iolen += rcvslen;
+        srvmsg->res_stream_recv += rcvslen;
+ 
+        isend = climsg->res_body_iolen >= srvmsg->res_body_length ? 1 : 0;
+ 
         if (rcvslen > 0) {
-            iov[iovcnt].iov_base = pbgn;
-            iov[iovcnt].iov_len = rcvslen;
-            tosend += rcvslen;
-            iovcnt++;
+            chunk_add_bufptr(climsg->res_body_chunk, pbgn, rcvslen, frm);
         }
-        sentbody += rcvslen;
-        srvmsg->res_stream_recv += rcvslen;
  
-    } else if (climsg->res_body_flag == BC_TE && num > 0) {
-        if (!chunk) 
-            chunk = (HTTPChunk *)climsg->res_chunk;
-
-        /* add num bytes into res_chunk. if tcp-sent bytes is less than num,
-         * part bytes has been deleted after tcp-sent. when re-entering here,
-         * it is possible that part of num bytes will be re-added again. it will fail!
-         */
+    } else if (srvmsg->res_body_flag == BC_TE && num > 0) {
+ 
         ret = http_chunk_add_bufptr(chunk, pbgn, num, &rcvslen);
+ 
+        isend = chunk->gotall;
+ 
         if (ret >= 0 && rcvslen > 0) {
-            iov[iovcnt].iov_base = pbgn;
-            iov[iovcnt].iov_len = rcvslen;
-            tosend += rcvslen;
-            iovcnt++;
+            chunk_add_bufptr(climsg->res_body_chunk, pbgn, rcvslen, frm);
         }
-        sentbody += rcvslen;
+ 
+        srvmsg->res_body_iolen += rcvslen;
+        climsg->res_body_iolen += rcvslen;
         srvmsg->res_stream_recv += rcvslen;
+ 
+    } else if (srvmsg->res_body_flag == BC_NONE || srvmsg->res_body_length == 0) {
+        isend = 1;
     }
  
-    if (!justsaveit && iovcnt > 0) {
-        ret = http_con_writev(clicon, iov, iovcnt, &sentnum, NULL);
-        if (ret < 0) {
-            http_con_close(clicon);
-            http_con_close(srvcon);
-            return -200;
-        }
- 
-        climsg->res_stream_sent += sentnum;
-
-        time(&clicon->stamp);
-        time(&srvcon->stamp);
-        if (srvcon->srv)
-            time(&((HTTPSrv *)(srvcon->srv))->stamp);
-
+    if (isend && num > rcvslen) {
+        frame_put_nlast(srvcon->rcvstream, pbgn + rcvslen, num - rcvslen);
     }
  
-    /* already sent body-length */
-    if (climsg->res_stream_sent > climsg->res_header_length)
-        sentbody = climsg->res_stream_sent - climsg->res_header_length;
-    else 
-        sentbody = 0;
+    if (isend) {
+        /* all data from origin server are received. srvmsg can be closed now! */
+        http_con_msg_del(srvcon, srvmsg);
+        http_msg_close(srvmsg);
 
-    if (climsg->res_body_flag == BC_CONTENT_LENGTH) {
-
-        if (sentnum > hdrlen) {
-            cursentbody = sentnum - hdrlen;
-            climsg->res_body_iolen += cursentbody;
-
-            if (cursentbody >= bodylen) {
-                if (bodylen > 0)
-                    frame_empty(climsg->res_body_stream);
-
-                cursentbody -= bodylen;
-                if (cursentbody >= rcvslen) {
-                    /* all bytes in current srvcon->rcvstream have been sent */
-                    frame_del_first(srvcon->rcvstream, rcvslen);
-
-                    /* all bytes remaining in 2 buffers are sent out, 
-                       check if full response is sent successfully */
-                    if (climsg->res_body_iolen >= climsg->res_body_length)
-                        goto succ;
-
-                } else {
-                    frame_del_first(srvcon->rcvstream, cursentbody);
-
-                    /* part of rcvstream sent, remaining bytes should be put into res_body_stream
-                       for next sending */
-                    frame_put_nlast(climsg->res_body_stream, frameP(srvcon->rcvstream), rcvslen - cursentbody);
-                    frame_del_first(srvcon->rcvstream, rcvslen - cursentbody);
-                }
-
-            } else {
-                frame_del_first(climsg->res_body_stream, cursentbody);
-
-                /* put the not-sent bytes in srvcon->rcvstream into climsg->res_body_stream
-                   for next sending */
-                frame_put_nlast(climsg->res_body_stream, pbgn, rcvslen);
-                frame_del_first(srvcon->rcvstream, rcvslen);
-            }
-
-        } else {
-            /* put the not-sent bytes in srvcon->rcvstream into climsg->res_body_stream
-               for next sending */
-            frame_put_nlast(climsg->res_body_stream, pbgn, rcvslen);
-            frame_del_first(srvcon->rcvstream, rcvslen);
-        }
- 
-        if (climsg->res_body_iolen + frameL(climsg->res_body_stream) < climsg->res_body_length) {
-            srvcon->rcv_state = HTTP_CON_WAITING_BODY;
-        } else {
-            srvcon->rcv_state = HTTP_CON_READY;
-        }
- 
-        if (climsg->res_stream_sent >= climsg->res_header_length + climsg->res_body_length)
-            goto succ;
-
-    } else if (climsg->res_body_flag == BC_TE) {
-
-        if (sentnum > hdrlen) {
-            if (!chunk)
-                chunk = (HTTPChunk *)climsg->res_chunk;
-
-            cursentbody = sentnum - hdrlen;
-            climsg->res_body_iolen += cursentbody;
-
-            if (cursentbody >= bodylen) {
-                /* all bytes in res_stream_body sent succ */
-                frame_empty(climsg->res_body_stream);
- 
-                cursentbody -= bodylen;
-                if (cursentbody >= rcvslen) {
-                    /* all bytes in current srvcon->rcvstream have been sent */
-                    frame_del_first(srvcon->rcvstream, rcvslen);
- 
-                    /* all bytes remaining in 2 buffers are sent out, 
-                       check if full response is sent successfully */
-                    if (chunk->gotall)
-                        goto succ;
-
-                } else {
-                    /* only partial bytes for TE entity sent */
-                    frame_del_first(srvcon->rcvstream, cursentbody);
- 
-                    /* part of rcvstream sent, remaining bytes should be put into res_body_stream
-                       for next sending */
-                    frame_put_nlast(climsg->res_body_stream, frameP(srvcon->rcvstream), rcvslen - cursentbody);
-                    frame_del_first(srvcon->rcvstream, rcvslen - cursentbody);
-                }
-
-            } else {
-                /* only partial bytes in res_stream_body sent out */
-                frame_del_first(climsg->res_body_stream, cursentbody);
- 
-                /* put the not-sent bytes in srvcon->rcvstream into climsg->res_body_stream
-                   for next sending */
-                frame_put_nlast(climsg->res_body_stream, pbgn, rcvslen);
-                frame_del_first(srvcon->rcvstream, rcvslen);
-            }
-
-        } else {
-            /* put the not-sent bytes in srvcon->rcvstream into climsg->res_body_stream
-               for next sending */
-            frame_put_nlast(climsg->res_body_stream, pbgn, rcvslen);
-            frame_del_first(srvcon->rcvstream, rcvslen);
-        }
- 
-        if (chunk->gotall) {
-            srvcon->rcv_state = HTTP_CON_READY;
-
-            if (climsg->res_stream_sent >= climsg->res_header_length &&
-                frameL(climsg->res_body_stream) == 0)
-                goto succ;
-
-        } else {
-            srvcon->rcv_state = HTTP_CON_WAITING_BODY;
-        }
-
-    }  else {
         srvcon->rcv_state = HTTP_CON_READY;
+        chunk_set_end(climsg->res_body_chunk);
 
-        if (climsg->res_stream_sent >= climsg->res_header_length)
-            goto succ;
+    } else {
+        srvcon->rcv_state = HTTP_CON_WAITING_BODY;
     }
  
-    if (climsg->res_stream_sent < climsg->res_header_length || 
-        frameL(climsg->res_body_stream) > 0)
-    {
-        iodev_add_notify(clicon->pdev, RWF_WRITE);
-    }
-
-    /* read the blocked data in server-side kernel socket for 
-       client-side congestion control */
-    if (ret > 0 && srvcon->read_ignored > 0 && 
-        frameL(climsg->res_body_stream) < mgmt->proxy_buffer_size)
-    {
-        iodev_add_notify(srvcon->pdev, RWF_READ);
-        http_srv_recv(srvcon);
-    }
-
-    return 0;
-
-succ:
-    srvcon->rcv_state = HTTP_CON_READY;
-
-    /* Client Message has been sent successfully */
-    http_con_msg_del(clicon, climsg);
-    clicon->msg = NULL;
-    http_msg_close(climsg);
-
-    http_con_msg_del(srvcon, srvmsg);
-    srvcon->msg = NULL;
-    http_msg_close(srvmsg);
-
-    clicon->transbgn = time(NULL);
-
-    return 1;
+    return http_cli_send(clicon);
 }
+
 
 int http_proxy_srvbody_del (void * vsrvcon, void * vsrvmsg)
 {
@@ -924,6 +506,7 @@ int http_proxy_srvbody_del (void * vsrvcon, void * vsrvmsg)
             frame_del_first(srvcon->rcvstream, bodylen);
 
             srvmsg->res_stream_sent += bodylen;
+
             return 1; //body removed completely
 
         } else {
@@ -1011,6 +594,7 @@ int http_tunnel_srv_send (void * vclicon, void * vsrvcon)
 {
     HTTPCon     * clicon = (HTTPCon *)vclicon;
     HTTPCon     * srvcon = (HTTPCon *)vsrvcon;
+    HTTPMgmt    * mgmt = NULL;
     int           sentnum = 0;
     int           ret = 0;
     struct iovec  iov[4];
@@ -1018,6 +602,9 @@ int http_tunnel_srv_send (void * vclicon, void * vsrvcon)
 
     if (!clicon) return -1;
     if (!srvcon) return -2;
+
+    mgmt = (HTTPMgmt *)clicon->mgmt;
+    if (!mgmt) return -3;
 
     if (clicon->httptunnel != 1 && clicon->tunnelcon != srvcon)
         return -10;
@@ -1049,6 +636,9 @@ int http_tunnel_srv_send (void * vclicon, void * vsrvcon)
     if (frameL(clicon->rcvstream) > 0) {
         iodev_add_notify(srvcon->pdev, RWF_WRITE);
     }
+
+    if (sentnum > 0)
+        http_srv_send_cc(srvcon);
 
     return sentnum;
 }
@@ -1101,14 +691,8 @@ int http_tunnel_cli_send (void * vsrvcon, void * vclicon)
         iodev_add_notify(clicon->pdev, RWF_WRITE);
     }
 
-    /* read the blocked data in server-side kernel socket for 
-       client-side congestion control */
-    if (ret > 0 && srvcon->read_ignored > 0 && 
-        frameL(srvcon->rcvstream) < mgmt->proxy_buffer_size)
-    {
-        iodev_add_notify(srvcon->pdev, RWF_READ);
-        http_srv_recv(srvcon);
-    }
+    if (sentnum > 0)
+        http_cli_send_cc(clicon);
 
     return sentnum;
 }
@@ -1179,6 +763,7 @@ int http_proxy_cli_cache_send (void * vclicon, void * vclimsg)
 
     } else if (climsg->res_body_flag == BC_TE) {
         ret = frag_pack_contain(cacinfo->frag, reqpos, -1, &datapos, &datalen, NULL, NULL);
+
         if (ret >= 2) {
             for (ilen = 0; datalen > 0; ) {
                 if (datalen > CHUNKLEN) {
@@ -1257,6 +842,7 @@ int http_proxy_srv_cache_store (void * vsrvcon, void * vsrvmsg)
     
     /* allow the multiple HTTPMsg in HTTPCon queue and handled in pipeline */
     if (climsg != http_con_msg_first(clicon)) {
+ 
         justsaveit = 1;
     }
  

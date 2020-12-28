@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2003-2020 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
  */
 
@@ -527,6 +527,8 @@ int http_res_errpage (void * vmsg)
         msg->AddResContent(msg, frameP(frm), frameL(frm));
         msg->SetResContentType(msg, "text/html", -1);
         msg->SetResContentLength(msg, frameL(frm));
+
+        frame_free(frm);
     }
  
     return 0;

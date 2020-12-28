@@ -106,7 +106,7 @@ void  http_send_proxy_clean (void * vmgmt)
 
     if (!mgmt) return;
 
-    if (mgmt->sndpxy_list == NULL) {
+    if (mgmt->sndpxy_list) {
         arr_pop_free(mgmt->sndpxy_list, send_proxy_free);
         mgmt->sndpxy_list = NULL;
     }
