@@ -397,6 +397,7 @@ void * http_srv_connect (void * vsrv)
     rbtnode_t  * rbtn = NULL;
     int          connum = 0;
     int          i = 0;
+    arr_t      * rmlist = NULL;
 
     if (!srv) return NULL;
 
@@ -415,17 +416,23 @@ void * http_srv_connect (void * vsrv)
             continue;
  
         if (!tcp_connected(iodev_fd(pcon->pdev))) {
-            http_con_close(pcon);
+            if (!rmlist) rmlist = arr_new(4);
+            arr_push(rmlist, pcon);
             break;
 
         } else {
             LeaveCriticalSection(&srv->conCS);
+
+            if (rmlist) arr_pop_free(rmlist, http_con_close);
+
             return pcon;
         }
     }
 
     LeaveCriticalSection(&srv->conCS);
  
+    if (rmlist) arr_pop_free(rmlist, http_con_close);
+
     return http_con_open(srv, NULL, 0, 0);
 }
 
