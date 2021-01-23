@@ -1,7 +1,7 @@
 
 #################################################################
 #  Makefile for eJet Web Server library - eJet
-#  Copyright (c) 2003-2020 Ke Hengzhong <kehengzhong@hotmail.com>
+#  Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
 #  All rights reserved. See MIT LICENSE for redistribution.
 #################################################################
 
@@ -49,7 +49,7 @@ PKG_RPATH = -Wl,-rpath,$(libdst):$(INSTALL_LIB_PATH)
 
 PKG_VER_MAJOR = 1
 PKG_VER_MINOR = 0
-PKG_VER_RELEASE = 4
+PKG_VER_RELEASE = 6
 PKG_VER = $(PKG_VER_MAJOR).$(PKG_VER_MINOR).$(PKG_VER_RELEASE)
 
 PKG_VERSO_LIB = $(PKG_SO_LIB).$(PKG_VER)
@@ -66,7 +66,7 @@ IFLAGS = -I$(adif_inc) -I$(epump_inc) -I$(ejet_inc)
 
 #CFLAGS = -Wall -O3 -fPIC -std=c99
 CFLAGS = -Wall -O3 -fPIC
-LFLAGS = -L/usr/lib -L/usr/local/lib
+LFLAGS = -L/usr/lib -L/usr/local/lib -L$(libdst)
 LIBS = -lnsl -lm -lz -lpthread
 SOFLAGS = $(LD_SONAME)
 
