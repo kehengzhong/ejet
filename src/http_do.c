@@ -27,6 +27,7 @@ int http_redirect_request (void * vmsg)
     HTTPCon      * pcon = NULL;
     char         * p = NULL;
     int            len = 0;
+    char           url[4096];
  
     if (!msg) return -1;
  
@@ -46,9 +47,22 @@ int http_redirect_request (void * vmsg)
        msg->pcon is connected to original server and not used to send the msg */
 
     msg->GetResHdrP(msg, "Location", 8, &p, &len);
-    if (!p || len < 8) return -100;
+    if (!p || len < 1) return -100;
  
-    msg->SetURL(msg, p, len, 1);
+    if (strncasecmp(p, "http://", 7) != 0 &&
+        strncasecmp(p, "https://", 8) != 0 &&
+        *p != '/')
+    {
+        str_secpy(url, sizeof(url)-1, msg->uri->baseuri, msg->uri->baseurilen);
+        if (url[strlen(url) - 1] != '/')
+            str_secpy(url + strlen(url), sizeof(url) - 1 - strlen(url), "/", 1);
+        str_secpy(url + strlen(url), sizeof(url) - 1 - strlen(url), p, len);
+
+        msg->SetURL(msg, url, strlen(url), 1);
+    } else {
+        msg->SetURL(msg, p, len, 1);
+    }
+
     sock_addr_get(msg->req_host, msg->req_hostlen, msg->req_port, 0,
                   msg->dstip, &msg->dstport, NULL);
     msg->dstport = msg->req_port;
