@@ -56,6 +56,10 @@ int    http_srv_close(void * vsrv);
  
 void * http_srv_connect (void * vsrv);
 
+int    http_srv_msg_send   (void * vmsg);
+int    http_srv_msg_dns_cb (void * vmsg, char * name, int len, void * cache, int status);
+int    http_srv_msg_dns    (void * vmsg, void * cb);
+
 void * http_srv_ssl_ctx_get (void * vsrv, void * vcon);
 
 int    http_srv_set_active (void * vsrv, int active);

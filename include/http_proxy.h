@@ -10,9 +10,12 @@
 extern "C" {
 #endif
 
+int    http_proxy_handle (void * vmsg);
+ 
 int    http_proxy_check (void * vmsg, void * purl, int urlen);
-
+ 
 int    http_proxy_srv_send_start (void * vproxymsg);
+int    http_proxy_srvmsg_dns_cb  (void * vproxymsg, char * name, int len, void * cache, int status);
 
 void * http_proxy_srvmsg_open (void * vmsg, char * url, int urllen);
 int    http_proxy_srv_send    (void * vsrvcon, void * vsrvmsg);

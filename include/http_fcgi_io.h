@@ -21,6 +21,7 @@ int    http_fcgi_recv_parse (void * vcon);
 int    http_fcgi_recv_forward (void * vcon);
 
 
+int    http_fcgi_handle     (void * vmsg);
 int    http_fcgi_check      (void * vmsg, void * purl, int urlen);
 void * http_fcgi_send_start (void * vfcgisrv, void * vhttpmsg);
 
