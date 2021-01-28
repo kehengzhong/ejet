@@ -67,7 +67,7 @@ int http_cli_recv_cc (void * vcon)
 
     msg = http_con_msg_first(pcon);
     if (msg && msg->proxied == 1 && (srvmsg = msg->proxymsg) &&
-            frameL(srvmsg->req_body_stream) >= mgmt->proxy_buffer_size)
+            chunk_rest_size(srvmsg->req_body_chunk, 0) >= mgmt->proxy_buffer_size)
     {
         /* congestion control: by neglecting the read-ready event,
            underlying TCP stack recv-buffer will be full soon.
@@ -159,7 +159,7 @@ int http_cli_send_cc (void * vcon)
         srvcon = srvmsg->pcon;
 
         if (srvcon && srvcon->read_ignored > 0 && 
-            frameL(msg->res_body_stream) < mgmt->proxy_buffer_size)
+            chunk_rest_size(msg->res_body_chunk, 0) < mgmt->proxy_buffer_size)
         {
             iodev_add_notify(srvcon->pdev, RWF_READ);
             srvcon->read_ignored = 0;
@@ -230,7 +230,7 @@ int http_srv_recv_cc (void * vcon)
  
     msg = http_con_msg_first(pcon);
     if (msg && msg->proxied == 2 && (climsg = msg->proxymsg) &&
-            frameL(climsg->res_body_stream) >= mgmt->proxy_buffer_size)
+            chunk_rest_size(climsg->res_body_chunk, 0) >= mgmt->proxy_buffer_size)
     {
         /* congestion control: by neglecting the read-ready event,
            underlying TCP stack recv-buffer will be full soon.
@@ -295,7 +295,7 @@ int http_srv_send_cc (void * vcon)
         clicon = climsg->pcon;
 
         if (clicon && clicon->read_ignored > 0 && 
-            frameL(msg->req_body_stream) < mgmt->proxy_buffer_size)
+            chunk_rest_size(msg->req_body_chunk, 0) < mgmt->proxy_buffer_size)
         {
             iodev_add_notify(clicon->pdev, RWF_READ);
             clicon->read_ignored = 0;

@@ -649,6 +649,31 @@ int http_fcgi_recv_forward (void * vcon)
     return 0;
 }
 
+int http_fcgi_handle (void * vmsg)
+{
+    HTTPMsg  * msg = (HTTPMsg *)vmsg;
+    HTTPMgmt * mgmt = NULL;
+    FcgiSrv  * cgisrv = NULL;
+    char       url[512];
+ 
+    if (!msg) return -1;
+ 
+    mgmt = (HTTPMgmt *)msg->httpmgmt;
+    if (!mgmt) return -2;
+ 
+    /* check the request if it's to be transformed to FCGI server */
+    if (http_fcgi_check(msg, url, sizeof(url)-1) <= 0)
+        return -100;
+ 
+    msg->fastcgi = 1;
+ 
+    cgisrv = http_fcgisrv_open(mgmt, url, 100);
+    if (!cgisrv) return -200;
+ 
+    http_fcgi_send_start(cgisrv, msg);
+ 
+    return 0;
+}
 
 int http_fcgi_check (void * vmsg, void * purl, int urlen)
 {

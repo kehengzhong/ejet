@@ -250,11 +250,8 @@ int http_cli_recv_parse (void * vcon)
     int64      hdrlen = 0;
     uint8    * pbyte = NULL;
     uint8    * pbgn = NULL;
-    char       url[2048];
 
     HTTPMsg  * proxymsg = NULL;
-
-    FcgiSrv  * cgisrv = NULL;
     FcgiMsg  * cgimsg = NULL;
 
     if (!pcon) return -1;
@@ -392,76 +389,64 @@ int http_cli_recv_parse (void * vcon)
             pcon->rcv_state = HTTP_CON_READY;
         }
 
-        /* check the request if it's to be proxyed to other origin server */
-        if (http_proxy_check(msg, url, sizeof(url)-1)) {
-        
-            if (http_proxy_cache_open(msg) >= 3) {
-                /* cache file exists in local directory */
-                goto proxy_end;
-            }
-
-            /* create one proxy HTTPMsg object, with headers X-Forwarded-For and X-Real-IP */
-            proxymsg = msg->proxymsg = http_proxy_srvmsg_open(msg, url, strlen(url));
-            if (proxymsg == NULL) {
-                goto proxy_end;
-            }
-
-            msg->proxied = 1;
-
-            http_proxy_srv_send_start(proxymsg);
-
+        if (http_proxy_handle(msg) >= 0)
             return 0;
-        }
-proxy_end:
-
-        /* check the request if it's to be transformed to FCGI server */
-        if (http_fcgi_check(msg, url, sizeof(url)-1)) {
-            msg->fastcgi = 1;
  
-            cgisrv = http_fcgisrv_open(mgmt, url, 100);
-            if (!cgisrv) return -130;
- 
-            http_fcgi_send_start(cgisrv, msg);
-
+        if (http_fcgi_handle(msg) >= 0)
             return 0;
-        }
-
-        /* HTTP POST/PUT request body may be encoded as following enctype:
-             (1) application/x-www-form-urlencoded
-             (2) multipart/form-data
-             (3) application/json
-             (4) text/xml
-             (5) application/octet-stream
-         */
-
-        switch (msg->req_body_flag) {
-        case BC_CONTENT_LENGTH:
-        case BC_TE:
-            ret = http_cli_reqbody_parse(pcon, msg);
-            if (ret < 0) {
-                return -107;
-            } else if (ret == 0) { //waiting more body
-                pcon->rcv_state = HTTP_CON_WAITING_BODY;
-            } else {
-                pcon->rcv_state = HTTP_CON_READY;
-
-                return 1;
-            }
-            break;
-
-        case BC_TE_INVALID:
-        case BC_UNKNOWN:
-            return -108;
-
-        case BC_NONE:
-        case BC_TUNNEL:
-        default:
-            pcon->rcv_state = HTTP_CON_READY;
-            return 2;
-            break;
-        }
+ 
+        return http_reqbody_handle(msg);
     }
 
+    return 0;
+}
+
+int http_reqbody_handle (void * vmsg)
+{
+    HTTPMsg  * msg = (HTTPMsg *)vmsg;
+    HTTPCon  * pcon = NULL;
+    int        ret = 0;
+ 
+    if (!msg) return -1;
+ 
+    pcon = (HTTPCon *)msg->pcon;
+    if (!pcon) return -2;
+ 
+    /* HTTP POST/PUT request body may be encoded as following enctype:
+         (1) application/x-www-form-urlencoded
+         (2) multipart/form-data
+         (3) application/json
+         (4) text/xml
+         (5) application/octet-stream
+     */
+ 
+    switch (msg->req_body_flag) {
+    case BC_CONTENT_LENGTH:
+    case BC_TE:
+        ret = http_cli_reqbody_parse(pcon, msg);
+        if (ret < 0) {
+            return -107;
+        } else if (ret == 0) { //waiting more body
+            pcon->rcv_state = HTTP_CON_WAITING_BODY;
+        } else {
+            pcon->rcv_state = HTTP_CON_READY;
+ 
+            return 1;
+        }
+        break;
+ 
+    case BC_TE_INVALID:
+    case BC_UNKNOWN:
+        return -108;
+ 
+    case BC_NONE:
+    case BC_TUNNEL:
+    default:
+        pcon->rcv_state = HTTP_CON_READY;
+        return 2;
+        break;
+    }
+ 
     return 0;
 }
 
@@ -666,6 +651,7 @@ int http_cli_send (void * vcon)
     int           num = 0;
     int           err = 0;
     uint8         shutdown = 0;
+    uint8         closecon = 0;
  
     if (!pcon) return -1;
  
@@ -795,6 +781,9 @@ int http_cli_send (void * vcon)
         }
  
         if (chunk_get_end(chunk, msg->res_stream_sent, httpchunk) == 1) {
+            if (msg->res_status >= 400)
+                closecon++;
+
             /* send response to client successfully */
             http_con_msg_del(pcon, msg);
             http_msg_close(msg);
@@ -812,6 +801,12 @@ int http_cli_send (void * vcon)
 
     } //end while
  
+    if (closecon) {
+        pcon->snd_state = HTTP_CON_IDLE;
+        http_cli_con_crash(pcon, 1);
+        return ret;
+    }
+
     pcon->snd_state = HTTP_CON_SEND_READY;
  
     /* the response has been sent to client. the current HTTPCon

@@ -329,6 +329,13 @@ int http_fcgicon_connect (void * vpcon)
         return 0;
     }
  
+    if (pcon->socktype == 0)
+        tolog(1, "eJet - FastCGI Connect: failed to build TCP Connection to server '%s:%d'.\n",
+              pcon->dstip, pcon->dstport);
+    else
+        tolog(1, "eJet - FastCGI Connect: failed to build Unix Socket to server '%s'.\n",
+              pcon->unixsock);
+
     if (pcon->pdev) {
         iodev_close(pcon->pdev);
         pcon->pdev = NULL;

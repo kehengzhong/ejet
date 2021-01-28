@@ -418,7 +418,7 @@ void * http_srv_connect (void * vsrv)
         if (!tcp_connected(iodev_fd(pcon->pdev))) {
             if (!rmlist) rmlist = arr_new(4);
             arr_push(rmlist, pcon);
-            break;
+            continue;
 
         } else {
             LeaveCriticalSection(&srv->conCS);
@@ -435,6 +435,86 @@ void * http_srv_connect (void * vsrv)
 
     return http_con_open(srv, NULL, 0, 0);
 }
+
+
+int http_srv_msg_send (void * vmsg)
+{
+    HTTPMsg    * msg = (HTTPMsg *)vmsg;
+    HTTPMgmt   * mgmt = NULL;
+    HTTPCon    * pcon = NULL;
+    HTTPSrv    * srv = NULL;
+ 
+    if (!msg) return -1;
+ 
+    mgmt = (HTTPMgmt *)msg->httpmgmt;
+    if (!mgmt) return -2;
+ 
+    srv = http_srv_open(mgmt, msg->dstip, msg->dstport, msg->ssl_link, 100);
+    if (!srv) return -100;
+ 
+    pcon = http_srv_connect(srv);
+    if (pcon) {
+        http_con_msg_add(pcon, msg);
+ 
+        http_srv_send(pcon);
+ 
+    } else {
+        http_srv_msg_push(srv, msg);
+    }
+ 
+    return 0;
+}
+ 
+ 
+int http_srv_msg_dns_cb (void * vmsg, char * name, int len, void * cache, int status)
+{
+    HTTPMsg    * msg = (HTTPMsg *)vmsg;
+ 
+    if (!msg) return -1;
+ 
+    if (status == DNS_ERR_IPV4 || status == DNS_ERR_IPV6) {
+        str_secpy(msg->dstip, sizeof(msg->dstip)-1, name, len);
+ 
+    } else if (dns_cache_getip(cache, 0, msg->dstip, sizeof(msg->dstip)-1) <= 0) {
+        msg->res_status = 450;
+        http_con_msg_del(msg->pcon, msg);
+        http_msg_close(msg);
+        return -100;
+    }
+ 
+    if (http_srv_msg_send(msg) < 0) {
+        msg->res_status = 451;
+        http_con_msg_del(msg->pcon, msg);
+        http_msg_close(msg);
+        return -200;
+    }
+ 
+    return 0;
+}
+ 
+int http_srv_msg_dns (void * vmsg, void * cb)
+{
+    HTTPMsg  * msg = (HTTPMsg *)vmsg;
+    DnsCB    * dnscb = (DnsCB *)cb;
+    HTTPMgmt * mgmt = NULL;
+    int        ret;
+ 
+    if (!msg) return -1;
+ 
+    mgmt = (HTTPMgmt *)msg->httpmgmt;
+    if (!mgmt) return -2;
+ 
+    if (!dnscb) dnscb = http_srv_msg_dns_cb;
+ 
+    if (msg->proxy && msg->proxyport > 0) {
+        ret = dns_query(mgmt->pcore, msg->proxy, msg->proxyport, dnscb, msg);
+    } else {
+        ret = dns_query(mgmt->pcore, msg->req_host, msg->req_hostlen, dnscb, msg);
+    }
+ 
+    return ret;
+}
+
 
 void * http_srv_ssl_ctx_get (void * vsrv, void * vcon)
 {
@@ -564,14 +644,14 @@ int http_srv_con_num (void * vsrv)
 
 int http_srv_lifecheck (void * vsrv)
 {
-    HTTPSrv        * srv = (HTTPSrv *)vsrv;
-    HTTPMgmt       * mgmt = NULL;
-    HTTPMsg        * iter = NULL;
-    int              msgnum = 0;
-    int              connum = 0;
-    int              i = 0, num = 0;
-    arr_t          * explist = NULL;
-    time_t           curt;
+    HTTPSrv  * srv = (HTTPSrv *)vsrv;
+    HTTPMgmt * mgmt = NULL;
+    HTTPMsg  * iter = NULL;
+    int        msgnum = 0;
+    int        connum = 0;
+    int        i = 0, num = 0;
+    arr_t    * explist = NULL;
+    time_t     curt;
 
     if (!srv) return -1;
 

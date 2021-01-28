@@ -43,6 +43,9 @@ int http_pump (void * vmgmt, void * vobj, int event, int fdtype)
         pcon = http_mgmt_con_get(mgmt, conid);
 
         if (pcon && pcon->pdev == vobj) {
+            tolog(1, "eJet - TCP Connect: invalid connection to '%s:%d'.\n",
+                  pcon->dstip, pcon->dstport);
+
             return http_con_close(pcon);
         }
         break;
@@ -173,7 +176,8 @@ int http_pump (void * vmgmt, void * vobj, int event, int fdtype)
         pcon = http_mgmt_con_get(mgmt, conid);
 
         if (pcon && pcon->pdev == vobj) {
-
+            tolog(1, "eJet - TCP Connect: failed to build connection to '%s:%d'.\n",
+                  pcon->dstip, pcon->dstport);
         } else {
             return -20;
         }

@@ -560,7 +560,7 @@ void * http_listen_alloc (char * localip, int port, int ssl, char * cblibfile)
 
         } else {
             dlerror();
- 
+
             hl->cbinit = dlsym(hl->cbhandle, "http_handle_init");
             if ((err = dlerror()) != NULL) {
                 tolog(1, "eJet - HTTP Listen <%s:%d%s> DynLib <%s> callback 'http_handle_init' load failed! %s\n",
@@ -569,7 +569,7 @@ void * http_listen_alloc (char * localip, int port, int ssl, char * cblibfile)
                       hl->cblibfile, err);
                 hl->cbinit = NULL;
             }
- 
+
             hl->cbfunc = dlsym(hl->cbhandle, "http_handle");
             if ((err = dlerror()) != NULL) {
                 tolog(1, "eJet - HTTP Listen <%s:%d%s> DynLib <%s> callback 'http_handle' load failed! %s\n",
@@ -578,7 +578,7 @@ void * http_listen_alloc (char * localip, int port, int ssl, char * cblibfile)
                       hl->cblibfile, err);
                 hl->cbfunc = NULL;
             }
- 
+
             hl->cbclean = dlsym(hl->cbhandle, "http_handle_clean");
             if ((err = dlerror()) != NULL) {
                 tolog(1, "eJet - HTTP Listen <%s:%d%s> DynLib <%s> callback 'http_handle_clean' load failed! %s\n",
@@ -587,12 +587,12 @@ void * http_listen_alloc (char * localip, int port, int ssl, char * cblibfile)
                       hl->cblibfile, err);
                 hl->cbclean = NULL;
             }
- 
+
             if (hl->cbinit) {
                 hl->cbobj = (*hl->cbinit)();
             }
 
-            tolog(1, "eJet - HTTP Listen <%s:%d%s> DynLib <%s> load successfully!\n", 
+            tolog(1, "eJet - HTTP Listen <%s:%d%s> DynLib <%s> load successfully!\n",
                       strlen(hl->localip) > 0 ? hl->localip : "*",
                       hl->port, hl->ssl_link ? " SSL" : "", hl->cblibfile);
         }
@@ -690,25 +690,25 @@ int http_listen_cleanup (void * vmgmt)
     HTTPMgmt   * mgmt = (HTTPMgmt *)vmgmt;
     HTTPListen * hl = NULL;
     int          i, num;
- 
+
     if (!mgmt) return -1;
- 
+
     num = arr_num(mgmt->listen_list);
- 
+
     for (i = 0; i < num; i++) {
         hl = arr_value(mgmt->listen_list, i);
         if (!hl) continue;
- 
+
         tolog(1, "eJet - HTTP Listen <%s:%d%s> stopped.\n",
                    strlen(hl->localip) > 0 ? hl->localip : "*",
                    hl->port, hl->ssl_link ? " SSL" : "");
- 
+
         http_listen_free(hl);
     }
- 
+
     arr_free(mgmt->listen_list);
     mgmt->listen_list = NULL;
- 
+
     return 0;
 }
 
@@ -877,7 +877,7 @@ int http_listen_check_self (void * vmgmt, char * host, int hostlen, char * dstip
     }
  
     /* check if the dstpip is local server ip */
-    for (j = 0; j < mgmt->addrnum; j++) {
+    for (j = 0; dstip && j < mgmt->addrnum; j++) {
         if (strcasecmp(dstip, mgmt->localaddr[j].ipstr) == 0) {
             return 1;
         }

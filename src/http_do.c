@@ -18,21 +18,16 @@ static char * hdr_accept = "text/html,application/xhtml+xml,application/xml;q=0.
 static char * hdr_accept_charset = "utf-8, iso-8859-1, utf-16, *;q=0.7";
 static char * hdr_accept_lang = "zh-CN, en-US";
 
- 
+
 int http_redirect_request (void * vmsg)
 {
-    HTTPMsg      * msg = (HTTPMsg *)vmsg;
-    HTTPMgmt     * mgmt = NULL;
-    HTTPSrv      * srv = NULL;
-    HTTPCon      * pcon = NULL;
-    char         * p = NULL;
-    int            len = 0;
-    char           url[4096];
+    HTTPMsg * msg = (HTTPMsg *)vmsg;
+    HTTPCon * pcon = NULL;
+    char    * p = NULL;
+    int       len = 0;
+    frame_p   uri;
  
     if (!msg) return -1;
- 
-    mgmt = (HTTPMgmt *)msg->httpmgmt;
-    if (!mgmt) return -2;
  
     if (++msg->redirecttimes >= 6) {
         msg->SetStatus(msg, 417, NULL);
@@ -40,6 +35,10 @@ int http_redirect_request (void * vmsg)
         msg->DelResHdr(msg, "Content-Length", -1);
         msg->DelResHdr(msg, "Transfer-Encoding", -1);
         msg->DelResHdr(msg, "Content-Type", -1);
+
+        tolog(1, "eJet - Redirect: HTTP auto-redirect '%s' too many times.\n",
+              http_uri_string(msg->uri));
+
         return -100;
     }
 
@@ -47,24 +46,29 @@ int http_redirect_request (void * vmsg)
        msg->pcon is connected to original server and not used to send the msg */
 
     msg->GetResHdrP(msg, "Location", 8, &p, &len);
-    if (!p || len < 1) return -100;
+    if (!p || len < 1) {
+        tolog(1, "eJet - Redirect: invalid Location returned from request '%s'.\n",
+              http_uri_string(msg->uri));
+
+        return -100;
+    }
  
     if (strncasecmp(p, "http://", 7) != 0 &&
         strncasecmp(p, "https://", 8) != 0 &&
         *p != '/')
     {
-        str_secpy(url, sizeof(url)-1, msg->uri->baseuri, msg->uri->baseurilen);
-        if (url[strlen(url) - 1] != '/')
-            str_secpy(url + strlen(url), sizeof(url) - 1 - strlen(url), "/", 1);
-        str_secpy(url + strlen(url), sizeof(url) - 1 - strlen(url), p, len);
+        uri = frame_new(512);
+        frame_put_nlast(uri, msg->uri->baseuri, msg->uri->baseurilen);
+        if (frame_read(uri, frameL(uri)-1) != '/')
+            frame_put_last(uri, '/');
+        frame_put_nlast(uri, p, len);
 
-        msg->SetURL(msg, url, strlen(url), 1);
+        msg->SetURL(msg, frameP(uri), frameL(uri), 1);
+        frame_free(uri);
     } else {
         msg->SetURL(msg, p, len, 1);
     }
 
-    sock_addr_get(msg->req_host, msg->req_hostlen, msg->req_port, 0,
-                  msg->dstip, &msg->dstport, NULL);
     msg->dstport = msg->req_port;
  
     /* the original Cookie should be removed before encoding */
@@ -92,20 +96,9 @@ int http_redirect_request (void * vmsg)
  
     chunk_set_end(msg->req_body_chunk);
 
-    /* now bind the HTTPMsg to one HTTPCon allocated by HTTPSrv, and start sending it */
-    srv = http_srv_open(mgmt, msg->dstip, msg->dstport, msg->ssl_link, 15);
-    if (!srv) {
+    if (http_srv_msg_dns(msg, http_srv_msg_dns_cb) < 0) {
         http_msg_close(msg);
         return -200;
-    }
- 
-    pcon = http_srv_connect(srv);
-    if (!pcon) {
-        http_srv_msg_push(srv, msg);
-    } else {
-        http_con_msg_add(pcon, msg);
-
-        http_srv_send(pcon);
     }
 
     return 0;
@@ -114,17 +107,11 @@ int http_redirect_request (void * vmsg)
  
 int do_http_request (void * vmsg)
 {
-    HTTPMsg      * msg = (HTTPMsg *)vmsg;
-    HTTPMgmt     * mgmt = NULL;
-    HTTPSrv      * srv = NULL;
-    HTTPCon      * pcon = NULL;
-    char         * fname = NULL;
-    char         * mime = NULL;
+    HTTPMsg * msg = (HTTPMsg *)vmsg;
+    char    * fname = NULL;
+    char    * mime = NULL;
  
     if (!msg) return -1;
- 
-    mgmt = (HTTPMgmt *)msg->httpmgmt;
-    if (!mgmt) return -2;
  
     if (msg->req_body_flag == BC_CONTENT_LENGTH) {
  
@@ -146,19 +133,9 @@ int do_http_request (void * vmsg)
  
     chunk_set_end(msg->req_body_chunk);
 
-    /* now bind the HTTPMsg to one HTTPCon allocated by HTTPSrv, and start sending it */
-    srv = http_srv_open(mgmt, msg->dstip, msg->dstport, msg->ssl_link, 50);
-    if (!srv) {
+    if (http_srv_msg_dns(msg, http_srv_msg_dns_cb) < 0) {
         http_msg_close(msg);
         return -100;
-    }
- 
-    pcon = http_srv_connect(srv);
-    if (!pcon) { 
-        http_srv_msg_push(srv, msg); 
-    } else {
-        http_con_msg_add(pcon, msg);
-        http_srv_send(pcon);
     }
 
     return 0;
@@ -183,8 +160,6 @@ void * do_http_get_msg (void * vmgmt, char * url, int urllen,
  
     msg->req_body_flag = BC_NONE;
  
-    sock_addr_get(msg->req_host, msg->req_hostlen, msg->req_port, 0,
-                  msg->dstip, &msg->dstport, NULL);
     msg->dstport = msg->req_port;
  
     msg->SetResponseHandle(msg, resfunc, para, cbval, resfile, resoff, rcvprocfunc, funcpara);
@@ -251,8 +226,7 @@ void * do_http_post_msg (void * vmgmt, char * url, int urllen, char * mime,
  
     msg->req_body_flag = BC_CONTENT_LENGTH;
  
-    sock_addr_get(msg->req_host, msg->req_hostlen, msg->req_port, 0,
-                  msg->dstip, &msg->dstport, NULL);
+    msg->dstport = msg->req_port;
  
     msg->SetResponseHandle(msg, resfunc, para, cbval, resfile, resoff, rcvprocfunc, rcvpara);
  

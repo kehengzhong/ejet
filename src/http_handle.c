@@ -4,6 +4,7 @@
  */
 
 #include "adifall.ext"
+#include "epump.h"
 #include <signal.h>
 
 #include "http_header.h"
@@ -51,20 +52,50 @@ int http_msg_handle (void * vcon, void * vmsg)
     return 0;
 }
 
+int http_tunnel_dns_resolve_cb (void * vmsg, char * name, int len, void * cache, int status)
+{
+    HTTPMsg    * msg = (HTTPMsg *)vmsg;
+    HTTPCon    * pcon = NULL;
+    HTTPCon    * tunnelcon = NULL;
+ 
+    if (!msg) return -1;
+ 
+    pcon = (HTTPCon *)msg->pcon;
+    if (!pcon) return -2;
+ 
+    if (status == DNS_ERR_IPV4 || status == DNS_ERR_IPV6) {
+        str_secpy(msg->dstip, sizeof(msg->dstip)-1, name, len);
+ 
+    } else if (dns_cache_getip(cache, 0, msg->dstip, sizeof(msg->dstip)-1) <= 0) {
+        msg->SetStatus(msg, 400, NULL);
+        return msg->Reply(msg);
+    }
+ 
+    msg->dstport = msg->req_port;
+ 
+    tunnelcon = http_proxy_connect_tunnel(pcon, msg);
+    if (tunnelcon == NULL && pcon->tunnelself == 0) {
+        msg->SetStatus(msg, 406, NULL);
+        return msg->Reply(msg);
+    }
+ 
+    msg->SetStatus(msg, 200, "Connection Established");
+    return msg->Reply(msg);
+}
+ 
 int http_connect_process (void * vcon, void * vmsg)
 {
     HTTPCon    * pcon = (HTTPCon *)vcon;
     HTTPMsg    * msg = (HTTPMsg *)vmsg;
     HTTPMgmt   * mgmt = NULL;
-    HTTPCon    * tunnelcon = NULL;
     HTTPListen * hl = NULL;
-
+ 
     if (!pcon) return -1;
     if (!msg) return -2;
-
+ 
     mgmt = (HTTPMgmt *)msg->httpmgmt;
     if (!mgmt) return -3;
-
+ 
     hl = (HTTPListen *)pcon->hl;
     if (!hl) return -4;
  
@@ -74,21 +105,21 @@ int http_connect_process (void * vcon, void * vmsg)
         msg->SetStatus(msg, 403, "Proxy is Forbidden");
         return msg->Reply(msg);
     }
-
+ 
     /* system configuration does not allow CONNECT tunnel */
     if (mgmt->proxy_tunnel == 0) {
         msg->SetStatus(msg, 405, "CONNECT method not allowed");
         return msg->Reply(msg);
     }
-
-    tunnelcon = http_proxy_connect_tunnel(pcon, msg);
-    if (tunnelcon == NULL && pcon->tunnelself == 0) {
-        msg->SetStatus(msg, 406, NULL);
+ 
+    if (dns_query(mgmt->pcore, msg->req_host, msg->req_hostlen,
+                  http_tunnel_dns_resolve_cb, msg) < 0)
+    {
+        msg->SetStatus(msg, 400, NULL);
         return msg->Reply(msg);
     }
-
-    msg->SetStatus(msg, 200, "Connection Established");
-    return msg->Reply(msg);
+ 
+    return 0;
 }
 
 int http_request_process (void * vcon, void * vmsg)
@@ -142,6 +173,12 @@ int http_request_process (void * vcon, void * vmsg)
     if (msg->req_url_type > 0 && hl->forwardproxy == 0) {
         msg->SetStatus(msg, 403, "Proxy is Forbidden");
         return msg->Reply(msg);
+    }
+
+    /* if request is absolute URI and Location instance is NULL,
+       re-instanstiating is executed again. */
+    if (msg->req_url_type > 0 && msg->ploc == NULL) {
+        http_req_set_docuri(msg, frameP(msg->uri->uri), frameL(msg->uri->uri), 0, 0);
     }
 
     if (msg->issued <= 0 && mgmt->req_handler) {

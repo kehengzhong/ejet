@@ -8,12 +8,9 @@
 #include "http_con.h"
 #include "http_msg.h"
 #include "http_mgmt.h"
-#include "http_pump.h"
 #include "http_cli_io.h"
 #include "http_srv_io.h"
 #include "http_listen.h"
-#include "http_header.h"
-#include "http_do.h"
 #include "http_request.h"
 #include "http_response.h"
 #include "http_srv.h"
@@ -21,8 +18,45 @@
 #include "http_ssl.h"
 #include "http_cache.h"
 #include "http_cc.h"
+#include "http_fcgi_io.h"
+#include "http_handle.h"
 #include "http_proxy.h"
 
+
+int http_proxy_handle (void * vmsg)
+{
+    HTTPMsg * msg = (HTTPMsg *)vmsg;
+    HTTPMsg * proxymsg = NULL;
+    char      url[4096];
+
+    if (!msg) return -1;
+
+    /* check the request if it's to be proxyed to other origin server */
+    if (http_proxy_check(msg, url, sizeof(url)-1) <= 0)
+        return -100;
+ 
+    if (http_proxy_cache_open(msg) >= 3) {
+        /* cache file exists in local directory */
+        return -200;
+    }
+ 
+    /* create one proxy HTTPMsg object, with headers X-Forwarded-For and X-Real-IP */
+    proxymsg = msg->proxymsg = http_proxy_srvmsg_open(msg, url, strlen(url));
+    if (proxymsg == NULL) {
+        return -300;
+    }
+ 
+    msg->proxied = 1;
+ 
+    if (http_srv_msg_dns(proxymsg, http_proxy_srvmsg_dns_cb) < 0) {
+        msg->proxied = 0;
+        msg->proxymsg = NULL;
+        http_msg_close(proxymsg);
+        return -400;
+    }
+ 
+    return 0;
+}
 
 int http_proxy_check (void * vmsg, void * purl, int urlen)
 {
@@ -50,9 +84,9 @@ int http_proxy_check (void * vmsg, void * purl, int urlen)
     hl = (HTTPListen *)msg->hl;
     if (!hl) return 0;
 
-    if (msg->req_url_type > 0 && hl->forwardproxy == 1) {
-        /* current server is also served as proxy for the requesting client,
-           the url in request line is absolute address. */
+    if (msg->req_url_type > 0 && !msg->ploc && hl->forwardproxy == 1) {
+        /* Web server is also served as proxy for the requesting client,
+           the url in request line is absolute address and have no Loc instance. */
 
         str_secpy(url, urlen, frameP(msg->uri->uri), frameL(msg->uri->uri));
 
@@ -106,6 +140,7 @@ int http_proxy_srv_send_start (void * vproxymsg)
     if (!mgmt) return -2;
 
     srv = http_srv_open(mgmt, proxymsg->dstip, proxymsg->dstport, proxymsg->ssl_link, 100);
+    if (!srv) return -100;
 
     proxycon = http_srv_connect(srv);
     if (proxycon) {
@@ -122,6 +157,45 @@ int http_proxy_srv_send_start (void * vproxymsg)
     }
 
     return 0;
+}
+
+int http_proxy_srvmsg_dns_cb (void * vproxymsg, char * name, int len, void * cache, int status)
+{
+    HTTPMsg * proxymsg = (HTTPMsg *)vproxymsg;
+    HTTPMsg * climsg = NULL;
+    int       ret = 0;
+ 
+    if (!proxymsg) return -1;
+ 
+    climsg = proxymsg->proxymsg;
+
+    if (status == DNS_ERR_IPV4 || status == DNS_ERR_IPV6) {
+        str_secpy(proxymsg->dstip, sizeof(proxymsg->dstip)-1, name, len);
+ 
+    } else if (dns_cache_getip(cache, 0, proxymsg->dstip, sizeof(proxymsg->dstip)-1) <= 0) {
+        tolog(1, "eJet - Proxy: DNS Resolving of Origin Server '%s' failed.\n", name);
+
+        ret = -100;
+        goto failed;
+    }
+ 
+    if (http_proxy_srv_send_start(proxymsg) < 0) {
+        ret = -200;
+        goto failed;
+    }
+ 
+    return 0;
+ 
+failed:
+    if (climsg) {
+        climsg->SetStatus(climsg, 404, NULL);
+        climsg->Reply(climsg);
+    }
+
+    http_con_msg_del(proxymsg->pcon, proxymsg);
+    http_msg_close(proxymsg);
+
+    return ret;
 }
 
 void * http_proxy_srvmsg_open (void * vmsg, char * url, int urllen)
@@ -147,23 +221,7 @@ void * http_proxy_srvmsg_open (void * vmsg, char * url, int urllen)
     proxymsg->SetURL(proxymsg, url, urllen, 1);
     proxymsg->req_url_type = msg->req_url_type;
 
-    sock_addr_get(proxymsg->req_host, proxymsg->req_hostlen, proxymsg->req_port, 0, 
-                  proxymsg->dstip, &proxymsg->dstport, NULL);
     proxymsg->dstport = proxymsg->req_port; 
-
-    /* check if the destinated server of forward proxy request is proxy itself */
-    if (msg->req_url_type > 0) {
-        if (http_listen_check_self(msg->httpmgmt,
-                            proxymsg->req_host,
-                            proxymsg->req_hostlen,
-                            proxymsg->dstip,
-                            proxymsg->dstport) > 0)
-        {
-            /* host is itself, needless to proxy */
-            http_msg_close(proxymsg);
-            return NULL;
-        }
-    }
 
     str_cpy(proxymsg->srcip, msg->srcip);
     proxymsg->srcport = msg->srcport;
@@ -543,8 +601,6 @@ void * http_proxy_connect_tunnel (void * vcon, void * vmsg)
     HTTPMsg    * msg = (HTTPMsg *)vmsg;
     HTTPMgmt   * mgmt = NULL;
     HTTPCon    * tunnelcon = NULL;
-    char         dstip[41];
-    int          dstport = 0;
 
     if (!pcon || !msg) return NULL;
 
@@ -558,21 +614,19 @@ void * http_proxy_connect_tunnel (void * vcon, void * vmsg)
     pcon->httptunnel = 1;
     pcon->tunnelcon = NULL;
 
-    sock_addr_get(msg->req_host, msg->req_hostlen, msg->req_port, 0,
-                  dstip, &dstport, NULL);
-    dstport = msg->req_port;
+    msg->dstport = msg->req_port;
  
     /* check if the destinated server of http connect request is itself */
     if (http_listen_check_self(msg->httpmgmt, 
                       msg->req_host,
                       msg->req_hostlen,
-                      dstip, dstport) > 0)
+                      msg->dstip, msg->dstport) > 0)
     {
         pcon->tunnelself = 1;
         return NULL;
     }
 
-    tunnelcon = http_con_open(NULL, dstip, dstport, 0);
+    tunnelcon = http_con_open(NULL, msg->dstip, msg->dstport, 0);
     if (tunnelcon) {
         iodev_workerid_set(tunnelcon->pdev, 1);
 
@@ -967,8 +1021,6 @@ void * http_proxy_srv_cache_send (void * vmsg)
     HTTPMsg    * srvmsg = NULL;
     HeaderUnit * punit = NULL;
     CacheInfo  * cacinfo = NULL;
-    HTTPCon    * srvcon = NULL;
-    HTTPSrv    * srv = NULL;
     int          i, num;
     char         buf[512];
     int          ret = 0;
@@ -983,8 +1035,6 @@ void * http_proxy_srv_cache_send (void * vmsg)
     srvmsg->SetURL(srvmsg, msg->fwdurl, msg->fwdurllen, 1);
     srvmsg->req_url_type = msg->req_url_type;
  
-    sock_addr_get(srvmsg->req_host, srvmsg->req_hostlen, srvmsg->req_port, 0,
-                  srvmsg->dstip, &srvmsg->dstport, NULL);
     srvmsg->dstport = srvmsg->req_port;
  
     str_cpy(srvmsg->srcip, msg->srcip);
@@ -1042,25 +1092,14 @@ void * http_proxy_srv_cache_send (void * vmsg)
     srvmsg->phost = msg->phost;
  
     srvmsg->state = HTTP_MSG_SENDING;
- 
-    /* now bind the HTTPMsg to one HTTPCon allocated by HTTPSrv, and start sending it */
-    srv = http_srv_open(msg->httpmgmt, srvmsg->dstip, srvmsg->dstport, srvmsg->ssl_link, 15);
-    if (!srv) {
-        http_msg_close(srvmsg);
-        return NULL;
-    }
- 
+
     msg->proxymsg = srvmsg;
 
-    srvcon = http_srv_connect(srv);
-    if (!srvcon) {
-        http_srv_msg_push(srv, srvmsg);
-    } else {
-        http_con_msg_add(srvcon, srvmsg);
- 
-        http_srv_send(srvcon);
+    if (http_srv_msg_dns(srvmsg, http_srv_msg_dns_cb) < 0) {
+        http_msg_close(srvmsg);
+        return NULL;
     }
 
     return srvmsg;
 }
- 
+

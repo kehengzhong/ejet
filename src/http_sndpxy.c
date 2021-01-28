@@ -153,8 +153,6 @@ int http_send_proxy_check (void * vmsg)
                 msg->proxyport = sndpxy->port;
             }
 
-            sock_addr_get(msg->proxy, strlen(msg->proxy), msg->proxyport, 0,
-                          msg->dstip, &msg->dstport, NULL); 
             msg->dstport = msg->proxyport;
 
             return 1;
