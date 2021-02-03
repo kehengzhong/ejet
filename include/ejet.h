@@ -14,7 +14,7 @@ typedef int    HTTPObjInit    (void * httpmgmt, void * vobj, void * hconf);
 typedef int    HTTPObjClean   (void * vobj);
 typedef void * HTTPCBInit     ();
 typedef int    RequestHandler (void * cbobj, void * vmsg);
-typedef void   HTTPCBClean    (void * hcb);
+typedef void   HTTPCBClean    (void * cbobj);
 typedef int    ResponseHandle (void * vmsg, void * para, void * cbval, int status);
 typedef int    TearDownNotify (void * vmsg, void * para);
 
@@ -74,6 +74,7 @@ typedef struct http_msg {
  
     /* global unique identifier for HTTPMsg */
     ulong              msgid;
+    uint8              msgtype;  /* 0-sending request  1-receiving request */
  
     void             * hl;
     void             * phost;
@@ -512,6 +513,11 @@ void   http_overhead       (void * vmgmt, uint64 * recv, uint64 * sent,
                              struct timeval * lasttick, int reset, struct timeval * curt);
  
 int    http_set_reqhandler (void * vmgmt, RequestHandler * reqhandler, void * cbobj);
+
+void * http_get_json_conf  (void * vmgmt);
+void * http_get_mimemgmt   (void * vmgmt);
+void * http_get_frame_pool (void * vmgmt);
+void * http_get_epump      (void * vmgmt);
 
 
 /* sending HTTP Request to HTTPServer and receiving the response */

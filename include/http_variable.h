@@ -55,6 +55,12 @@ extern "C" {
                   (var)->unsign = uns;                                   \
                   (var)->structtype = sttype
  
+#define http_var_set6(var, stname, field, subfld, vtype, uns)    \
+                  (var)->fieldpos = offsetof(stname, field);             \
+                  (var)->subfldpos = offsetof(stname, subfld);           \
+                  (var)->valtype = vtype;                                \
+                  (var)->condcheck = 1;                                  \
+                  (var)->unsign = uns;
 
 #define http_var_global(var, fldname, vtype, uns, sttype)                \
                   (var)->field =  fldname;                               \
@@ -76,7 +82,7 @@ typedef struct http_variable_s {
     size_t         subfldpos;
     size_t         subfldlenpos;
 
-    /* 0-char 1-short 2-int 3-int64 4-char[] 5-char * 6-frame_p 7-array 8-function*/
+    /* 0-char 1-short 2-int 3-int64 4-char[] 5-char * 6-frame_p 7-array 8-function 9-pointer */
     unsigned       valtype    : 4;
 
     unsigned       unsign     : 1;   //0-signed  1-unsigned
@@ -87,6 +93,8 @@ typedef struct http_variable_s {
 
     /* 1-request header 2-cookie 3-query 4-response header 5-datetime 6-date 7-time */
     unsigned       arraytype  : 4;
+
+    unsigned       condcheck  : 1; //check HTTPMsg->msgtype == 1 ? first-var : second-var
 
 } http_var_t, HTTPVar;
 

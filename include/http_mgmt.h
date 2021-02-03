@@ -195,6 +195,10 @@ int    http_mgmt_con_num (void * vmgmt);
 void * http_msg_fetch (void * vmgmt);
 int    http_msg_num   (void * vmgmt);
 
+void * http_get_json_conf (void * vmgmt);
+void * http_get_mimemgmt (void * vmgmt);
+void * http_get_frame_pool (void * vmgmt);
+
 void * http_get_epump (void * vmgmt);
 int    http_set_epump (void * vmgmt, void * pcore);
 

@@ -127,8 +127,10 @@ typedef struct http_listen {
 
     /* callback function from a dynamic library */
     char              * cblibfile;
+    int                 cbargc;
+    char              * cbargv[16];
     void              * cbhandle;
- 
+
     HTTPCBInit        * cbinit;
     RequestHandler    * cbfunc;
     HTTPCBClean       * cbclean;

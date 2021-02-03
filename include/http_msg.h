@@ -71,6 +71,7 @@ typedef struct http_msg {
 
     /* global unique identifier for HTTPMsg */
     ulong              msgid;
+    uint8              msgtype;  /* 0-sending request  1-receiving request */
 
     void             * hl;
     void             * phost;
