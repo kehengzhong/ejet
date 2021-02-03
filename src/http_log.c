@@ -117,7 +117,7 @@ int http_log_write (void * vmsg)
 
     if (!msg) return -1;
 
-    if (msg->proxied == 2) return 0;
+    //if (msg->proxied == 2) return 0;
 
     mgmt = (HTTPMgmt *)msg->httpmgmt;
     if (!mgmt) return -2;

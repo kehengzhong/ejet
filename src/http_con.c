@@ -417,7 +417,7 @@ int http_con_connect (void * vpcon)
         return 0;
     }
  
-    tolog(1, "eJet - TCP Connect: failed to connecting to '%s:%d'.\n",
+    tolog(1, "eJet - TCP Connect: failed connecting to '%s:%d'.\n",
           pcon->dstip, pcon->dstport);
 
     if (pcon->pdev) {

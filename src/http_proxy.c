@@ -22,6 +22,7 @@
 #include "http_handle.h"
 #include "http_proxy.h"
 
+extern char * g_http_version;
 
 int http_proxy_handle (void * vmsg)
 {
@@ -235,8 +236,15 @@ void * http_proxy_srvmsg_open (void * vmsg, char * url, int urllen)
             continue;
         }
 
-        http_header_append(proxymsg, 0, HUName(punit), punit->namelen,
-                           HUValue(punit), punit->valuelen);
+        if (strncasecmp(HUName(punit), "User-Agent", 10) == 0) {
+            str_secpy(buf, sizeof(buf)-1, HUValue(punit), punit->valuelen);
+            snprintf(buf + strlen(buf), sizeof(buf)-1-strlen(buf), " via eJet/%s", g_http_version);
+            http_header_append(proxymsg, 0, HUName(punit), punit->namelen, buf, strlen(buf));
+ 
+        } else {
+            http_header_append(proxymsg, 0, HUName(punit), punit->namelen,
+                               HUValue(punit), punit->valuelen);
+        }
     }
 
     cacinfo = (CacheInfo *)msg->res_cache_info;
@@ -1049,8 +1057,15 @@ void * http_proxy_srv_cache_send (void * vmsg)
             continue;
         }
  
-        http_header_append(srvmsg, 0, HUName(punit), punit->namelen,
-                           HUValue(punit), punit->valuelen);
+        if (strncasecmp(HUName(punit), "User-Agent", 10) == 0) {
+            str_secpy(buf, sizeof(buf)-1, HUValue(punit), punit->valuelen);
+            snprintf(buf + strlen(buf), sizeof(buf)-1-strlen(buf), " via eJet/%s", g_http_version);
+            http_header_append(srvmsg, 0, HUName(punit), punit->namelen, buf, strlen(buf));
+ 
+        } else {
+            http_header_append(srvmsg, 0, HUName(punit), punit->namelen,
+                               HUValue(punit), punit->valuelen);
+        }
     }
  
     cacinfo = (CacheInfo *)msg->res_cache_info;

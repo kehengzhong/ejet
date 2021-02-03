@@ -397,6 +397,8 @@ int http_msg_init (void * vmsg)
 
     mgmt = (HTTPMgmt *)msg->httpmgmt;
 
+    msg->msgtype = 0;
+
     msg->hl = NULL;
     msg->phost = NULL;
     msg->ploc = NULL;

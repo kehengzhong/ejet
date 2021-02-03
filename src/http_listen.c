@@ -532,6 +532,8 @@ void * http_listen_alloc (char * localip, int port, int ssl, char * cblibfile)
 {
     HTTPListen * hl = NULL;
     char       * err = NULL;
+    char       * argv[16];
+    int          i, plen[16];
 
     if (port == 0) return NULL;
 
@@ -549,7 +551,12 @@ void * http_listen_alloc (char * localip, int port, int ssl, char * cblibfile)
     hl->ssl_link = ssl > 0 ? 1 : 0;
  
     if (cblibfile) {
-        hl->cblibfile = cblibfile;
+        hl->cbargc = string_tokenize(cblibfile, -1, " \t\r\n\f\v", 6, (void **)argv, plen, 16);
+        for (i = 0; i < hl->cbargc; i++) {
+            hl->cbargv[i] = str_dup(argv[i], plen[i]);
+        }
+
+        hl->cblibfile = hl->cbargv[0];
 
         hl->cbhandle = dlopen(cblibfile, RTLD_LAZY);
         if (!hl->cbhandle) {
@@ -589,7 +596,7 @@ void * http_listen_alloc (char * localip, int port, int ssl, char * cblibfile)
             }
 
             if (hl->cbinit) {
-                hl->cbobj = (*hl->cbinit)();
+                hl->cbobj = (*hl->cbinit)(hl->httpmgmt, hl->cbargc, hl->cbargv);
             }
 
             tolog(1, "eJet - HTTP Listen <%s:%d%s> DynLib <%s> load successfully!\n",
@@ -614,6 +621,7 @@ void * http_listen_alloc (char * localip, int port, int ssl, char * cblibfile)
 void http_listen_free (void * vhl)
 {
     HTTPListen * hl = (HTTPListen *)vhl;
+    int          i;
 
     if (!hl) return;
 
@@ -639,6 +647,13 @@ void http_listen_free (void * vhl)
     if (hl->defaulthost) {
         http_host_free(hl->defaulthost);
         hl->defaulthost = NULL;
+    }
+
+    for (i = 0; i < 16 && i < hl->cbargc; i++) {
+        if (hl->cbargv[i]) {
+            kfree(hl->cbargv[i]);
+            hl->cbargv[i] = NULL;
+        }
     }
 
     if (hl->cbhandle) {

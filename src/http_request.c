@@ -839,6 +839,19 @@ int http_req_encoding (void * vmsg, int encode)
         frame_append(msg->req_stream, "\r\n");
     }
 
+    if (msg->msgtype == 0) { //HTTPMsg is sending request to origin
+        msg->req_line = frameP(msg->req_stream);
+        msg->req_line_len = frameL(msg->req_stream) - 2;
+    }
+
+    if (!msg->req_useragent || msg->req_useragent_len <= 0) {
+        punit = http_header_get(msg, 0, "User-Agent", -1);
+        if (punit) {
+            msg->req_useragent = HUValue(punit);
+            msg->req_useragent_len = punit->valuelen;
+        }
+    }
+
     http_header_del(msg, 0, "Proxy-Connection", 16);
     //http_header_del(msg, 0, "If-Modified-Since", 17);
     //http_header_del(msg, 0, "If-None-Match", 13);

@@ -25,8 +25,8 @@
 #include "http_log.h"
 #include "http_cache.h"
 
-char * g_http_version = "1.0.4";
-char * g_http_build = "eJet/1.0.4 Web Server built "__DATE__" "__TIME__" "
+char * g_http_version = "1.1.2";
+char * g_http_build = "eJet/1.1.2 Web Server built "__DATE__" "__TIME__" "
                       "by kehengzhong@hotmail.com";
 char * g_http_author = "Lao Ke <kehengzhong@hotmail.com>";
 
@@ -349,7 +349,7 @@ int http_mgmt_init (void * vmgmt)
 
     if (mgmt->srv_sslctx == NULL) {
 #ifdef HAVE_OPENSSL
-        mgmt->srv_sslctx = http_ssl_server_ctx_init(mgmt->srv_con_cert,
+        mgmt->srv_sslctx = http_ssl_client_ctx_init(mgmt->srv_con_cert,
                                    mgmt->srv_con_prikey, mgmt->srv_con_cacert);
 #endif
     }
@@ -681,6 +681,33 @@ int http_msg_num (void * vmgmt)
     LeaveCriticalSection(&mgmt->msgtableCS);
 
     return num;
+}
+
+void * http_get_json_conf (void * vmgmt)
+{
+    HTTPMgmt * mgmt = (HTTPMgmt *)vmgmt;
+ 
+    if (!mgmt) return NULL;
+ 
+    return mgmt->cnfjson;
+}
+
+void * http_get_mimemgmt (void * vmgmt)
+{
+    HTTPMgmt * mgmt = (HTTPMgmt *)vmgmt;
+ 
+    if (!mgmt) return NULL;
+ 
+    return mgmt->mimemgmt;
+}
+ 
+void * http_get_frame_pool (void * vmgmt)
+{
+    HTTPMgmt * mgmt = (HTTPMgmt *)vmgmt;
+ 
+    if (!mgmt) return NULL;
+ 
+    return mgmt->frame_pool;
 }
 
 void * http_get_epump (void * vmgmt)

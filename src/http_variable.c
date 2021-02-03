@@ -51,11 +51,11 @@ int http_var_init (void * vmgmt)
     //0-char 1-short 2-int 3-char[] 
 
     http_var_name(&var[ind], "remote_addr");
-    http_var_set(&var[ind], HTTPMsg, srcip, 4, 0, 0);
+    http_var_set6(&var[ind], HTTPMsg, srcip, dstip, 4, 0);
     ind++;
 
     http_var_name(&var[ind], "remote_port");
-    http_var_set(&var[ind], HTTPMsg, srcport, 2, 0, 0);
+    http_var_set6(&var[ind], HTTPMsg, srcport, dstport, 2, 0);
     ind++;
 
     http_var_name(&var[ind], "server_addr");
@@ -112,11 +112,11 @@ int http_var_init (void * vmgmt)
     ind++;
 
     http_var_name(&var[ind], "bytes_recv");
-    http_var_set(&var[ind], HTTPMsg, req_stream_recv, 3, 0, 0);
+    http_var_set6(&var[ind], HTTPMsg, req_stream_recv, res_stream_recv, 3, 0);
     ind++;
 
     http_var_name(&var[ind], "bytes_sent");
-    http_var_set(&var[ind], HTTPMsg, res_stream_sent, 3, 0, 0);
+    http_var_set6(&var[ind], HTTPMsg, res_stream_sent, req_stream_sent, 3, 0);
     ind++;
 
     http_var_name(&var[ind], "status");
@@ -311,6 +311,10 @@ int http_var_value (void * vmsg, char * vname, char * buf, int len)
             subobj = * (void **)obj;
             obj = subobj + var->subfldpos;
             objlen = subobj + var->subfldlenpos;
+        } else if (var->condcheck) {
+            if (msg->msgtype == 0) {
+                obj = (void *)msg + var->subfldpos;
+            }
         } else {
             if (var->haslen)
                 objlen = (void *)msg + var->fldlenpos;

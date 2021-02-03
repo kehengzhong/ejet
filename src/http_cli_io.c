@@ -337,6 +337,8 @@ int http_cli_recv_parse (void * vcon)
             return -105;
         }
 
+        msg->msgtype = 1; //receiving request
+
         pcon->reqnum++;
         msg->pcon = pcon;
         msg->hl = pcon->hl;

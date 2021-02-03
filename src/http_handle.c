@@ -29,6 +29,8 @@ int http_msg_handle (void * vcon, void * vmsg)
     if (!pcon) return -1;
     if (!msg) return -2;
 
+    if (msg->issued) return 0;
+
     msg->state = HTTP_MSG_REQUEST_HANDLING;
 
     switch (msg->req_methind) {
@@ -49,7 +51,8 @@ int http_msg_handle (void * vcon, void * vmsg)
         ret = msg->Reply(msg);
         return ret;
     }
-    return 0;
+
+    return 1;
 }
 
 int http_tunnel_dns_resolve_cb (void * vmsg, char * name, int len, void * cache, int status)
