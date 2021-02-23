@@ -23,7 +23,7 @@ extern "C" {
 
 typedef int    RequestDiag    (void * vmsg);
 typedef int    ResponseDiag   (void * vmsg);
-typedef void * HTTPCBInit     ();
+typedef void * HTTPCBInit     (void * httpmgmt, int argc, char ** argv);
 typedef void   HTTPCBClean    (void * hcb);
 typedef int    RequestHandler (void * cbobj, void * vmsg);
 

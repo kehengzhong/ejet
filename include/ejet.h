@@ -12,7 +12,7 @@ extern "C" {
 
 typedef int    HTTPObjInit    (void * httpmgmt, void * vobj, void * hconf);
 typedef int    HTTPObjClean   (void * vobj);
-typedef void * HTTPCBInit     ();
+typedef void * HTTPCBInit     (void * httpmgmt, int argc, char ** argv);
 typedef int    RequestHandler (void * cbobj, void * vmsg);
 typedef void   HTTPCBClean    (void * cbobj);
 typedef int    ResponseHandle (void * vmsg, void * para, void * cbval, int status);
@@ -81,6 +81,8 @@ typedef struct http_msg {
     void             * ploc;
     int                locinst_times;
  
+    void             * cbobj;
+
     hashtab_t        * script_var_tab;
  
     /* instanced variables from HTTPLoc, HTTPHost when HTTPMsg is created */
@@ -319,6 +321,8 @@ typedef struct http_msg {
  
     void * (*GetEPump)       (void * vmsg);
     void * (*GetHTTPMgmt)    (void * vmsg);
+
+    void * (*GetCBObj)       (void * vmsg);
     void * (*GetMgmtObj)     (void * vmsg);
     void * (*GetMsgObj)      (void * vmsg);
     void * (*GetIODev)       (void * vmsg);
@@ -500,6 +504,7 @@ typedef struct http_msg {
  
 } HTTPMsg;
 
+int    http_msg_close   (void * vmsg);
  
 void * http_mgmt_alloc    (void * epump, char * jsonconf, int extsize, int msgextsize);
 int    http_mgmt_init     (void * vmgmt);
@@ -512,6 +517,10 @@ void * http_mgmt_obj       (void * vmgmt);
 void   http_overhead       (void * vmgmt, uint64 * recv, uint64 * sent,
                              struct timeval * lasttick, int reset, struct timeval * curt);
  
+int    http_msg_mgmt_add (void * vmgmt, void * vmsg);
+void * http_msg_mgmt_get (void * vmgmt, ulong msgid);
+void * http_msg_mgmt_del (void * vmgmt, ulong msgid);
+
 int    http_set_reqhandler (void * vmgmt, RequestHandler * reqhandler, void * cbobj);
 
 void * http_get_json_conf  (void * vmgmt);
@@ -562,6 +571,8 @@ typedef struct HTTPForm_ {
  
 } HTTPForm, http_form_t;
  
+void * http_form_node (void * vmsg, char * key);
+
 int http_form_get    (void * vmsg, char * key, char ** ctype, uint8 * formtype, char ** fname, int64 * valuelen);
 int http_form_value  (void * vmsg, char * key, char * value, int64 valuelen);
 int http_form_valuep (void * vmsg, char * key, int64 pos, char ** pvalue, int64 * valuelen);

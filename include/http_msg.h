@@ -78,6 +78,8 @@ typedef struct http_msg {
     void             * ploc;
     int                locinst_times;
 
+    void             * cbobj;
+
     hashtab_t        * script_var_tab;
 
     /* instanced variables from HTTPLoc, HTTPHost when HTTPMsg is created */
@@ -316,6 +318,8 @@ typedef struct http_msg {
 
     void * (*GetEPump)       (void * vmsg);
     void * (*GetHTTPMgmt)    (void * vmsg);
+
+    void * (*GetCBObj)       (void * vmsg);
     void * (*GetMgmtObj)     (void * vmsg);
     void * (*GetMsgObj)      (void * vmsg);
     void * (*GetIODev)       (void * vmsg);
@@ -517,6 +521,7 @@ char * http_msg_srcip   (void * vmsg);
 int    http_msg_srcport (void * vmsg);
 ulong  http_msg_id      (void * vmsg);
 
+void * http_msg_cbobj   (void * vmsg);
 void * http_msg_obj     (void * vmsg);
 void * http_msg_mgmtobj (void * vmsg);
 
