@@ -160,21 +160,23 @@
 Ò». eJetÊÇÊ²Ã´£¿
 ------
  
-eJetÊÇ²ÉÓÃ±ê×¼CÓïÑÔ¿ª·¢µÄWeb·þÎñÆ÷£¬Ö§³ÖHTTP/1.0ºÍHTTP/1.1Ð­Òé£¬eJet Web·þÎñÆ÷ÊÇÒÔadif¿âºÍePump¿ò¼ÜÎªµ×²ãÖ§³Å£¬¹¹½¨µÄÒ»¸öÊÂ¼þÇý¶¯Ä£ÐÍ¡¢¶àÏß³Ì¡¢´ó²¢·¢Á¬½ÓµÄÇáÁ¿¼¶µÄ¸ßÐ§Web·þÎñÆ÷¡£eJet Web·þÎñÆ÷µÄÈ«²¿¹¦ÄÜ¶¼·â×°³ÉÒ»¸ö300K×óÓÒ´óÐ¡µÄ¶¯Ì¬¿â»ò¾²Ì¬¿â£¬¿ÉÒÔÇ¶Èëµ½ÈÎºÎÓ¦ÓÃ³ÌÐòÖÐ£¬Ê¹Æä¾ß±¸ÏñNginx·þÎñÆ÷Ò»ÑùÇ¿´óµÄWeb¹¦ÄÜ£¬Ò²¿ÉÒÔÊ¹ÓÃÒ»¶þ°ÙÐÐ´úÂëÀ´µ÷ÓÃeJet¿â£¬ÇáÒ×ÊµÏÖÒ»¸ö¸ßÐÔÄÜµÄWeb·þÎñÆ÷¡£
+eJet Web·þÎñÆ÷ÊÇÀûÓÃGitHubÉÏµÄ¿ªÔ´ÏîÄ¿ adifÊý¾Ý½á¹¹ºÍËã·¨¿â ºÍ ePump¿ò¼Ü£¬ÓÃCÓïÑÔ¿ª·¢µÄÒ»¸öÊÂ¼þÇý¶¯Ä£ÐÍ¡¢¶àÏß³Ì¡¢´ó²¢·¢Á¬½ÓµÄÇáÁ¿¼¶µÄ¸ßÐÔÄÜWeb·þÎñÆ÷£¬Ö§³ÖHTTP/1.0ºÍHTTP/1.1Ð­Òé£¬²¢Ö§³ÖHTTP Proxy¡¢TunnelµÈ¹¦ÄÜ¡£
 
-eJet Web·þÎñÆ÷µÄÈ«²¿´úÂë¾ùÎª×÷Õß±àÐ´£¬¾ø´ó²¿·Ö²»ÒÀÀµÓÚÈÎºÎµÚÈý·½´úÂë¡£ÉÙÊý¼¸¸öÊ¹ÓÃ¿ªÔ´´úÂëµÄ¹¦ÄÜ°üÀ¨£ºHTTPS°²È«Êý¾Ý´«ÊäÊ¹ÓÃÁËOpenSSL¿â£»ÕýÔò±í´ïÊ½Æ¥ÅäÊÇÒÀÀµÓÚLinuxÏµÍ³Ìá¹©µÄPOSIX±ê×¼µÄregex¹¦ÄÜÊµÏÖ£»gzipÑ¹ËõÐèÒªÒÀÀµzlib¿ªÔ´¿â£¬Ä¿Ç°Ã»ÓÐÌí¼Ó½øÀ´£¬ËùÒÔeJet Web·þÎñÆ÷ÔÝÊ±²»Ìá¹©gzip¡¢deflateµÄÑ¹ËõÖ§³Ö¡£
+ÔÚLinuxÏÂ£¬eJet Web·þÎñÆ÷±àÒë³É¶¯Ì¬¿â»ò¾²Ì¬¿âµÄ´óÐ¡Ô¼Îª300K£¬¿É¼¯³ÉÇ¶Èëµ½ÈÎºÎÓ¦ÓÃ³ÌÐòÖÐ£¬Ôö¼ÓÓ¦ÓÃ³ÌÐòÊ¹ÓÃHTTPÍ¨ÐÅºÍ·þÎñ³ÐÔØµÄÄÜÁ¦£¬Ê¹Æä¾ß±¸ÏñNginx·þÎñÆ÷Ò»ÑùÇ¿´óµÄWeb¹¦ÄÜ¡£
 
-eJet Web·þÎñÆ÷ÍêÈ«¹¹½¨ÔÚePump¿ò¼ÜÖ®ÉÏ£¬ÀûÓÃePump¿ò¼ÜµÄ¶àÏß³ÌÊÂ¼þÇý¶¯Ä£ÐÍ£¬ÊµÏÖÍêÕûµÄHTTPÇëÇó<-->HTTPÏìÓ¦ÊÂÎñÁ÷³Ì¡£eJet·þÎñÆ÷µ÷ÓÃePump½Ó¿Ú£¬¼àÌýHTTP¶Ë¿Ú£¬¸÷¸öworker¹¤×÷Ïß³Ì¾ùºâµØ½ÓÊÜ¿Í»§²àµÄTCPÁ¬½ÓÇëÇó£¬eJet½ÓÊÕºÍ´¦Àí¸÷TCPÁ¬½ÓÉÏµÄHTTPÇëÇóÍ·ºÍÇëÇóÌå£¬¾­¹ý½âÎö¡¢Ð£Ñé¡¢¹ØÁª¡¢ÊµÀý»¯µÈ´¦Àí£¬Ö´ÐÐHTTPÇëÇó£¬»ò»ñÈ¡Web·þÎñÆ÷ÌØ¶¨Ä¿Â¼ÏÂµÄÎÄ¼þ£¬»ò´úÀí¿Í»§¶Ë·¢ÆðÏòÔ´HTTP·þÎñÆ÷µÄÇëÇó£¬»ò½«HTTPÇëÇóÍ¨¹ýFastCGI½Ó¿Ú×ª·¢µ½CGI·þÎñÆ÷£¬»ò½«¿Í»§¶ËHTTPÇëÇó½»¸øÉÏ²ãÉèÖÃµÄ»Øµ÷º¯Êý´¦Àí£¬µÈµÈ¡£ËùÓÐ´¦Àí½á¹û£¬×îÖÕÒÔHTTPÏìÓ¦·½Ê½£¬°üÀ¨HTTPÏìÓ¦Í·ºÍÏìÓ¦Ìå£¬Í¨¹ý¿Í»§¶Ë½¨Á¢µÄTCPÁ¬½Ó£¬·µ»Ø¸ø¿Í»§¶Ë¡£¸ÃTCPÁ¬½Ó¿ÉÒÔPipe-line·½Ê½¼ÌÐø·¢ËÍºÍ½ÓÊÕ¶à¸öHTTPÇëÇóºÍÏìÓ¦¡£
+eJet Web·þÎñÆ÷ÍêÈ«¹¹½¨ÔÚePump¿ò¼ÜÖ®ÉÏ£¬ÀûÓÃePump¿ò¼ÜµÄ¶àÏß³ÌÊÂ¼þÇý¶¯Ä£ÐÍ£¬ÊµÏÖÍêÕûµÄHTTPÇëÇó<-->HTTPÏìÓ¦ÊÂÎñÁ÷³Ì¡£eJet²¢Ã»ÓÐ´´½¨½ø³Ì»òÏß³Ì£¬ÀûÓÃePump¿ò¼ÜµÄÊÂ¼þÇý¶¯¶àÏß³Ì£¬¸ßÐ§µØÔËÓÃ·þÎñÆ÷µÄCPU´¦ÀíÄÜÁ¦¡£
 
-Î§ÈÆ×ÅTCPÁ¬½ÓÉÏ½ÓÊÕHTTPÇëÇó¡¢·¢ËÍHTTPÏìÓ¦£¬eJet·þÎñÆ÷Ìá¹©ÁË×÷ÎªWeb·þÎñÆ÷ËùÐèµÄÆäËû¸÷Ïî¹¦ÄÜ£¬°üÀ¨»ùÓÚTLS/SSLµÄ°²È«ºÍ¼ÓÃÜ´«Êä¡¢ÐéÄâÖ÷»ú¡¢×ÊÔ´Î»ÖÃLocationµÄ¸÷ÖÖÆ¥Åä²ßÂÔ¡¢¶ÔÇëÇóURIÖ´ÐÐ¶¯Ì¬½Å±¾Ö¸Áî£¨°üÀ¨rewrite¡¢reply¡¢return¡¢try_filesµÈ£©¡¢ÔÚÅäÖÃÎÄ¼þÖÐÊ¹ÓÃHTTP±äÁ¿¡¢ÕýÏò´úÀíºÍ·´Ïò´úÀí¡¢HTTP Proxy¡¢FastCGI¡¢HTTP Proxy Cache¹¦ÄÜ¡¢HTTP Tunnel¡¢MultiPartÎÄ¼þÉÏ´«¡¢¶¯Ì¬¿â»Øµ÷»ò½Ó¿Úº¯Êý»Øµ÷»úÖÆ¡¢HTTPÈÕÖ¾¹¦ÄÜ¡¢CDN·Ö·¢µÈµÈ¡£ÆäÖÐHTTP Proxy¡¢FastCGI¡¢HTTP Cache¡¢CDNµÈ¹¦ÄÜµÄÊµÏÖÓÖÊÇÒ»¸ölong story¡£
+eJet½ÓÊÕºÍ´¦Àí¸÷TCPÁ¬½ÓÉÏµÄHTTPÇëÇóÍ·ºÍÇëÇóÌå£¬¾­¹ý½âÎö¡¢Ð£Ñé¡¢¹ØÁª¡¢ÊµÀý»¯µÈ´¦Àí£¬Ö´ÐÐHTTPÇëÇó£¬»ò»ñÈ¡Web·þÎñÆ÷ÌØ¶¨Ä¿Â¼ÏÂµÄÎÄ¼þ£¬»ò´úÀí¿Í»§¶Ë·¢ÆðÏòÔ´HTTP·þÎñÆ÷µÄÇëÇó£¬»ò½«HTTPÇëÇóÍ¨¹ýFastCGI½Ó¿Ú×ª·¢µ½CGI·þÎñÆ÷£¬»ò½«¿Í»§¶ËHTTPÇëÇó½»¸øÉÏ²ãÉèÖÃµÄ»Øµ÷º¯Êý´¦ÀíµÈ¡£ËùÓÐ´¦Àí½á¹û£¬×îÖÕÒÔHTTPÏìÓ¦·½Ê½£¬°üÀ¨HTTPÏìÓ¦Í·ºÍÏìÓ¦Ìå£¬Í¨¹ý¿Í»§¶Ë½¨Á¢µÄTCPÁ¬½Ó£¬·µ»Ø¸ø¿Í»§¶Ë¡£¸ÃTCPÁ¬½Ó¿ÉÒÔPipe-line·½Ê½¼ÌÐø·¢ËÍºÍ½ÓÊÕ¶à¸öHTTPÇëÇóºÍÏìÓ¦¡£
 
-eJet Web·þÎñÆ÷²ÉÓÃJSon¸ñÊ½µÄÅäÖÃÐÅÏ¢ÉèÖÃÏµÍ³ÅäÖÃ£¬²¢¶ÔJSonÓï·¨×öÁËÒ»¶¨µÄÀ©Õ¹£¬Ê¹µÃJSonÖ§³ÖincludeÎÄ¼þÖ¸Áî£¬Ö§³ÖÇ¶ÈëScript½Å±¾³ÌÐòÓïÑÔ£¬Í¨¹ýÅäÖÃÎÄ¼þ¸ü¼ÓÁé»î¡¢·½±ãµØÀ©Õ¹Web·þÎñ¹¦ÄÜ¡£
+eJet·þÎñÆ÷Ìá¹©ÁË×÷ÎªWeb·þÎñÆ÷ËùÐèµÄÆäËû¸÷Ïî¹¦ÄÜ£¬°üÀ¨»ùÓÚTLS/SSLµÄ°²È«ºÍ¼ÓÃÜ´«Êä¡¢ÐéÄâÖ÷»ú¡¢×ÊÔ´Î»ÖÃLocationµÄ¸÷ÖÖÆ¥Åä²ßÂÔ¡¢¶ÔÇëÇóURIÖ´ÐÐ¶¯Ì¬½Å±¾Ö¸Áî£¨°üÀ¨rewrite¡¢reply¡¢return¡¢try_filesµÈ£©¡¢ÔÚÅäÖÃÎÄ¼þÖÐÊ¹ÓÃHTTP±äÁ¿¡¢ÕýÏò´úÀíºÍ·´Ïò´úÀí¡¢HTTP Proxy¡¢FastCGI¡¢HTTP Proxy Cache¹¦ÄÜ¡¢HTTP Tunnel¡¢MultiPartÎÄ¼þÉÏ´«¡¢¶¯Ì¬¿â»Øµ÷»ò½Ó¿Úº¯Êý»Øµ÷»úÖÆ¡¢HTTPÈÕÖ¾¹¦ÄÜ¡¢CDN·Ö·¢µÈ¡£
 
-eJetÏµÍ³´óÁ¿²ÉÓÃÁËZero-Copy¡¢ÄÚ´æ³Ø¡¢»º´æ¡¢ºÏÀí¸ßÐ§µÄCPU²¢ÐÐ´¦ÀíµÈ¼¼Êõ£¬À´ÌáÉýWeb·þÎñÆ÷´¦ÀíÐÔÄÜºÍÐ§ÂÊ£¬¼Ó¿ìÁËÇëÇóÏìÓ¦µÄ´¦ÀíËÙ¶È£¬Ö§³Å¸ü´ó¹æÄ£µÄ²¢·¢´¦ÀíÄÜÁ¦£¬Ö§³Ö¸ü´ó¹æÄ£µÄÍøÂçÍÌÍÂÈÝÁ¿µÈ¡£
+eJet Web·þÎñÆ÷²ÉÓÃJSon¸ñÊ½µÄÅäÖÃÎÄ¼þ£¬½øÐÐÏµÍ³ÅäÖÃ¹ÜÀí¡£¶ÔJSonÓï·¨×öÁËÒ»¶¨µÄÀ©Õ¹£¬Ê¹µÃJSonÖ§³ÖincludeÎÄ¼þÖ¸Áî£¬Ö§³ÖÇ¶ÈëScript½Å±¾³ÌÐòÓïÑÔ¡£Ê¹ÓÃÀ©Õ¹JSon¹¦ÄÜµÄÅäÖÃÎÄ¼þ£¬¿É¸ü¼ÓÁé»î¡¢·½±ãµØÀ©Õ¹Web·þÎñ¹¦ÄÜ¡£
 
-eJetÊÇÒ»¸ö¿â£¬¿ÉÓÃÁÈÁÈ¼¸ÐÐ´úÂëµ÷ÓÃeJet¿âÀ´ÊµÏÖÒ»¸öÇ¿´óµÄWeb·þÎñÆ÷¡£eJetÊÇ¸öÇáÁ¿¼¶µÄWeb·þÎñÆ÷£¬×ÜÌå´óÐ¡ÇøÇø300KB£¬µ«È´ÊÇ¸öÖØÁ¿¼¶µÄHTTPÈ«¹¦ÄÜ¡¢¸ßÐÔÄÜ·þÎñÆ÷Ä£¿é¡£eJet¿ÉÇáÒ×Ç¶Èëµ½¸÷ÖÖÓ¦ÓÃ³ÌÐòÖÐ£¬À´Ôö¼ÓÓ¦ÓÃ³ÌÐòÊ¹ÓÃHTTPÍ¨ÐÅºÍ·þÎñ³ÐÔØµÄÄÜÁ¦¡£eJet²¢Ã»ÓÐ´´½¨½ø³Ì»òÏß³Ì£¬È´¿ÉÒÔÀûÓÃePump¿ò¼ÜµÄÏß³Ì£¬¸ßÐ§µØÊ¹ÓÃ·þÎñÆ÷µÄCPU´¦ÀíÄÜÁ¦¡£
+eJetÏµÍ³´óÁ¿²ÉÓÃÁËZero-Copy¡¢ÄÚ´æ³Ø¡¢»º´æµÈ¼¼Êõ£¬À´ÌáÉýWeb·þÎñÆ÷´¦ÀíÐÔÄÜºÍÐ§ÂÊ£¬¼Ó¿ìÁËÇëÇóÏìÓ¦µÄ´¦ÀíËÙ¶È£¬Ö§³Å¸ü´ó¹æÄ£µÄ²¢·¢´¦ÀíÄÜÁ¦£¬Ö§³Ö¸ü´ó¹æÄ£µÄÍøÂçÍÌÍÂÈÝÁ¿µÈ¡£
 
-eJet Web·þÎñÆ÷ÃæÏò³ÌÐòÔ±¡¢ÏµÍ³¼Ü¹¹Ê¦Ìá¹©Ó¦ÓÃ³ÌÐò¿ª·¢½Ó¿Ú»òÖ±½ÓÇ¶Èëµ½ÏÖÓÐÏµÍ³ÖÐ£¬Ò²¿ÉÒÔÃæÏòÔËÎ¬¹¤³ÌÊ¦²¿ÊðÍêÈ«ÀàËÆNginx Web·þÎñÆ÷¡¢CDN»ØÔ´µÈÉÌÒµ·þÎñÏµÍ³£¬»¹ÊÇÃæÏò³ÌÐòÔ±Ìá¹©Ñ§Ï°¡¢ÑÐ¾¿¿ª·¢¿ò¼Ü¡¢Í¨ÐÅÏµÍ³µÈµÄÀíÏëÆ½Ì¨¡£
+eJet Web·þÎñÆ÷¼È¿ÉÒÔÃæÏò³ÌÐòÔ±¡¢ÏµÍ³¼Ü¹¹Ê¦Ìá¹©Ó¦ÓÃ³ÌÐò¿ª·¢½Ó¿Ú»òÖ±½ÓÇ¶Èëµ½ÏÖÓÐÏµÍ³ÖÐ£¬Ò²¿ÉÒÔÃæÏòÔËÎ¬¹¤³ÌÊ¦²¿ÊðÍêÈ«ÀàËÆNginx Web·þÎñÆ÷¡¢Web Cache¡¢CDN»ØÔ´µÈÉÌÒµ·þÎñÏµÍ³£¬»¹ÊÇÃæÏò³ÌÐòÔ±Ìá¹©Ñ§Ï°¡¢ÑÐ¾¿¿ª·¢¿ò¼Ü¡¢Í¨ÐÅÏµÍ³µÈµÄÀíÏëÆ½Ì¨¡£
+
+¿ª·¢eJet Web·þÎñÆ÷µÄÔ­ÔòÊÇ¾¡¿ÉÄÜ²»ÒÀÀµÓÚµÚÈý·½´úÂëºÍ¿â£¬½µµÍ°æÈ¨ºÍ¸´ÔÓ²¿ÊðµÈÒòËØ´øÀ´µÄÇ±ÔÚ·çÏÕ¡£ÏµÍ³Ê¹ÓÃµÄµÚÈý·½´úÂë»ò¿âÖ÷ÒªÎª£ºOpenSSL¿â¡¢LinuxÏµÍ³×Ô´øµÄ·ûºÏPOSIX±ê×¼µÄÕýÔò±í´ïÊ½regex¿â¡£gzipÑ¹ËõÐèÒªÒÀÀµzlib¿ªÔ´¿â£¬Ä¿Ç°Ã»ÓÐÌí¼Ó½øÀ´£¬ËùÒÔeJet Web·þÎñÆ÷ÔÝÊ±²»Ìá¹©gzip¡¢deflateµÄÑ¹ËõÖ§³Ö¡£
 
 
 ¶þ. eJetÏµÍ³Á÷³ÌºÍ¹¤×÷Ô­Àí
@@ -2227,7 +2229,7 @@ eJet·þÎñÆ÷³äµ±ProxyÊ±£¬Origin·þÎñÆ÷µ½ProxyÖ®¼äµÄÁ´Â·´«ÊäËÙ¶ÈÒ»°ã¶¼¸ßÓÚProxyµ½¿Í»
 * ½â¾öË¼Â·Ò»£º½«Origin·þÎñÆ÷ÉÏÊÕµ½µÄÊý¾ÝÈ«²¿Ð´Èëµ½±¾µØÎÄ¼þ»º´æÖÐ£¬¿É²Î¼û[4.20 HTTP CacheÏµÍ³](#420-http-cacheÏµÍ³)¡£
 * ½â¾öË¼Â·¶þ£º¶ÔOrigin·þÎñÆ÷ÉÏµÄ´«ÊäÁ´Â·½øÐÐÏÞËÙ£¬ÒÔ´ïµ½¸ú¿Í»§²àÁ´Â·ËÙ¶ÈÒ»ÑùµÄ´«ÊäËÙ¶È¡£
 
-ÀíÂÛÉÏÏÞËÙµÄÊµÏÖÐèÒªÒÀÀµTCPÐ­ÒéÕ»ÖÐµÄÁ÷Á¿¿ØÖÆ»úÖÆ£¬µ±¿Í»§¶ËÊý¾Ý¶ÂÈûÊÇ£¬¸æÖªOrigin·¢ËÍ·½TCPÐ­ÒéÕ»£¬½ÓÊÕ·½µÄÊý¾ÝÓµÈûÁË£¬»ùÓÚ»¬¶¯´°¿ÚÌ½²â»úÖÆÀ´ÊµÏÖÁ÷Á¿¿ØÖÆ¡£
+ÀíÂÛÉÏÏÞËÙµÄÊµÏÖÐèÒªÒÀÀµTCPÐ­ÒéÕ»ÖÐµÄÁ÷Á¿¿ØÖÆ»úÖÆ£¬µ±¿Í»§¶ËÊý¾Ý¶ÂÈûÊ±£¬¸æÖªOrigin·¢ËÍ·½TCPÐ­ÒéÕ»£¬½ÓÊÕ·½µÄÊý¾ÝÓµÈûÁË£¬»ùÓÚ»¬¶¯´°¿ÚÌ½²â»úÖÆÀ´ÊµÏÖÁ÷Á¿¿ØÖÆ¡£
 
 ÓÐ¹ØTCPÓµÈû¿ØÖÆËã·¨¿É²Î¿¼ÂýÆô¶¯£¨Slow Start£©¡¢ÓµÈû±ÜÃâ£¨Congestion Avoidance£©¡¢¿ìËÙÖØ´«£¨Fast Restransmission£©¡¢¿ìËÙ»Ö¸´£¨Fast Recovery£©µÈÐ­ÒéÁ÷³Ì¡£
 
@@ -2506,7 +2508,7 @@ eJetÏµÍ³¾ß±¸¸ßÐÔÄÜÌØÕ÷£¬Ö÷ÒªÌåÏÖÔÚÄÜ³ä·ÖÊ¹ÓÃCPUÔËËãÄÜÁ¦¡¢Ê¹ÓÃ¸üÐ¡µÄÄÚ´æ¿ªÏúÍê³É¸
 
 ### [adif ÏîÄ¿](https://github.com/kehengzhong/adif)
  
-ePump¿ò¼ÜÏîÄ¿ÒÀÀµÓÚ adif ÏîÄ¿Ìá¹©µÄ»ù´¡Êý¾Ý½á¹¹ºÍËã·¨¿â¡£adif ÊÇÓÃ±ê×¼ c ÓïÑÔ¿ª·¢µÄ³£ÓÃÊý¾Ý½á¹¹ºÍËã·¨»ù´¡¿â£¬×÷ÎªÓ¦ÓÃ³ÌÐò¿ª·¢½Ó¿Ú»ù´¡¿â£¬Îª±àÐ´¸ßÐÔÄÜ³ÌÐòÌá¹©±ãÀû£¬¿É¼«´óµØËõ¶ÌÈí¼þÏîÄ¿µÄ¿ª·¢ÖÜÆÚ£¬ÌáÉý¹¤³Ì¿ª·¢Ð§ÂÊ£¬²¢È·±£Èí¼þÏµÍ³ÔËÐÐµÄ¿É¿¿ÐÔ¡¢ÎÈ¶¨ÐÔ¡£adif ÏîÄ¿Ìá¹©µÄÊý¾Ý½á¹¹ºÍËã·¨¿â£¬Ö÷Òª°üÀ¨»ù´¡Êý¾Ý½á¹¹¡¢ÌØÊâÊý¾Ý½á¹¹¡¢³£ÓÃÊý¾Ý´¦ÀíËã·¨£¬³£ÓÃµÄ×Ö·û´®¡¢×Ö½ÚÁ÷¡¢×Ö·û¼¯¡¢ÈÕÆÚÊ±¼äµÈ´¦Àí£¬ÄÚ´æºÍÄÚ´æ³ØµÄ·ÖÅäÊÍ·Å¹ÜÀí£¬ÅäÖÃÎÄ¼þ¡¢ÈÕÖ¾µ÷ÊÔ¡¢ÎÄ¼þ·ÃÎÊ¡¢ÎÄ¼þ»º´æ¡¢JSon¡¢MIMEµÈ¹ÜÀí>£¬Í¨ÐÅ±à³Ì¡¢ÎÄ¼þËø¡¢ÐÅºÅÁ¿¡¢»¥³âËø¡¢ÊÂ¼þÍ¨Öª¡¢¹²ÏíÄÚ´æµÈµÈ¡£
+adif ÊÇÓÃ±ê×¼ c ÓïÑÔ¿ª·¢µÄ³£ÓÃÊý¾Ý½á¹¹ºÍËã·¨»ù´¡¿â£¬×÷ÎªÓ¦ÓÃ³ÌÐò¿ª·¢½Ó¿Ú»ù´¡¿â£¬Îª±àÐ´¸ßÐÔÄÜ³ÌÐòÌá¹©±ãÀû£¬¿É¼«´óµØËõ¶ÌÈí¼þÏîÄ¿µÄ¿ª·¢ÖÜÆÚ£¬ÌáÉý¹¤³Ì¿ª·¢Ð§ÂÊ£¬²¢È·±£Èí¼þÏµÍ³ÔËÐÐµÄ¿É¿¿ÐÔ¡¢ÎÈ¶¨ÐÔ¡£adif ÏîÄ¿Ìá¹©µÄÊý¾Ý½á¹¹ºÍËã·¨¿â£¬Ö÷Òª°üÀ¨»ù´¡Êý¾Ý½á¹¹¡¢ÌØÊâÊý¾Ý½á¹¹¡¢³£ÓÃÊý¾Ý´¦ÀíËã·¨£¬³£ÓÃµÄ×Ö·û´®¡¢×Ö½ÚÁ÷¡¢×Ö·û¼¯¡¢ÈÕÆÚÊ±¼äµÈ´¦Àí£¬ÄÚ´æºÍÄÚ´æ³ØµÄ·ÖÅäÊÍ·Å¹ÜÀí£¬ÅäÖÃÎÄ¼þ¡¢ÈÕÖ¾µ÷ÊÔ¡¢ÎÄ¼þ·ÃÎÊ¡¢ÎÄ¼þ»º´æ¡¢JSon¡¢MIMEµÈ¹ÜÀí>£¬Í¨ÐÅ±à³Ì¡¢ÎÄ¼þËø¡¢ÐÅºÅÁ¿¡¢»¥³âËø¡¢ÊÂ¼þÍ¨Öª¡¢¹²ÏíÄÚ´æµÈµÈ¡£
  
 
 ### [ePumpÏîÄ¿](https://github.com/kehengzhong/epump)
