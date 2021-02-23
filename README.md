@@ -160,7 +160,7 @@
 一. eJet是什么？
 ------
  
-eJet Web服务器是利用 (adif数据结构和算法库)[https://github.com/kehengzhong/adif] 和 (ePump框架)[https://github.com/kehengzhong/epump]，用C语言开发的一个事件驱动模型、多线程、大并发连接的轻量级的高性能Web服务器，支持HTTP/1.0和HTTP/1.1协议，并支持HTTP Proxy、Tunnel等功能。
+eJet Web服务器是利用 [adif数据结构和算法库](https://github.com/kehengzhong/adif) 和 [ePump框架](https://github.com/kehengzhong/epump)，用C语言开发的一个事件驱动模型、多线程、大并发连接的轻量级的高性能Web服务器，支持HTTP/1.0和HTTP/1.1协议，并支持HTTP Proxy、Tunnel等功能。
 
 在Linux下，eJet Web服务器编译成动态库或静态库的大小约为300K，可集成嵌入到任何应用程序中，增加应用程序使用HTTP通信和服务承载的能力，使其具备像Nginx服务器一样强大的Web功能。
 
