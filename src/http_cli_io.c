@@ -138,7 +138,7 @@ int http_cli_accept (void * vmgmt, void * listendev)
                                   t_http_cli_con_life, (void *)pcon->conid,
                                   http_pump, mgmt);
  
-        iodev_bind_epump(pdev, BIND_ONE_EPUMP, NULL);
+        iodev_bind_epump(pdev, BIND_CURRENT_EPUMP, NULL);
     }
 
     return 0;

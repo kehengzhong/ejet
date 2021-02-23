@@ -215,6 +215,8 @@ int http_msg_init_method (void * vmsg)
 
     msg->GetEPump = GetEPump;
     msg->GetHTTPMgmt = GetHTTPMgmt;
+
+    msg->GetCBObj = http_msg_cbobj;
     msg->GetMgmtObj = http_msg_mgmtobj;
     msg->GetMsgObj = http_msg_obj;
     msg->GetIODev = GetIODev;
@@ -406,6 +408,8 @@ int http_msg_init (void * vmsg)
     msg->matchnum = 0;
     memset(msg->matchstr, 0, sizeof(msg->matchstr));
 
+    msg->cbobj = NULL;
+
     if (!msg->script_var_tab) {
         msg->script_var_tab = ht_only_new(23, var_obj_cmp_name);
     } else {
@@ -488,6 +492,8 @@ int http_msg_recycle (void * vmsg)
     msg->ploc = NULL;
     msg->matchnum = 0;
     memset(msg->matchstr, 0, sizeof(msg->matchstr));
+
+    msg->cbobj = NULL;
 
     if (msg->script_var_tab) {
         ht_free_member(msg->script_var_tab, var_obj_free);
@@ -893,6 +899,15 @@ int http_msg_init_res (void * vmsg)
     return 0;
 }
 
+
+void * http_msg_cbobj (void * vmsg)
+{
+    HTTPMsg * msg = (HTTPMsg *) vmsg;
+
+    if (!msg) return NULL;
+
+    return msg->cbobj;
+}
 
 void * http_msg_obj (void * vmsg)
 {

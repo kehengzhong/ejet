@@ -60,68 +60,68 @@ int http_tunnel_dns_resolve_cb (void * vmsg, char * name, int len, void * cache,
     HTTPMsg    * msg = (HTTPMsg *)vmsg;
     HTTPCon    * pcon = NULL;
     HTTPCon    * tunnelcon = NULL;
- 
+
     if (!msg) return -1;
- 
+
     pcon = (HTTPCon *)msg->pcon;
     if (!pcon) return -2;
- 
+
     if (status == DNS_ERR_IPV4 || status == DNS_ERR_IPV6) {
         str_secpy(msg->dstip, sizeof(msg->dstip)-1, name, len);
- 
+
     } else if (dns_cache_getip(cache, 0, msg->dstip, sizeof(msg->dstip)-1) <= 0) {
         msg->SetStatus(msg, 400, NULL);
         return msg->Reply(msg);
     }
- 
+
     msg->dstport = msg->req_port;
- 
+
     tunnelcon = http_proxy_connect_tunnel(pcon, msg);
     if (tunnelcon == NULL && pcon->tunnelself == 0) {
         msg->SetStatus(msg, 406, NULL);
         return msg->Reply(msg);
     }
- 
+
     msg->SetStatus(msg, 200, "Connection Established");
     return msg->Reply(msg);
 }
- 
+
 int http_connect_process (void * vcon, void * vmsg)
 {
     HTTPCon    * pcon = (HTTPCon *)vcon;
     HTTPMsg    * msg = (HTTPMsg *)vmsg;
     HTTPMgmt   * mgmt = NULL;
     HTTPListen * hl = NULL;
- 
+
     if (!pcon) return -1;
     if (!msg) return -2;
- 
+
     mgmt = (HTTPMgmt *)msg->httpmgmt;
     if (!mgmt) return -3;
- 
+
     hl = (HTTPListen *)pcon->hl;
     if (!hl) return -4;
- 
+
     /* if system configuraiton of current HTTP Listen does not allow forward proxy */
     if (hl->forwardproxy == 0) {
         /* CONNECT method is base upon Proxy mechanism */
         msg->SetStatus(msg, 403, "Proxy is Forbidden");
         return msg->Reply(msg);
     }
- 
+
     /* system configuration does not allow CONNECT tunnel */
     if (mgmt->proxy_tunnel == 0) {
         msg->SetStatus(msg, 405, "CONNECT method not allowed");
         return msg->Reply(msg);
     }
- 
+
     if (dns_query(mgmt->pcore, msg->req_host, msg->req_hostlen,
                   http_tunnel_dns_resolve_cb, msg) < 0)
     {
         msg->SetStatus(msg, 400, NULL);
         return msg->Reply(msg);
     }
- 
+
     return 0;
 }
 
@@ -185,10 +185,12 @@ int http_request_process (void * vcon, void * vmsg)
     }
 
     if (msg->issued <= 0 && mgmt->req_handler) {
+        msg->cbobj = mgmt->req_cbobj;
         ret = (*mgmt->req_handler)(mgmt->req_cbobj, msg);
     }
 
     if (msg->issued <= 0 && hl->cbfunc) {
+        msg->cbobj = hl->cbobj;
         ret = (*hl->cbfunc)(hl->cbobj, msg);
     }
 
