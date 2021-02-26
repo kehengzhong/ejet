@@ -1051,13 +1051,13 @@ eJetÊÕµ½HTTP¿Í»§ÇëÇóÊ±£¬Èç¹ûÊÇProxyÇëÇó£¬Ôòµ÷ÓÃhttp\_proxy\_cache\_open¼ì²â²¢´ò¿
 
 ´æ´¢Proxy´úÀíÇëÇóµÄÏìÓ¦ÌåÊÇµ÷ÓÃhttp\_proxy\_srv\_cache\_storeÀ´ÊµÏÖµÄ£ºÏÈÑéÖ¤µ±Ç°Ô´HTTPMsgÊÇ·ñÎªpipelineºóÃæµÄÇëÇóÏûÏ¢£¬ÊÇ·ñCache=onµÈ¡£½«´úÀíÇëÇóHTTPcon½ÓÊÕ»º³åÇøÖÐµÄÄÚÈÝ×÷ÎªÒª´æ´¢µÄÏìÓ¦ÌåÄÚÈÝ£¬½øÐÐ¼òµ¥½âÎöÅÐ¶Ï£¬
 
-- £¨a£©Èç¹ûÏìÓ¦ÌåÊÇContent-Length¸ñÊ½£º¼ÆËã»¹Ê£Óà¶àÉÙÄÚÈÝÃ»ÊÕµ½£¬²¢¶Ô±È½ÓÊÕ»º³åÇøÄÚÈÝ¡£Èç¹ûÊ£ÓàÄÚÈÝÎª0£¬ÔòÒÑ¾­È«²¿ÊÕµ½ÁËÇëÇóµÄÄÚÈÝ£¬¹Ø±Õµ±Ç°HTTP´úÀíÏûÏ¢£¬²¢½«res\_body\_chunkÉèÖÃÎª½áÊø¡£Èç¹û»¹ÓÐºÜ¶àÊ£ÓàÄÚÈÝÃ»ÊÕµ½£¬Ôò½«½ÓÊÕ»º³åÇøÐ´Èëµ½.tmpµÄRaw»º´æÎÄ¼þÖÐ£¬Ð´ÎÄ¼þ¾ä±úÔÚÔ´HTTPMsg¶ÔÏóÖÐ£¬½«Ð´Èë³É¹¦Êý¾Ý¿éµÄÎÄ¼þÎ»ÖÃºÍ³¤¶ÈÐÅÏ¢£¬×·¼Óµ½CacheInfo¶ÔÏóÖÐ£¬²¢¸üÐÂµ½»º´æÐÅÏ¢ÎÄ¼þÀï£¬½«´úÀíÇëÇóHTTPCon»º³åÇøÖÐÒÑ¾­Ð´ÈëRaw»º´æÎÄ¼þµÄÄÚÈÝÉ¾³ýµô¡£×îºóÔÙÅÐ¶Ï£¬¸Õ²Å´Ó»º³åÇø×·¼ÓÐ´Èëµ½ÎÄ¼þµÄÄÚÈÝÊÇ·ñÈ«²¿ÊÕÆëÁË£¬Èç¹ûÊÕÆëÁË£¬¹Ø±Õµ±Ç°HTTP´úÀíÏûÏ¢¡£
+£¨a£©Èç¹ûÏìÓ¦ÌåÊÇContent-Length¸ñÊ½£º¼ÆËã»¹Ê£Óà¶àÉÙÄÚÈÝÃ»ÊÕµ½£¬²¢¶Ô±È½ÓÊÕ»º³åÇøÄÚÈÝ¡£Èç¹ûÊ£ÓàÄÚÈÝÎª0£¬ÔòÒÑ¾­È«²¿ÊÕµ½ÁËÇëÇóµÄÄÚÈÝ£¬¹Ø±Õµ±Ç°HTTP´úÀíÏûÏ¢£¬²¢½«res\_body\_chunkÉèÖÃÎª½áÊø¡£Èç¹û»¹ÓÐºÜ¶àÊ£ÓàÄÚÈÝÃ»ÊÕµ½£¬Ôò½«½ÓÊÕ»º³åÇøÐ´Èëµ½.tmpµÄRaw»º´æÎÄ¼þÖÐ£¬Ð´ÎÄ¼þ¾ä±úÔÚÔ´HTTPMsg¶ÔÏóÖÐ£¬½«Ð´Èë³É¹¦Êý¾Ý¿éµÄÎÄ¼þÎ»ÖÃºÍ³¤¶ÈÐÅÏ¢£¬×·¼Óµ½CacheInfo¶ÔÏóÖÐ£¬²¢¸üÐÂµ½»º´æÐÅÏ¢ÎÄ¼þÀï£¬½«´úÀíÇëÇóHTTPCon»º³åÇøÖÐÒÑ¾­Ð´ÈëRaw»º´æÎÄ¼þµÄÄÚÈÝÉ¾³ýµô¡£×îºóÔÙÅÐ¶Ï£¬¸Õ²Å´Ó»º³åÇø×·¼ÓÐ´Èëµ½ÎÄ¼þµÄÄÚÈÝÊÇ·ñÈ«²¿ÊÕÆëÁË£¬Èç¹ûÊÕÆëÁË£¬¹Ø±Õµ±Ç°HTTP´úÀíÏûÏ¢¡£
 
-- £¨b£©Èç¹ûÏìÓ¦ÌåÊÇTransfer-Encoding: chunked¸ñÊ½£ºÕâÖÖ¸ñÊ½²¢²»ÖªµÀÏìÓ¦Ìå×Ü³¤¶ÈÊÇ¶àÉÙ£¬Ò²²»ÖªµÀÊ£Óà»¹ÓÐ¶àÉÙÄÚÈÝ£¬·µ»ØµÄÏìÓ¦ÌåÊÇÒÔÒ»¿éÒ»¿éÊý¾Ý¿é±àÂë·½Ê½£¬Ã¿¸öÊý¾Ý¿éÇ°ÃæÊÇµ±Ç°Êý¾Ý¿é³¤¶È£¨16½øÖÆ£©¼ÓÉÏ\\r\\n£¬Ã¿¸öÊý¾Ý¿é½áÎ²Ò²¼ÓÉÏ\\r\\nÎª½áÎ²¡£Ö»ÓÐÊÕµ½Ò»¸ö³¤¶ÈÎª0µÄÊý¾Ý¿é£¬²ÅÖªµÀÈ«²¿ÏìÓ¦ÌåÒÑ¾­½áÊøºÍÊÕÆëÁË¡£ÓÉÓÚÍøÂç´«ÊäµÄ¸´ÔÓÐÔ£¬Ã¿´Î½ÓÊÕÊý¾ÝÊ±£¬²¢²»Ò»¶¨»áÍêÕûµØÊÕÆëÒ»¸öÍêÕûµÄÊý¾Ý¿é£¬ËùÒÔÐèÒª½«½ÓÊÕ»º³åÇøµÄÊý¾Ý½»¸øhttp_chunkÄ£¿éÅÐ¶Ï£¬ÊÇ·ñÎª½ÓÐø¿é¡¢ÊÇ·ñÊÕµ½½áÎ²¿éµÈ¡£
+£¨b£©Èç¹ûÏìÓ¦ÌåÊÇTransfer-Encoding: chunked¸ñÊ½£ºÕâÖÖ¸ñÊ½²¢²»ÖªµÀÏìÓ¦Ìå×Ü³¤¶ÈÊÇ¶àÉÙ£¬Ò²²»ÖªµÀÊ£Óà»¹ÓÐ¶àÉÙÄÚÈÝ£¬·µ»ØµÄÏìÓ¦ÌåÊÇÒÔÒ»¿éÒ»¿éÊý¾Ý¿é±àÂë·½Ê½£¬Ã¿¸öÊý¾Ý¿éÇ°ÃæÊÇµ±Ç°Êý¾Ý¿é³¤¶È£¨16½øÖÆ£©¼ÓÉÏ\\r\\n£¬Ã¿¸öÊý¾Ý¿é½áÎ²Ò²¼ÓÉÏ\\r\\nÎª½áÎ²¡£Ö»ÓÐÊÕµ½Ò»¸ö³¤¶ÈÎª0µÄÊý¾Ý¿é£¬²ÅÖªµÀÈ«²¿ÏìÓ¦ÌåÒÑ¾­½áÊøºÍÊÕÆëÁË¡£ÓÉÓÚÍøÂç´«ÊäµÄ¸´ÔÓÐÔ£¬Ã¿´Î½ÓÊÕÊý¾ÝÊ±£¬²¢²»Ò»¶¨»áÍêÕûµØÊÕÆëÒ»¸öÍêÕûµÄÊý¾Ý¿é£¬ËùÒÔÐèÒª½«½ÓÊÕ»º³åÇøµÄÊý¾Ý½»¸øhttp_chunkÄ£¿éÅÐ¶Ï£¬ÊÇ·ñÎª½ÓÐø¿é¡¢ÊÇ·ñÊÕµ½½áÎ²¿éµÈ¡£
 
 ´¦Àí½ÓÊÕ»º³åÇøÊý¾ÝÇ°£¬ÏÈÅÐ¶ÏÊÇ·ñÊÕÆëÁËÈ«²¿ÏìÓ¦Ìå£¬Èç¹ûÊÕÆëÁË£¬ÉèÖÃres\_body\_chunk½áÊø×´Ì¬£¬¹Ø±Õµ±Ç°´úÀíÏûÏ¢¡£½«½ÓÊÕ»º³åÇøµÄËùÓÐÄÚÈÝÌí¼Óµ½http_chunkÖÐ½âÎöÅÐ¶Ï£¬µÃ³ö»º³åÇøµÄÄÚÈÝÄÄÐ©ÊÇ½ÓÐøµÄÊý¾Ý¿é£¬ÊÇ·ñÊÕÆëµÈ£¬½«½ÓÊÕ»º³åÇøÖÐÄÇÐ©½ÓÐøÊý¾Ý¿é²¿·ÖÐ´Èëµ½.tmpµÄRaw»º´æÎÄ¼þÖÐ£¬ÆäÖÐÐ´ÎÄ¼þ¾ä±ú´æ·ÅÔÚÔ´HTTPMsg¶ÔÏóÖÐ£¬¸üÐÂ×Ü³¤¶È£¬É¾³ý½ÓÊÕ»º³åÇøÖÐÒÑ¾­Ð´ÈëµÄÄÚÈÝ£¬²¢½«Ð´Èë³É¹¦µÄÊý¾Ý¿éµÄÎÄ¼þÎ»ÖÃºÍ³¤¶ÈÐÅÏ¢£¬×·¼Óµ½CacheInfo¶ÔÏóÖÐ£¬²¢¸üÐÂµ½»º´æÐÅÏ¢ÎÄ¼þÀï¡£×îºóÅÐ¶Ï£¬Èç¹ûÈ«²¿Êý¾Ý¿é¶¼½ÓÊÕÆëÈ«ÁË£¬¹Ø±Õµ±Ç°HTTP´úÀíÏûÏ¢£¬¹Ø±Õµ±Ç°HTTP´úÀíÏûÏ¢£¬Í¬Ê±ÕýÊ½¼ÆËã²¢È·¶¨µ±Ç°ÊÕÆëÁËËùÓÐÊý¾Ý£¬ÉèÖÃÊµ¼ÊµÄÎÄ¼þ³¤¶È¡£
 
-- £¨c£©×îºóÆô¶¯·¢ËÍ»º´æÎÄ¼þÊý¾Ýµ½¿Í»§¶Ë¡£
+£¨c£©×îºóÆô¶¯·¢ËÍ»º´æÎÄ¼þÊý¾Ýµ½¿Í»§¶Ë¡£
 
 ### 11.3.5 ÏòÔ´HTTPMsgµÄ¿Í»§¶Ë·¢ËÍÏìÓ¦
 
@@ -1069,9 +1069,9 @@ chunk\_tÊý¾Ý½á¹¹Ìá¹©ÁË¸÷Àà¹¦ÄÜ½Ó¿Ú£¬°üÀ¨Ìí¼Ó¸÷ÖÖÊý¾Ý£¨ÄÚ´æ¿é¡¢ÎÄ¼þÃû¡¢ÎÄ¼þÃèÊö·û
 
 »ùÓÚÒÔÉÏÂß¼­£¬Ïò¿Í»§¶Ë·¢ËÍÊý¾ÝµÄÖ÷Òª¹¤×÷ÊÇÈçºÎ½«´ý·¢ËÍÄÚÈÝÌí¼Óµ½Ô´HTTPMsgÖÐµÄres\_body\_chunkÖÐ£º
 
-- £¨a£©Ê×ÏÈ¼ÆËã³öres\_body\_chunkÖÐÀÛ¼Æ´æ·ÅµÄÏìÓ¦ÌåÊý¾Ý×Ü³¤¶È£¬¼ÓÉÏÔ´HTTPÇëÇóÎÄ¼þµÄÆðÊ¼Î»ÖÃ£¨Èç¹ûÓÐRangeÈ¡ÆäÆðÊ¼Î»ÖÃ£¬Èç¹ûÃ»ÓÐRange£¬È±Ê¡Îª0£©£¬µÃµ½µ±Ç°Òª×·¼Ó·¢ËÍ¸ø¿Í»§¶ËµÄÊý¾ÝÔÚ»º´æÎÄ¼þÖÐµÄÎ»ÖÃÆ«ÒÆÁ¿¡£·Ö±ð¿¼ÂÇÁ½ÖÖÏìÓ¦Ìå±àÂë¸ñÊ½µÄ´¦ÀíÇé¿ö£»
+£¨a£©Ê×ÏÈ¼ÆËã³öres\_body\_chunkÖÐÀÛ¼Æ´æ·ÅµÄÏìÓ¦ÌåÊý¾Ý×Ü³¤¶È£¬¼ÓÉÏÔ´HTTPÇëÇóÎÄ¼þµÄÆðÊ¼Î»ÖÃ£¨Èç¹ûÓÐRangeÈ¡ÆäÆðÊ¼Î»ÖÃ£¬Èç¹ûÃ»ÓÐRange£¬È±Ê¡Îª0£©£¬µÃµ½µ±Ç°Òª×·¼Ó·¢ËÍ¸ø¿Í»§¶ËµÄÊý¾ÝÔÚ»º´æÎÄ¼þÖÐµÄÎ»ÖÃÆ«ÒÆÁ¿¡£·Ö±ð¿¼ÂÇÁ½ÖÖÏìÓ¦Ìå±àÂë¸ñÊ½µÄ´¦ÀíÇé¿ö£»
 
-- £¨b£©Èç¹ûÏìÓ¦ÌåÊÇÍ¨¹ýContent-LengthÀ´±êÊ¶£º
+£¨b£©Èç¹ûÏìÓ¦ÌåÊÇÍ¨¹ýContent-LengthÀ´±êÊ¶£º
 
 ÏÈÓÃHTTPÏûÏ¢ÏìÓ¦×Ü³¤¶È¼õÈ¥chunkÖÐµÄÏìÓ¦Ìå×Ü³¤¶È£¬¾Í¼ÆËã³öÊ£ÓàµÄÓÐ´ýÌí¼ÓµÄÊý¾Ý³¤¶È¡£Í¨¹ýCacheInfoµÄËéÆ¬Êý¾Ý¹ÜÀí½Ó¿Ú£¬²éÑ¯³öµ±Ç°Raw»º´æÎÄ¼þÖÐ£¬ÒÔ(a)ÖÐ¼ÆËã³öµÄ»º´æÎÄ¼þÆ«ÒÆÁ¿Î»ÖÃ£¬²é³ö¿ÉÓÃµÄÊý¾Ý³¤¶ÈÓÐ¶àÉÙ¡£
 
@@ -1079,7 +1079,7 @@ chunk\_tÊý¾Ý½á¹¹Ìá¹©ÁË¸÷Àà¹¦ÄÜ½Ó¿Ú£¬°üÀ¨Ìí¼Ó¸÷ÖÖÊý¾Ý£¨ÄÚ´æ¿é¡¢ÎÄ¼þÃû¡¢ÎÄ¼þÃèÊö·û
 
 Èç¹ûRaw»º´æÎÄ¼þÖÐ²»´æÔÚ¿ÉÓÃÊý¾Ý£¬ÔòÅÐ¶ÏÊÇ·ñÏòOrigin·þÎñÆ÷·¢ËÍHTTP´úÀíÇëÇó£ºµ±Ç°Ô´HTTPÇëÇóÖÐÃ»ÓÐÆäËûµÄ´úÀíÇëÇó´æÔÚ¡¢Raw»º´æÎÄ¼þÊý¾Ý²»ÍêÕû¡¢Ô´HTTPÇëÇóµÄÊý¾Ý·¶Î§²»ÔÚRaw»º´æÎÄ¼þÖÐ£¬ÕâÈý¸öÌõ¼þ¶¼Âú×ãÊ±£¬ÔòÐèÒªÏòOrigin·þÎñÆ÷·¢ËÍHTTP´úÀíÇëÇó¡£Õâ¸ö´úÀíÇëÇóÊÇHTTP GETÇëÇó£¬¿ÉÄÜ¸úÔ´HTTPÇëÇó·½·¨²»Ò»Ñù£¬Ö»ÊÇ»ñÈ¡»º´æÊý¾ÝµÄÄ³Ò»²¿·ÖÄÚÈÝ£¬ÆäRangeÖµÊÇ´ÓÔ´ÇëÇóÆðÊ¼Î»ÖÃ¿ªÊ¼£¬È¥²éÕÒÊµ¼ÊRaw»º´æÎÄ¼þ´æ´¢Çé¿ö£¬µÃ³öµÄ¿ÕÈ±´¦Æ«ÒÆÎ»ÖÃ¡£¸ÃHTTP´úÀíÇëÇó£¬Ö»¸ºÔðÏÂÔØÊý¾Ý´æ´¢µ½±¾µØ»º´æÎÄ¼þ£¬ÆäÏìÓ¦Í·ÐÅÏ¢²¢²»¸üÐÂµ½»º´æÐÅÏ¢ÎÄ¼þÖÐ¡£
 
-- £¨c£©Èç¹ûÏìÓ¦ÌåµÄ±àÂë¸ñÊ½ÎªTransfer-Encoding: chunkedÊ±£º
+£¨c£©Èç¹ûÏìÓ¦ÌåµÄ±àÂë¸ñÊ½ÎªTransfer-Encoding: chunkedÊ±£º
 
 Í¨¹ýCacheInfoµÄËéÆ¬Êý¾Ý¹ÜÀí½Ó¿Ú£¬²éÑ¯³öµ±Ç°Raw»º´æÎÄ¼þÖÐ£¬ÒÔ(a)ÖÐ¼ÆËã³öµÄ»º´æÎÄ¼þÆ«ÒÆÁ¿Î»ÖÃ£¬²é³ö¿ÉÓÃµÄÊý¾Ý³¤¶ÈÓÐ¶àÉÙ¡£
 
@@ -1087,7 +1087,7 @@ chunk\_tÊý¾Ý½á¹¹Ìá¹©ÁË¸÷Àà¹¦ÄÜ½Ó¿Ú£¬°üÀ¨Ìí¼Ó¸÷ÖÖÊý¾Ý£¨ÄÚ´æ¿é¡¢ÎÄ¼þÃû¡¢ÎÄ¼þÃèÊö·û
 
 Èç¹ûRaw»º´æÎÄ¼þÖÐ²»´æÔÚ¿ÉÓÃÊý¾Ý£¬ÔòÓëÉÏÊö£¨b£©Á÷³ÌÀàËÆ¡£
 
-- £¨d£©Èç¹ûÔ´HTTPMsgÖÐÍ³¼Æ·¢ËÍ¸ø¿Í»§¶ËµÄÏìÓ¦Êý¾Ý×Ü³¤¶ÈÐ¡ÓÚres\_body\_chunkÖÐµÄ×Ü³¤¶È£¬¿ªÊ¼·¢ËÍchunkÖÐµÄÊý¾Ý¡£
+£¨d£©Èç¹ûÔ´HTTPMsgÖÐÍ³¼Æ·¢ËÍ¸ø¿Í»§¶ËµÄÏìÓ¦Êý¾Ý×Ü³¤¶ÈÐ¡ÓÚres\_body\_chunkÖÐµÄ×Ü³¤¶È£¬¿ªÊ¼·¢ËÍchunkÖÐµÄÊý¾Ý¡£
 
 ### 11.3.6 ·¢ËÍÏìÓ¦¸ø¿Í»§¶ËµÄÁ÷³ÌÊÇ±ê×¼Í¨ÓÃµÄÁ÷³Ì
 
