@@ -1211,7 +1211,7 @@ int http_loc_passurl_get (void * vmsg, int servtype, char * url, int urllen)
     }
 
     if (msg->req_query && msg->req_querylen > 0) {
-        if (memchr(url, '?', urllen) == NULL) {
+        if (memchr(url, '?', str_len(url)) == NULL) {
             str_secat(url, urllen - str_len(url), "?", 1);
             str_secat(url, urllen - str_len(url), msg->req_query, msg->req_querylen);
         } else {
