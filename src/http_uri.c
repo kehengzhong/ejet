@@ -174,6 +174,9 @@ int http_uri_parse (void * vuri)
             uri->hostlen = pend - pbgn;
             uri->rooturilen = pend - pbgn;
  
+            if (uri->port == 0)
+                uri->port = uri->ssl_link ? 443 : 80;
+
             goto absend;
  
         } else if (*p == ':') {
@@ -241,6 +244,9 @@ int http_uri_parse (void * vuri)
             uri->port = lport;
         } else {
             uri->hostlen = p - pbgn;
+
+            if (uri->port == 0)
+                uri->port = uri->ssl_link ? 443 : 80;
         }
     }
 
