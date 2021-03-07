@@ -163,7 +163,7 @@ ARFLAGS = rv
 RANLIB = ranlib
 RM = /bin/rm -f
 COMPILE.c = $(CC) $(CFLAGS) $(IFLAGS) -c
-LINK = $(CC) $(CFLAGS) $(IFLAGS) $(LFLAGS) -o
+LINK = $(CC) $(CFLAGS) $(IFLAGS) $(LFLAGS) -Wl,-E -o
 SOLINK = $(CC) $(CFLAGS) $(IFLAGS) $(LFLAGS) -shared $(SOFLAGS) -o
 
 #################################################################
