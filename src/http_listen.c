@@ -556,18 +556,18 @@ void * http_listen_alloc (char * localip, int port, int ssl, char * cblibfile)
             hl->cbargv[i] = str_dup(argv[i], plen[i]);
         }
 
-        hl->cblibfile = hl->cbargv[0];
+        hl->cblibfile = cblibfile;
 
-        hl->cbhandle = dlopen(cblibfile, RTLD_LAZY);
+        hl->cbhandle = dlopen(hl->cbargv[0], RTLD_LAZY | RTLD_GLOBAL);
+        err = dlerror();
+
         if (!hl->cbhandle) {
             tolog(1, "eJet - HTTP Listen <%s:%d%s> Loading DynLib <%s> error! %s\n",
                   strlen(hl->localip) > 0 ? hl->localip : "*",
                   hl->port, hl->ssl_link ? " SSL" : "",
-                  cblibfile, dlerror());
+                  cblibfile, err ? err : "");
 
         } else {
-            dlerror();
-
             hl->cbinit = dlsym(hl->cbhandle, "http_handle_init");
             if ((err = dlerror()) != NULL) {
                 tolog(1, "eJet - HTTP Listen <%s:%d%s> DynLib <%s> callback 'http_handle_init' load failed! %s\n",
@@ -593,10 +593,6 @@ void * http_listen_alloc (char * localip, int port, int ssl, char * cblibfile)
                       hl->port, hl->ssl_link ? " SSL" : "",
                       hl->cblibfile, err);
                 hl->cbclean = NULL;
-            }
-
-            if (hl->cbinit) {
-                hl->cbobj = (*hl->cbinit)(hl->httpmgmt, hl->cbargc, hl->cbargv);
             }
 
             tolog(1, "eJet - HTTP Listen <%s:%d%s> DynLib <%s> load successfully!\n",
@@ -754,6 +750,10 @@ void * http_listen_add (void * vmgmt, char * localip, int port, int ssl, char * 
     if (hl) {
         hl->httpmgmt = mgmt;
         arr_push(mgmt->listen_list, hl);
+
+        if (hl->cbhandle && hl->cbinit) {
+            hl->cbobj = (*hl->cbinit)(hl->httpmgmt, hl->cbargc, hl->cbargv);
+        }
     }
 
     return hl;
