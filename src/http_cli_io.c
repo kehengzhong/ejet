@@ -118,7 +118,7 @@ int http_cli_accept (void * vmgmt, void * listendev)
 
 #ifdef HAVE_OPENSSL
         if (pcon->ssl_link) {
-            pcon->sslctx = http_listen_ssl_ctx_get(hl, pcon);
+            pcon->sslctx = http_listen_ssl_ctx_get(hl);
             pcon->ssl = http_ssl_new(pcon->sslctx, pcon);
             pcon->ssl_handshaked = 0;
             pcon->rcv_state = HTTP_CON_SSL_HANDSHAKING;
@@ -250,6 +250,7 @@ int http_cli_recv_parse (void * vcon)
     int64      hdrlen = 0;
     uint8    * pbyte = NULL;
     uint8    * pbgn = NULL;
+    char       buf[2048];
 
     HTTPMsg  * proxymsg = NULL;
     FcgiMsg  * cgimsg = NULL;
@@ -381,6 +382,12 @@ int http_cli_recv_parse (void * vcon)
             http_req_set_docuri(msg, frameP(msg->uri->uri), frameL(msg->uri->uri), 0, 0);
         }
 
+        /* if set the check callback, all requests including proxy mode will be checked */
+        if (mgmt->req_check) {
+            msg->GetRealFile(msg, buf, sizeof(buf)-1);
+            (*mgmt->req_check)(mgmt->req_checkobj, msg, buf);
+        }
+
         /* determine if request body is following, set the rcv_state of HTTPCon */
         if ( ( msg->req_body_flag == BC_CONTENT_LENGTH &&
                msg->req_body_length > 0 ) ||
@@ -396,7 +403,7 @@ int http_cli_recv_parse (void * vcon)
  
         if (http_fcgi_handle(msg) >= 0)
             return 0;
- 
+
         return http_reqbody_handle(msg);
     }
 
@@ -408,12 +415,12 @@ int http_reqbody_handle (void * vmsg)
     HTTPMsg  * msg = (HTTPMsg *)vmsg;
     HTTPCon  * pcon = NULL;
     int        ret = 0;
- 
+
     if (!msg) return -1;
- 
+
     pcon = (HTTPCon *)msg->pcon;
     if (!pcon) return -2;
- 
+
     /* HTTP POST/PUT request body may be encoded as following enctype:
          (1) application/x-www-form-urlencoded
          (2) multipart/form-data
@@ -421,7 +428,7 @@ int http_reqbody_handle (void * vmsg)
          (4) text/xml
          (5) application/octet-stream
      */
- 
+
     switch (msg->req_body_flag) {
     case BC_CONTENT_LENGTH:
     case BC_TE:
@@ -432,15 +439,15 @@ int http_reqbody_handle (void * vmsg)
             pcon->rcv_state = HTTP_CON_WAITING_BODY;
         } else {
             pcon->rcv_state = HTTP_CON_READY;
- 
+
             return 1;
         }
         break;
- 
+
     case BC_TE_INVALID:
     case BC_UNKNOWN:
         return -108;
- 
+
     case BC_NONE:
     case BC_TUNNEL:
     default:
@@ -448,7 +455,7 @@ int http_reqbody_handle (void * vmsg)
         return 2;
         break;
     }
- 
+
     return 0;
 }
 

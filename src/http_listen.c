@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2003-2020 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
  */
 
@@ -15,17 +15,19 @@
 #include "http_pump.h"
 #include "http_variable.h"
 #include "http_script.h"
+#include "http_pagetpl.h"
 
 
-void * http_loc_alloc (char * path, int type, char * root)
+void * http_loc_alloc (char * path, int pathlen, uint8 pathdup, int matchtype, int servtype, char * root)
 {
     HTTPLoc * ploc = NULL;
     char    * ptmp = NULL;
 
-    if (!path || strlen(path) <= 0)
-        return NULL;
+    if (!path) return NULL;
+    if (pathlen < 0) pathlen = strlen(path);
+    if (pathlen <= 0) return NULL;
 
-    if (type == SERV_SERVER || type == SERV_UPLOAD) { //file or upload
+    if (servtype == SERV_SERVER || servtype == SERV_UPLOAD) { //file or upload
         /* check if the root path exists */
         if (!root) return NULL;
     }
@@ -33,10 +35,18 @@ void * http_loc_alloc (char * path, int type, char * root)
     ploc = kzalloc(sizeof(*ploc));
     if (!ploc) return NULL;
 
-    ploc->path = path;
-    ploc->type = type;
+    if (pathdup) {
+        ploc->path = str_dup(path, pathlen);
+        ploc->path_dup = 1;
+    } else {
+        ploc->path = path;
+        ploc->path_dup = 0;
+    }
 
-    if (!root) root = ".";
+    ploc->matchtype = matchtype;
+    ploc->type = servtype;
+
+    //if (!root) root = ".";
 
     if (root && strlen(root) > 0 && (ptmp = realpath(root, NULL))) {
         str_secpy(ploc->root, sizeof(ploc->root)-1, ptmp, strlen(ptmp));
@@ -51,6 +61,7 @@ void * http_loc_alloc (char * path, int type, char * root)
     }
 
     ploc->script_list = arr_new(2);
+    ploc->reply_script_list = arr_new(2);
 
     return ploc;
 }
@@ -61,6 +72,9 @@ void http_loc_free (void * vloc)
 
     if (!ploc) return;
 
+    if (ploc->path_dup) kfree(ploc->path);
+
+    arr_pop_kfree(ploc->reply_script_list);
     arr_pop_kfree(ploc->script_list);
 
     kfree(ploc);
@@ -164,22 +178,24 @@ int http_loc_build (void * vhost, void * jhost)
             root = host->root;
         }
 
-        ploc = http_loc_alloc(path, type, root);
+        ploc = http_loc_alloc(path, -1, 0, matchtype, type, root);
         if (!ploc) goto nextloc;
 
         ploc->jsonobj = jloc;
         ploc->matchtype = matchtype;
 
-        if (ploc->type == SERV_UPLOAD) {//upload
+        if (ploc->type & SERV_UPLOAD) {//upload
             if (host->uploadloc)
                 http_loc_free(host->uploadloc);
 
             host->uploadloc = ploc;
 
         } else {
+            EnterCriticalSection(&host->hostCS);
+
             switch (ploc->matchtype) {
             case MATCH_DEFAULT:  //default loc
-                if (ploc->type == SERV_PROXY || ploc->type == SERV_FASTCGI) { //proxy or fastcgi
+                if (ploc->type & SERV_PROXY || ploc->type & SERV_FASTCGI) { //proxy or fastcgi
                     ploc->matchtype = MATCH_PREFIX;  //prefix matching
                     arr_push(host->prefix_loc_list, ploc);
                     actrie_add(host->prefix_actrie, ploc->path, -1, ploc);
@@ -211,15 +227,17 @@ int http_loc_build (void * vhost, void * jhost)
 
                 preg = kzalloc(sizeof(regex_t));
                 if (ploc->matchtype == MATCH_REGEX_CASE) { //case censitive
-                    regcomp(preg, path, REG_EXTENDED);
+                    regcomp(preg, ploc->path, REG_EXTENDED);
 
                 } else { //ignoring case
-                    regcomp(preg, path, REG_EXTENDED | REG_ICASE);
+                    regcomp(preg, ploc->path, REG_EXTENDED | REG_ICASE);
                 }
 
                 arr_push(host->regex_list, preg);
                 break;
             }
+
+            LeaveCriticalSection(&host->hostCS);
         }
 
         ret = json_mgetP(jloc, "index", -1, (void **)&value, &valuelen);
@@ -267,6 +285,19 @@ int http_loc_build (void * vhost, void * jhost)
             }
         }
 
+        ret = json_mgetP(jloc, "reply_script", -1, (void **)&value, &valuelen);
+        if (ret > 0 && value && valuelen > 0) {
+            arr_push(ploc->reply_script_list, ckstr_new(value, valuelen));
+ 
+            for (j = 1; j < ret; j++) {
+                sprintf(key, "reply_script[%d]", j);
+                subret = json_mgetP(jloc, key, -1, (void **)&value, &valuelen);
+                if (subret > 0 && value && valuelen > 0) {
+                    arr_push(ploc->reply_script_list, ckstr_new(value, valuelen));
+                }
+            }
+        }
+
 nextloc:
         sprintf(key, "location[%d]", i);
         ret = json_mget_obj(jhost, key, -1, &jloc);
@@ -277,16 +308,20 @@ nextloc:
 }
 
 
-void * http_host_alloc (char * hostname)
+void * http_host_alloc (char * hostn, int hostlen)
 {
     HTTPHost * host = NULL;
 
-    if (!hostname) return NULL;
+    if (!hostn) return NULL;
+
+    if (hostlen < 0) hostlen = strlen(hostn);
 
     host = kzalloc(sizeof(*host));
     if (!host) return NULL;
 
-    str_secpy(host->hostname, sizeof(host->hostname)-1, hostname, strlen(hostname));
+    str_secpy(host->hostname, sizeof(host->hostname)-1, hostn, hostlen);
+
+    InitializeCriticalSection(&host->hostCS);
 
     host->exact_loc_table = ht_new(64, http_loc_cmp_path);
 
@@ -300,6 +335,16 @@ void * http_host_alloc (char * hostname)
     host->defaultloc = NULL;
 
     host->script_list = arr_new(2);
+    host->reply_script_list = arr_new(2);
+
+
+    InitializeCriticalSection(&host->texttplCS);
+    host->texttpl_tab = ht_new(300, http_pagetpl_cmp_key);
+    ht_set_hash_func(host->texttpl_tab, ckstr_string_hash);
+     
+    InitializeCriticalSection(&host->listtplCS); 
+    host->listtpl_tab = ht_new(300, http_pagetpl_cmp_key);
+    ht_set_hash_func(host->listtpl_tab, ckstr_string_hash);
 
     return host;
 }
@@ -365,19 +410,96 @@ void http_host_free (void * vhost)
     }
 
     arr_pop_kfree(host->script_list);
+    arr_pop_kfree(host->reply_script_list);
+
+    DeleteCriticalSection(&host->hostCS);
+
+    DeleteCriticalSection(&host->texttplCS);
+    if (host->texttpl_tab) {
+        ht_free_all(host->texttpl_tab, http_pagetpl_free);
+        host->texttpl_tab = NULL;
+    }
+ 
+    DeleteCriticalSection(&host->listtplCS);
+    if (host->listtpl_tab) {
+        ht_free_all(host->listtpl_tab, http_pagetpl_free);
+        host->listtpl_tab = NULL;
+    }
 
     kfree(host);
+}
+
+void * http_host_create (void * vhl, char * hostn, int hostlen, char * root,
+                         char * cert, char * prikey, char * cacert)
+{
+    HTTPListen * hl = (HTTPListen *)vhl;
+    HTTPHost   * host = NULL;
+    ckstr_t      key;
+
+    if (!hl) return NULL;
+
+    if (hostn && hostlen < 0) hostlen = strlen(hostn);
+
+    EnterCriticalSection(&hl->hlCS);
+
+    if (!hostn || hostlen <= 0 || (hostlen == 1 && hostn[0] == '*')) {
+        if (!hl->defaulthost)
+            hl->defaulthost = http_host_alloc("*", 1);
+
+        host = hl->defaulthost;
+
+    } else {
+        key.p = hostn; key.len = hostlen;
+
+        host = ht_get(hl->host_table, &key);
+        if (!host) {
+            host = http_host_alloc(hostn, hostlen);
+            ht_set(hl->host_table, &key, host);
+        }
+    }
+
+    LeaveCriticalSection(&hl->hlCS);
+
+    if (!host) return NULL;
+
+    if (root && strlen(root) > 0) {
+        str_secpy(host->root, sizeof(host->root), root, strlen(root));
+    } else if (root) {
+        host->root[0] = '\0';
+    }
+
+    /* SNI mechanism in TLS spec enables the client can select one
+       from multiple cetificates coresponding to different host-names.
+       Therefore, NULL host-name can not be bound SSL certificate, key. */
+
+    if (hl->ssl_link && host->cert && strlen(host->cert) > 0 &&
+        host->prikey && strlen(host->prikey) > 0)
+    {
+        host->cert = cert;
+        host->prikey = prikey;
+        host->cacert = cacert;
+
+#ifdef HAVE_OPENSSL
+        host->sslctx = http_ssl_server_ctx_init(host->cert, host->prikey, host->cacert);
+#endif
+    }
+
+    return host;
 }
 
 int http_host_cmp (void * vhost, void * vname)
 {
     HTTPHost * host = (HTTPHost *)vhost;
-    char     * hostname = (char *)vname;
+    ckstr_t  * ckstr = (ckstr_t *)vname;
+    ckstr_t    tmp;
 
     if (!host) return -1;
-    if (!hostname) return 1;
+    if (!ckstr) return 1;
 
-    return strcasecmp(host->hostname, hostname);
+    tmp.p = host->hostname;
+    tmp.len = strlen(host->hostname);
+
+    return ckstr_casecmp(&tmp, ckstr);
 }
 
 int http_host_build (void * vhl, void * jhl)
@@ -385,7 +507,6 @@ int http_host_build (void * vhl, void * jhl)
     HTTPListen * hl = (HTTPListen *)vhl;
     HTTPHost   * host = NULL;
 
-    uint8        defhost = 0;
     int          i, hostnum;
     int          ret = 0, subret;
     int          j, num = 0;
@@ -398,6 +519,11 @@ int http_host_build (void * vhl, void * jhl)
  
     void       * jhost = NULL;
     char       * hname = NULL;
+    int          hnamelen = 0;
+    char       * root = NULL;
+    char       * cert = NULL;
+    char       * prikey = NULL;
+    char       * cacert = NULL;
 
     void       * jerrpage = NULL;
  
@@ -415,56 +541,40 @@ int http_host_build (void * vhl, void * jhl)
 
     for (hostnum = ret, i = 1; i <= hostnum && jhost != NULL; i++) {
         hname = NULL;
-        defhost = 0;
+        hnamelen = 0;
+        root = NULL;
+        cert = NULL; prikey = NULL; cacert = NULL;
  
         ret = json_mgetP(jhost, "host name", -1, (void **)&value, &valuelen);
         if (ret > 0 && value && valuelen > 0) {
             hname = value;
-        } else {
-            defhost = 1;
+        }
+        hnamelen = valuelen;
+
+        ret = json_mgetP(jhost, "root", -1, (void **)&value, &valuelen);
+        if (ret > 0 && value && valuelen > 0) {
+            root = value;
+        }
+
+        ret = json_mgetP(jhost, "ssl certificate", -1, (void **)&value, &valuelen);
+        if (ret > 0 && value && valuelen > 0) {
+            cert = value;
+        }
+ 
+        ret = json_mgetP(jhost, "ssl private key", -1, (void **)&value, &valuelen);
+        if (ret > 0 && value && valuelen > 0) {
+            prikey = value;
+        }
+ 
+        ret = json_mgetP(jhost, "ssl ca certificate", -1, (void **)&value, &valuelen);
+        if (ret > 0 && value && valuelen > 0) {
+            cacert = value;
         }
 
         /* create HTTPHost instance */
 
-        if (defhost || (hname && strlen(hname) == 1 && hname[0] == '*')) {
-            if (hl->defaulthost)
-                http_host_free(hl->defaulthost);
-
-            host = hl->defaulthost = http_host_alloc("*");
-
-        } else {
-            host = ht_get(hl->host_table, hname); 
-            if (!host) {
-                host = http_host_alloc(hname);
-                ht_set(hl->host_table, hname, host);
-            }
-
-            /* SNI mechanism in TLS spec enables the client can select one 
-               from multiple cetificates coresponding to different host-names.
-               Therefore, NULL host-name can not be bound SSL certificate, key. */
-
-#ifdef HAVE_OPENSSL
-            if (hl->ssl_link && host->sslctx == NULL) {
-                ret = json_mgetP(jhost, "ssl certificate", -1, (void **)&value, &valuelen);
-                if (ret > 0 && value && valuelen > 0) {
-                    host->cert = value;
-                }
-         
-                ret = json_mgetP(jhost, "ssl private key", -1, (void **)&value, &valuelen);
-                if (ret > 0 && value && valuelen > 0) {
-                    host->prikey = value;
-                }
-         
-                ret = json_mgetP(jhost, "ssl ca certificate", -1, (void **)&value, &valuelen);
-                if (ret > 0 && value && valuelen > 0) {
-                    host->cacert = value;
-                }
-
-                if (host->cert && strlen(host->cert) > 0 && host->prikey && strlen(host->prikey) > 0)
-                    host->sslctx = http_ssl_server_ctx_init(host->cert, host->prikey, host->cacert);
-            }
-#endif
-        }
+        host = http_host_create(hl, hname, hnamelen, root, cert, prikey, cacert);
+        if (!host) break;
 
         host->jsonobj = jhost;
 
@@ -480,11 +590,16 @@ int http_host_build (void * vhl, void * jhl)
             }
         }
 
-        ret = json_mgetP(jhost, "root", -1, (void **)&value, &valuelen);
+        ret = json_mgetP(jhost, "reply_script", -1, (void **)&value, &valuelen);
         if (ret > 0 && value && valuelen > 0) {
-            str_secpy(host->root, sizeof(host->root)-1, value, valuelen);
-        } else {
-            host->root[0] = '\0';
+            arr_push(host->reply_script_list, ckstr_new(value, valuelen));
+ 
+            for (j = 1; j < ret; j++) {
+                sprintf(key, "reply_script[%d]", j);
+                subret = json_mgetP(jhost, key, -1, (void **)&value, &valuelen);
+                if (subret > 0 && value && valuelen > 0)
+                    arr_push(host->reply_script_list, ckstr_new(value, valuelen));
+            }
         }
 
         ret = json_mgetP(jhost, "gzip", -1, (void **)&value, &valuelen);
@@ -528,12 +643,9 @@ int http_host_build (void * vhl, void * jhl)
 }
 
 
-void * http_listen_alloc (char * localip, int port, int ssl, char * cblibfile)
+void * http_listen_alloc (char * localip, int port, uint8 fwdpxy)
 {
     HTTPListen * hl = NULL;
-    char       * err = NULL;
-    char       * argv[16];
-    int          i, plen[16];
 
     if (port == 0) return NULL;
 
@@ -546,70 +658,22 @@ void * http_listen_alloc (char * localip, int port, int ssl, char * cblibfile)
     if (localip)
         strncpy(hl->localip, localip, sizeof(localip)-1);
     hl->port = port;
-    hl->forwardproxy = 0;
-
-    hl->ssl_link = ssl > 0 ? 1 : 0;
- 
-    if (cblibfile) {
-        hl->cbargc = string_tokenize(cblibfile, -1, " \t\r\n\f\v", 6, (void **)argv, plen, 16);
-        for (i = 0; i < hl->cbargc; i++) {
-            hl->cbargv[i] = str_dup(argv[i], plen[i]);
-        }
-
-        hl->cblibfile = cblibfile;
-
-        hl->cbhandle = dlopen(hl->cbargv[0], RTLD_LAZY | RTLD_GLOBAL);
-        err = dlerror();
-
-        if (!hl->cbhandle) {
-            tolog(1, "eJet - HTTP Listen <%s:%d%s> Loading DynLib <%s> error! %s\n",
-                  strlen(hl->localip) > 0 ? hl->localip : "*",
-                  hl->port, hl->ssl_link ? " SSL" : "",
-                  cblibfile, err ? err : "");
-
-        } else {
-            hl->cbinit = dlsym(hl->cbhandle, "http_handle_init");
-            if ((err = dlerror()) != NULL) {
-                tolog(1, "eJet - HTTP Listen <%s:%d%s> DynLib <%s> callback 'http_handle_init' load failed! %s\n",
-                      strlen(hl->localip) > 0 ? hl->localip : "*",
-                      hl->port, hl->ssl_link ? " SSL" : "",
-                      hl->cblibfile, err);
-                hl->cbinit = NULL;
-            }
-
-            hl->cbfunc = dlsym(hl->cbhandle, "http_handle");
-            if ((err = dlerror()) != NULL) {
-                tolog(1, "eJet - HTTP Listen <%s:%d%s> DynLib <%s> callback 'http_handle' load failed! %s\n",
-                      strlen(hl->localip) > 0 ? hl->localip : "*",
-                      hl->port, hl->ssl_link ? " SSL" : "",
-                      hl->cblibfile, err);
-                hl->cbfunc = NULL;
-            }
-
-            hl->cbclean = dlsym(hl->cbhandle, "http_handle_clean");
-            if ((err = dlerror()) != NULL) {
-                tolog(1, "eJet - HTTP Listen <%s:%d%s> DynLib <%s> callback 'http_handle_clean' load failed! %s\n",
-                      strlen(hl->localip) > 0 ? hl->localip : "*",
-                      hl->port, hl->ssl_link ? " SSL" : "",
-                      hl->cblibfile, err);
-                hl->cbclean = NULL;
-            }
-
-            tolog(1, "eJet - HTTP Listen <%s:%d%s> DynLib <%s> load successfully!\n",
-                      strlen(hl->localip) > 0 ? hl->localip : "*",
-                      hl->port, hl->ssl_link ? " SSL" : "", hl->cblibfile);
-        }
-    }
+    hl->forwardproxy = fwdpxy;
 
     hl->mlisten = NULL;
 
+    InitializeCriticalSection(&hl->hlCS);
+
     hl->host_table = ht_only_new(64, http_host_cmp);
+    ht_set_hash_func(hl->host_table, ckstr_string_hash);
+
     hl->defaulthost = NULL;
 
     hl->reqdiag = NULL;
     hl->reqdiagobj = NULL;
 
     hl->script_list = arr_new(2);
+    hl->reply_script_list = arr_new(2);
 
     return hl;
 }
@@ -622,6 +686,7 @@ void http_listen_free (void * vhl)
     if (!hl) return;
 
     arr_pop_kfree(hl->script_list);
+    arr_pop_kfree(hl->reply_script_list);
 
     if (hl->mlisten) {
         mlisten_close(hl->mlisten);
@@ -634,6 +699,8 @@ void http_listen_free (void * vhl)
         hl->sslctx = NULL;
     }
 #endif
+
+    DeleteCriticalSection(&hl->hlCS);
 
     if (hl->host_table) {
         ht_free_all(hl->host_table, http_host_free);
@@ -663,7 +730,33 @@ void http_listen_free (void * vhl)
     kfree(hl);
 }
 
-void * http_listen_ssl_ctx_get (void * vhl, void * vcon)
+int http_listen_ssl_ctx_set (void * vhl, char * cert, char * prikey, char * cacert)
+{
+    HTTPListen * hl = (HTTPListen *)vhl;
+
+    if (!hl) return -1;
+
+    hl->ssl_link = 1;
+
+#ifdef HAVE_OPENSSL
+    if (hl->sslctx) {
+        http_ssl_ctx_free(hl->sslctx);
+        hl->sslctx = NULL;
+    }
+#endif
+
+    hl->cert = cert;
+    hl->prikey = prikey;
+    hl->cacert = cacert;
+
+#ifdef HAVE_OPENSSL
+    hl->sslctx = http_ssl_server_ctx_init(hl->cert, hl->prikey, hl->cacert);
+#endif
+
+    return 0;
+}
+
+void * http_listen_ssl_ctx_get (void * vhl)
 {
     HTTPListen * hl = (HTTPListen *)vhl;
 
@@ -672,13 +765,107 @@ void * http_listen_ssl_ctx_get (void * vhl, void * vcon)
     return hl->sslctx;
 }
 
-void * http_listen_get_host (void * vhl, char * servname)
+void * http_listen_host_get (void * vhl, char * servname)
 {
     HTTPListen * hl = (HTTPListen *)vhl;
+    ckstr_t      key;
+    void       * host = NULL;
 
     if (!hl) return NULL;
 
-    return ht_get(hl->host_table, servname);
+    key.p = servname; key.len = str_len(servname);
+
+    EnterCriticalSection(&hl->hlCS);
+    host = ht_get(hl->host_table, &key);
+    LeaveCriticalSection(&hl->hlCS);
+
+    return host;
+}
+
+int http_listen_cblibfile_set (void * vhl, char * cblibfile)
+{
+    HTTPListen * hl = (HTTPListen *)vhl;
+    char       * err = NULL;
+    char       * argv[16];
+    int          i, plen[16];
+
+    if (!hl) return -1;
+
+    if (!cblibfile) return -2;
+
+    /* firstly release all resources allocated before */
+
+    if (hl->cbhandle) {
+        if (hl->cbclean)
+            (*hl->cbclean)(hl->cbobj);
+
+        dlclose(hl->cbhandle);
+        hl->cbhandle = NULL;
+    }
+
+    for (i = 0; i < hl->cbargc; i++) {
+        kfree(hl->cbargv[i]);
+        hl->cbargv[i] = NULL;
+    }
+    hl->cbargc = 0;
+
+    /* now create new instance for new lib-file */
+
+    hl->cbargc = string_tokenize(cblibfile, -1, " \t\r\n\f\v", 6, (void **)argv, plen, 16);
+    for (i = 0; i < hl->cbargc; i++) {
+        hl->cbargv[i] = str_dup(argv[i], plen[i]);
+    }
+
+    hl->cblibfile = cblibfile;
+
+    hl->cbhandle = dlopen(hl->cbargv[0], RTLD_LAZY | RTLD_GLOBAL);
+    err = dlerror();
+
+    if (!hl->cbhandle) {
+        tolog(1, "eJet - HTTP Listen <%s:%d%s> Loading DynLib <%s> error! %s\n",
+              strlen(hl->localip) > 0 ? hl->localip : "*",
+              hl->port, hl->ssl_link ? " SSL" : "",
+              cblibfile, err ? err : "");
+        return -100;
+    }
+
+    hl->cbinit = dlsym(hl->cbhandle, "http_handle_init");
+    if ((err = dlerror()) != NULL) {
+        tolog(1, "eJet - HTTP Listen <%s:%d%s> DynLib <%s> callback 'http_handle_init' load failed! %s\n",
+              strlen(hl->localip) > 0 ? hl->localip : "*",
+              hl->port, hl->ssl_link ? " SSL" : "",
+              hl->cblibfile, err);
+        hl->cbinit = NULL;
+    }
+
+    hl->cbfunc = dlsym(hl->cbhandle, "http_handle");
+    if ((err = dlerror()) != NULL) {
+        tolog(1, "eJet - HTTP Listen <%s:%d%s> DynLib <%s> callback 'http_handle' load failed! %s\n",
+              strlen(hl->localip) > 0 ? hl->localip : "*",
+              hl->port, hl->ssl_link ? " SSL" : "",
+              hl->cblibfile, err);
+        hl->cbfunc = NULL;
+    }
+
+    hl->cbclean = dlsym(hl->cbhandle, "http_handle_clean");
+    if ((err = dlerror()) != NULL) {
+        tolog(1, "eJet - HTTP Listen <%s:%d%s> DynLib <%s> callback 'http_handle_clean' load failed! %s\n",
+              strlen(hl->localip) > 0 ? hl->localip : "*",
+              hl->port, hl->ssl_link ? " SSL" : "",
+              hl->cblibfile, err);
+        hl->cbclean = NULL;
+    }
+
+    if (hl->cbhandle && hl->cbinit) {
+        hl->cbobj = (*hl->cbinit)(hl->httpmgmt, hl->cbargc, hl->cbargv);
+    }
+
+    if (hl->cbfunc)
+        tolog(1, "eJet - HTTP Listen <%s:%d%s> DynLib <%s> load successfully!\n",
+                  strlen(hl->localip) > 0 ? hl->localip : "*",
+                  hl->port, hl->ssl_link ? " SSL" : "", hl->cblibfile);
+
+    return 0;
 }
 
 
@@ -723,7 +910,7 @@ int http_listen_cleanup (void * vmgmt)
     return 0;
 }
 
-void * http_listen_add (void * vmgmt, char * localip, int port, int ssl, char * libfile)
+void * http_listen_add (void * vmgmt, char * localip, int port, uint8 fwdpxy)
 {
     HTTPMgmt   * mgmt = (HTTPMgmt *)vmgmt;
     HTTPListen * hl = NULL;
@@ -732,35 +919,31 @@ void * http_listen_add (void * vmgmt, char * localip, int port, int ssl, char * 
     if (!mgmt) return NULL;
 
     if (port == 0) return NULL;
- 
+
     if (localip == NULL) localip = "";
     else if (strcmp(localip, "*") == 0) localip = "";
- 
+
     num = arr_num(mgmt->listen_list);
     for (i = 0; i < num; i++) {
- 
+
         hl = (HTTPListen *)arr_value(mgmt->listen_list, i);
         if (!hl) continue;
- 
+
         if (hl->port == port && strcasecmp(hl->localip, localip) == 0)
             return hl;
     }
- 
-    hl = http_listen_alloc(localip, port, ssl, libfile);
+
+    hl = http_listen_alloc(localip, port, fwdpxy);
     if (hl) {
         hl->httpmgmt = mgmt;
         arr_push(mgmt->listen_list, hl);
-
-        if (hl->cbhandle && hl->cbinit) {
-            hl->cbobj = (*hl->cbinit)(hl->httpmgmt, hl->cbargc, hl->cbargv);
-        }
     }
 
     return hl;
 }
 
 
-int http_listen_start (void * vmgmt)
+int http_listen_start_all (void * vmgmt)
 {
     HTTPMgmt   * mgmt = (HTTPMgmt *)vmgmt;
     void       * mlisten = NULL;
@@ -789,11 +972,6 @@ int http_listen_start (void * vmgmt)
 
         hl->mlisten = mlisten;
 
-        #if defined _DEBUG
-        printf("HTTPListen: LocalIP=%s Port=%d %s being listened...\n",
-              strlen(hl->localip) ? hl->localip : "*", hl->port, hl->ssl_link ? "SSL" : "");
-        #endif
-
         tolog(1, "eJet - HTTP Listen <%s:%d%s> started.\n",
                    strlen(hl->localip) > 0 ? hl->localip : "*",
                    hl->port, hl->ssl_link ? " SSL" : "");
@@ -802,13 +980,69 @@ int http_listen_start (void * vmgmt)
     return 0;
 }
 
-void * http_listen_find (void * vmgmt, int port)
+
+void * http_ssl_listen_start (void * vmgmt, char * localip, int port, uint8 fwdpxy,
+                              uint8 ssl, char * cert, char * prikey, char * cacert, char * libfile)
+{
+    HTTPMgmt   * mgmt = (HTTPMgmt *)vmgmt;
+    HTTPListen * hl = NULL;
+    void       * mlisten = NULL;
+
+    if (!mgmt) return NULL;
+
+    hl = http_listen_add(mgmt, localip, port, fwdpxy);
+    if (!hl) return NULL;
+
+    if (ssl > 0)
+        http_listen_ssl_ctx_set(hl, cert, prikey, cacert);
+
+    if (libfile)
+        http_listen_cblibfile_set(hl, libfile);
+
+    if (!hl->defaulthost)
+        http_host_create(hl, NULL, -1, NULL, NULL, NULL, NULL);
+
+    if (hl->mlisten) return hl;
+
+    mlisten = eptcp_mlisten(mgmt->pcore,
+                         strlen(hl->localip) > 0 ? hl->localip : NULL,
+                         hl->port, hl, (IOHandler *)http_pump, mgmt);
+    if (!mlisten) {
+        tolog(1, "eJet - HTTP Listen <%s:%d%s> failed.\n",
+               strlen(hl->localip) > 0 ? hl->localip : "*",
+               hl->port, hl->ssl_link ? " SSL" : "");
+        return hl;
+    }
+
+    hl->mlisten = mlisten;
+
+    tolog(1, "eJet - HTTP Listen <%s:%d%s> started.\n",
+               strlen(hl->localip) > 0 ? hl->localip : "*",
+               hl->port, hl->ssl_link ? " SSL" : "");
+
+    return hl;
+}
+
+
+void * http_listen_start (void * vmgmt, char * localip, int port, uint8 fwdpxy, char * libfile)
+{
+    HTTPMgmt   * mgmt = (HTTPMgmt *)vmgmt;
+
+    if (!mgmt) return NULL;
+
+    return http_ssl_listen_start(mgmt, localip, port, fwdpxy, 0, NULL, NULL, NULL, libfile);
+}
+
+void * http_listen_find (void * vmgmt, char * localip, int port)
 {
     HTTPMgmt   * mgmt = (HTTPMgmt *)vmgmt;
     HTTPListen * hl = NULL;
     int          i, num;
 
     if (!mgmt) return NULL;
+
+    if (localip == NULL) localip = "";
+    else if (strcmp(localip, "*") == 0) localip = "";
 
     num = arr_num(mgmt->listen_list);
 
@@ -817,7 +1051,7 @@ void * http_listen_find (void * vmgmt, int port)
         hl = (HTTPListen *)arr_value(mgmt->listen_list, i);
         if (!hl) continue;
 
-        if (hl->port == port) {
+        if (hl->port == port && strcasecmp(hl->localip, localip) == 0) {
             return hl;
         }
     }
@@ -826,7 +1060,7 @@ void * http_listen_find (void * vmgmt, int port)
 }
 
 
-int http_listen_stop (void * vmgmt, int port)
+int http_listen_stop (void * vmgmt, char * localip, int port)
 {
     HTTPMgmt   * mgmt = (HTTPMgmt *)vmgmt;
     HTTPListen * hl = NULL;
@@ -834,6 +1068,9 @@ int http_listen_stop (void * vmgmt, int port)
 
     if (!mgmt) return -1;
     if (port == 0) return -2;
+
+    if (localip == NULL) localip = "";
+    else if (strcmp(localip, "*") == 0) localip = "";
 
     num = arr_num(mgmt->listen_list);
 
@@ -848,7 +1085,9 @@ int http_listen_stop (void * vmgmt, int port)
             continue;
         }
 
-        if (hl->port == port && mlisten_port(hl->mlisten) == port) {
+        if (hl->port == port && mlisten_port(hl->mlisten) == port &&
+            strcasecmp(hl->localip, localip) == 0)
+        {
             arr_delete(mgmt->listen_list, i);
             http_listen_free(hl);
             return 0;
@@ -864,7 +1103,7 @@ int http_listen_check_self (void * vmgmt, char * host, int hostlen, char * dstip
     HTTPListen * hl = NULL;
     int          i, j, num;
     int          port_listened = 0;
-    char         buf[256];
+    ckstr_t      key;
  
     if (!mgmt) return -1;
  
@@ -877,8 +1116,9 @@ int http_listen_check_self (void * vmgmt, char * host, int hostlen, char * dstip
  
         port_listened++;
  
-        str_secpy(buf, sizeof(buf)-1, host, hostlen);
-        if (ht_get(hl->host_table, buf) != NULL) {
+        key.p = host; key.len = hostlen;
+
+        if (ht_get(hl->host_table, &key) != NULL) {
             /* checked host is one of hosts under listened port */ 
             return 1;
         }
@@ -984,20 +1224,15 @@ int http_listen_build (void * vmgmt)
             libfile = value;
         }
 
-        hl = http_listen_add(mgmt, ip, port, ssl, libfile);
+        hl = http_listen_add(mgmt, ip, port, forwardproxy);
         if (hl) {
             hl->jsonobj = jhl;
-            hl->forwardproxy = forwardproxy;
 
-            hl->cert = cert;
-            hl->prikey = prikey;
-            hl->cacert = cacert;
+            if (ssl)
+                http_listen_ssl_ctx_set(hl, cert, prikey, cacert);
 
-#ifdef HAVE_OPENSSL
-            if (hl->ssl_link) {
-                hl->sslctx = http_ssl_server_ctx_init(hl->cert, hl->prikey, hl->cacert);
-            }
-#endif
+            if (libfile)
+                http_listen_cblibfile_set(hl, libfile);
 
             ret = json_mgetP(jhl, "script", -1, (void **)&value, &valuelen);
             if (ret > 0 && value && valuelen > 0) {
@@ -1011,6 +1246,18 @@ int http_listen_build (void * vmgmt)
                 }
             }
 
+            ret = json_mgetP(jhl, "reply_script", -1, (void **)&value, &valuelen);
+            if (ret > 0 && value && valuelen > 0) {
+                arr_push(hl->reply_script_list, ckstr_new(value, valuelen));
+
+                for (j = 1; j < ret; j++) {
+                    sprintf(key, "reply_script[%d]", j);
+                    subret = json_mgetP(jhl, key, -1, (void **)&value, &valuelen);
+                    if (subret > 0 && value && valuelen > 0)
+                        arr_push(hl->reply_script_list, ckstr_new(value, valuelen));
+                }
+            }
+
             http_host_build(hl, jhl);
         }
 
@@ -1019,7 +1266,7 @@ int http_listen_build (void * vmgmt)
         if (ret <= 0) break;
     } 
 
-    http_listen_start(mgmt);
+    http_listen_start_all(mgmt);
 
     return 0;
 }
@@ -1030,19 +1277,24 @@ void * http_host_instance (void * vmsg)
     HTTPMsg    * msg = (HTTPMsg *)vmsg;
     HTTPListen * hl = NULL;
     HTTPHost   * host = NULL;
-    char         buf[256];
- 
+    ckstr_t      key;
+
     if (!msg) return NULL;
- 
+
     hl = (HTTPListen *)msg->hl;
     if (!hl) return NULL;
- 
-    str_secpy(buf, sizeof(buf)-1, msg->req_host, msg->req_hostlen);
- 
-    host = ht_get(hl->host_table, buf);
+
+    key.p = msg->req_host;
+    key.len = msg->req_hostlen;
+
+    EnterCriticalSection(&hl->hlCS);
+
+    host = ht_get(hl->host_table, &key);
     if (!host) {
         host = hl->defaulthost;
     }
+
+    LeaveCriticalSection(&hl->hlCS);
 
     return host;
 }
@@ -1053,6 +1305,7 @@ void * http_loc_instance (void * vmsg)
     HTTPListen * hl = NULL;
     HTTPHost   * host = NULL;
     HTTPLoc    * ploc = NULL;
+    ckstr_t      key;
     char         buf[4096];
     int          ret = 0;
     int          i, j, num;
@@ -1067,13 +1320,18 @@ void * http_loc_instance (void * vmsg)
     if (++msg->locinst_times >= 16)
         return NULL;
 
-    buf[0] = '\0';
-    str_secpy(buf, sizeof(buf)-1, msg->req_host, msg->req_hostlen);
+    key.p = msg->req_host;
+    key.len = msg->req_hostlen;
 
-    host = ht_get(hl->host_table, buf);
+    EnterCriticalSection(&hl->hlCS);
+
+    host = ht_get(hl->host_table, &key);
     if (!host) {
         host = hl->defaulthost;
     }
+
+    LeaveCriticalSection(&hl->hlCS);
+
     if (!host) return NULL;
 
     msg->phost = host;
@@ -1226,9 +1484,18 @@ int http_loc_passurl_get (void * vmsg, int servtype, char * url, int urllen)
 char * http_root_path (void * vmsg)
 {
     HTTPMsg    * msg = (HTTPMsg *)vmsg;
+    HTTPHost   * phost = NULL;
     HTTPLoc    * ploc = NULL;
 
-    if (!msg || !msg->ploc) return "";
+    if (!msg) return ".";              
+
+    if (!msg->ploc) { 
+        if (msg->phost) {
+            phost = (HTTPHost *)msg->phost;
+            return phost->root;
+        }
+        return ".";
+    }
 
     ploc = (HTTPLoc *)msg->ploc;
 
@@ -1239,18 +1506,18 @@ int http_real_file (void * vmsg, char * path, int len)
 {
     HTTPMsg    * msg = (HTTPMsg *)vmsg;
     HTTPLoc    * ploc = NULL;
-    int          slen = 0;
+    char       * root = NULL;
+    int          i, slen = 0;
     int          retlen = 0;
 
-    if (!msg || !msg->ploc) return -1;
+    if (!msg) return -1;
     if (!path || len <= 0) return -2;
 
-    ploc = (HTTPLoc *)msg->ploc;
-
-    retlen = strlen(ploc->root);
+    root = http_root_path(msg);
+    retlen = str_len(root);
 
     if (path && len > 0)
-        str_secpy(path, len, ploc->root, retlen);
+        str_secpy(path, len, root, retlen);
 
     if (msg->docuri->path && msg->docuri->pathlen > 0) {
         if (path) {
@@ -1267,6 +1534,17 @@ int http_real_file (void * vmsg, char * path, int len)
         retlen += 1;
     }
 
+    if (path && file_is_dir(path) && (ploc = msg->ploc)) {
+        slen = strlen(path);
+        for (i = 0; i < ploc->indexnum; i++) {
+            snprintf(path + slen, len - slen, "%s", ploc->index[i]);
+            if (file_is_regular(path)) {
+                return strlen(path);
+            }
+        }
+        path[slen] = '\0';
+    }
+
     if (path) return strlen(path);
     return retlen;
 }
@@ -1274,19 +1552,18 @@ int http_real_file (void * vmsg, char * path, int len)
 int http_real_path (void * vmsg, char * path, int len)
 {
     HTTPMsg    * msg = (HTTPMsg *)vmsg;
-    HTTPLoc    * ploc = NULL;
+    char       * root = NULL;
     int          slen = 0;
     int          retlen = 0;
 
-    if (!msg || !msg->ploc) return -1;
+    if (!msg) return -1;
     if (!path || len <= 0) return -2;
 
-    ploc = (HTTPLoc *)msg->ploc;
-
-    retlen = strlen(ploc->root);
+    root = http_root_path(msg);
+    retlen = str_len(root);
 
     if (path && len > 0)
-        str_secpy(path, len, ploc->root, retlen);
+        str_secpy(path, len, root, retlen);
 
     if (path) {
         slen = strlen(path);
@@ -1297,5 +1574,200 @@ int http_real_path (void * vmsg, char * path, int len)
     if (path) return strlen(path);
 
     return retlen;
+}
+
+
+int http_prefix_match_cb (void * vhl, char * hostn, int hostlen, char * matstr, int len,
+                          char * root, void * cbfunc, void * cbobj, void * tplfile)
+{
+    HTTPListen * hl = (HTTPListen *)vhl;
+    HTTPHost   * host = NULL;
+    HTTPLoc    * ploc = NULL;
+    char       * ptmp = NULL;
+    int          i, num;
+
+    if (!hl) return -1;
+    if (!matstr) return -2;
+    if (len < 0) len = strlen(matstr);
+    if (len <= 0) return -3;
+
+    host = http_host_create(hl, hostn, hostlen, NULL, NULL, NULL, NULL);
+    if (!host) return -100;
+
+    EnterCriticalSection(&host->hostCS);
+
+    num = arr_num(host->prefix_loc_list);
+    for (i = 0; i < num; i++) {
+        ploc = arr_value(host->prefix_loc_list, i);
+        if (!ploc) continue;
+
+        if (ploc->path && str_len(ploc->path) == len &&
+            str_ncmp(ploc->path, matstr, len) == 0)
+        {
+            break;
+        }
+    }
+
+    if (!ploc || i >= num) {
+        ploc = http_loc_alloc(matstr, len, 1, MATCH_PREFIX, SERV_CALLBACK, root);
+        if (!ploc) {
+            LeaveCriticalSection(&host->hostCS);
+            return -110;
+        }
+
+        arr_push(host->prefix_loc_list, ploc);
+        actrie_add(host->prefix_actrie, ploc->path, -1, ploc);
+
+    } else {
+        ploc->matchtype = MATCH_PREFIX;
+        ploc->type |= SERV_CALLBACK;
+
+        if (root && strlen(root) > 0 && (ptmp = realpath(root, NULL))) {
+            str_secpy(ploc->root, sizeof(ploc->root)-1, ptmp, strlen(ptmp));
+            free(ptmp);
+
+            if (ploc->root[strlen(ploc->root) - 1] == '/')
+                ploc->root[strlen(ploc->root) - 1] = '\0';
+        }
+    }
+
+    LeaveCriticalSection(&host->hostCS);
+
+    ploc->cbfunc = cbfunc;
+    ploc->cbobj = cbobj;
+    ploc->tplfile = tplfile;
+
+    return 0;
+}
+
+
+int http_exact_match_cb (void * vhl, char * hostn, int hostlen, char * matstr, int len,
+                         char * root, void * cbfunc, void * cbobj, void * tplfile)
+{
+    HTTPListen * hl = (HTTPListen *)vhl;
+    HTTPHost   * host = NULL;
+    HTTPLoc    * ploc = NULL;
+    char       * ptmp = NULL;
+    char         buf[1024];
+
+    if (!hl) return -1;
+    if (!matstr) return -2;
+    if (len < 0) len = strlen(matstr);
+    if (len <= 0) return -3;
+
+    host = http_host_create(hl, hostn, hostlen, NULL, NULL, NULL, NULL);
+    if (!host) return -100;
+
+    str_secpy(buf, sizeof(buf)-1, matstr, len);
+
+    EnterCriticalSection(&host->hostCS);
+
+    ploc = ht_get(host->exact_loc_table, buf);
+
+    if (!ploc) {
+        ploc = http_loc_alloc(matstr, len, 1, MATCH_EXACT, SERV_CALLBACK, root);
+        if (!ploc) {
+            LeaveCriticalSection(&host->hostCS);
+            return -110;
+        }
+
+        ht_set(host->exact_loc_table, ploc->path, ploc);
+
+    } else {
+        ploc->matchtype = MATCH_EXACT;
+        ploc->type |= SERV_CALLBACK;
+
+        if (root && strlen(root) > 0 && (ptmp = realpath(root, NULL))) {
+            str_secpy(ploc->root, sizeof(ploc->root)-1, ptmp, strlen(ptmp));
+            free(ptmp);
+ 
+            if (ploc->root[strlen(ploc->root) - 1] == '/')
+                ploc->root[strlen(ploc->root) - 1] = '\0';
+        }
+    }
+
+    LeaveCriticalSection(&host->hostCS);
+
+    ploc->cbfunc = cbfunc;
+    ploc->cbobj = cbobj;
+    ploc->tplfile = tplfile;
+
+    return 0;
+}
+
+
+int http_regex_match_cb (void * vhl, char * hostn, int hostlen, char * matstr, int len, int ignorecase,
+                         char * root, void * cbfunc, void * cbobj, void * tplfile)
+{
+    HTTPListen * hl = (HTTPListen *)vhl;
+    HTTPHost   * host = NULL;
+    HTTPLoc    * ploc = NULL;
+    regex_t    * preg = NULL;
+    char       * ptmp = NULL;
+    int          i, num;
+
+    if (!hl) return -1;
+    if (!matstr) return -2;
+    if (len < 0) len = strlen(matstr);
+    if (len <= 0) return -3;
+
+    host = http_host_create(hl, hostn, hostlen, NULL, NULL, NULL, NULL);
+    if (!host) return -100;
+
+    EnterCriticalSection(&host->hostCS);
+
+    num = arr_num(host->regex_loc_list);
+    for (i = 0; i < num; i++) {
+        ploc = arr_value(host->regex_loc_list, i);
+        if (!ploc) continue;
+
+        if (ploc->path && str_len(ploc->path) == len &&
+            str_ncmp(ploc->path, matstr, len) == 0)
+        {
+            break;
+        }
+    }
+
+    if (!ploc || i >= num) {
+        ploc = http_loc_alloc(matstr, len, 1, 
+                              ignorecase ? MATCH_REGEX_NOCASE : MATCH_REGEX_CASE,
+                              SERV_CALLBACK, root);
+        if (!ploc) {
+            LeaveCriticalSection(&host->hostCS);
+            return -110;
+        }
+
+        arr_push(host->regex_loc_list, ploc);
+
+        preg = kzalloc(sizeof(regex_t));
+        if (ploc->matchtype == MATCH_REGEX_CASE) { //case censitive
+            regcomp(preg, ploc->path, REG_EXTENDED);
+
+        } else { //ignoring case
+            regcomp(preg, ploc->path, REG_EXTENDED | REG_ICASE);
+        }
+
+        arr_push(host->regex_list, preg);
+
+    } else {
+        ploc->matchtype = MATCH_PREFIX;
+        ploc->type |= SERV_CALLBACK;
+
+        if (root && strlen(root) > 0 && (ptmp = realpath(root, NULL))) {
+            str_secpy(ploc->root, sizeof(ploc->root)-1, ptmp, strlen(ptmp));
+            free(ptmp);
+ 
+            if (ploc->root[strlen(ploc->root) - 1] == '/')
+                ploc->root[strlen(ploc->root) - 1] = '\0';
+        }
+    }
+
+    LeaveCriticalSection(&host->hostCS);
+
+    ploc->cbfunc = cbfunc;
+    ploc->cbobj = cbobj;
+    ploc->tplfile = tplfile;
+
+    return 0;
 }
 

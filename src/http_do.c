@@ -162,7 +162,7 @@ void * do_http_get_msg (void * vmgmt, char * url, int urllen,
  
     msg->dstport = msg->req_port;
  
-    msg->SetResponseHandle(msg, resfunc, para, cbval, resfile, resoff, rcvprocfunc, funcpara);
+    msg->SetResponseNotify(msg, resfunc, para, cbval, resfile, resoff, rcvprocfunc, funcpara);
  
     http_header_append(msg, 0, "Accept", -1, hdr_accept, strlen(hdr_accept));
     http_header_append(msg, 0, "Accept-Charset", -1, hdr_accept_charset, strlen(hdr_accept_charset));
@@ -228,7 +228,7 @@ void * do_http_post_msg (void * vmgmt, char * url, int urllen, char * mime,
  
     msg->dstport = msg->req_port;
  
-    msg->SetResponseHandle(msg, resfunc, para, cbval, resfile, resoff, rcvprocfunc, rcvpara);
+    msg->SetResponseNotify(msg, resfunc, para, cbval, resfile, resoff, rcvprocfunc, rcvpara);
  
     http_header_append(msg, 0, "Accept", -1, hdr_accept, strlen(hdr_accept));
     http_header_append(msg, 0, "Accept-Charset", -1, hdr_accept_charset, strlen(hdr_accept_charset));

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2003-2020 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
  */
 
@@ -83,6 +83,15 @@ int RecycleFrame (void * vmsg, frame_p frame)
 
     bpool_recycle(mgmt->frame_pool, frame);
     return 0;
+}
+
+int GetMethodInd (void * vmsg)
+{
+    HTTPMsg  * msg = (HTTPMsg *)vmsg;
+
+    if (!msg) return 0;
+
+    return msg->req_methind;
 }
 
 char * GetMethod (void * vmsg)
@@ -253,32 +262,40 @@ int GetReqPath (void * vmsg, char * path, int pathlen)
 char * GetRootPath (void * vmsg)
 {
     HTTPMsg    * msg = (HTTPMsg *)vmsg;
-    HTTPLoc    * ploc = NULL;       
+    HTTPHost   * phost = NULL;
+    HTTPLoc    * ploc = NULL;
  
-    if (!msg || !msg->ploc) return "."; 
+    if (!msg) return ".";
+
+    if (!msg->ploc) {
+        if (msg->phost) {
+            phost = (HTTPHost *)msg->phost;
+            return phost->root;
+        }
+        return ".";
+    }
  
-    ploc = (HTTPLoc *)msg->ploc; 
-     
+    ploc = (HTTPLoc *)msg->ploc;
+
     return ploc->root;
 }
 
 int GetRealPath (void * vmsg, char * path, int len)
 {
     HTTPMsg    * msg = (HTTPMsg *)vmsg;
-    HTTPLoc    * ploc = NULL;
+    char       * root = NULL;
     int          slen = 0;
     int          retlen = 0;
  
-    if (!msg || !msg->ploc) return -1;
+    if (!msg) return -1;
     if (!path || len <= 0) return -2;
  
-    ploc = (HTTPLoc *)msg->ploc;
- 
-    retlen = strlen(ploc->root);
+    root = GetRootPath(msg);
+    retlen = str_len(root);
  
     if (path && len > 0)
-        str_secpy(path, len, ploc->root, retlen);
- 
+        str_secpy(path, len, root, retlen);
+
     if (path) {
         slen = strlen(path);
         uri_decode(msg->docuri->dir, msg->docuri->dirlen, path + slen, len - slen);
@@ -294,19 +311,19 @@ int GetRealFile (void * vmsg, char * path, int len)
 {
     HTTPMsg    * msg = (HTTPMsg *)vmsg;
     HTTPLoc    * ploc = NULL;
-    int          slen = 0;
+    char       * root = NULL;
+    int          i, slen = 0;
     int          retlen = 0;
  
-    if (!msg || !msg->ploc) return -1;
+    if (!msg) return -1;
     if (!path || len <= 0) return -2;
  
-    ploc = (HTTPLoc *)msg->ploc;
- 
-    retlen = strlen(ploc->root);
+    root = GetRootPath(msg);
+    retlen = str_len(root);
  
     if (path && len > 0)
-        str_secpy(path, len, ploc->root, retlen);
- 
+        str_secpy(path, len, root, retlen);
+
     if (msg->docuri->path && msg->docuri->pathlen > 0) {
         if (path) {
             slen = strlen(path);
@@ -322,7 +339,19 @@ int GetRealFile (void * vmsg, char * path, int len)
         retlen += 1;
     }
  
+    if (path && file_is_dir(path) && (ploc = msg->ploc)) {
+        slen = strlen(path);
+        for (i = 0; i < ploc->indexnum; i++) {
+            snprintf(path + slen, len - slen, "%s", ploc->index[i]);
+            if (file_is_regular(path)) {
+                return strlen(path);
+            }
+        }
+        path[slen] = '\0';
+    }
+
     if (path) return strlen(path);
+
     return retlen;
 }
 
@@ -1935,7 +1964,7 @@ int AddResFile (void * vmsg, char * filename, int64 startpos, int64 len)
     }
 
 addfile:
-    if (startpos >= st.st_size && st.st_size > 0) return -100;
+    if (startpos >= st.st_size) return -100;
     if (len < 0 || len > st.st_size - startpos)
         len = st.st_size - startpos;
 

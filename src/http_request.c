@@ -404,7 +404,7 @@ int http_req_set_docuri (void * vmsg, char * puri, int urilen, int decode, int i
     ploc = (HTTPLoc *)msg->ploc;
     if (!ploc) return -201;
 
-    if (ploc->type == SERV_PROXY || ploc->type == SERV_FASTCGI)
+    if ((ploc->type & SERV_PROXY) || (ploc->type & SERV_FASTCGI))
         return 0;
 
     /* only directory request needs to append its index file */

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2003-2020 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
  */
 
@@ -33,7 +33,7 @@ int http_pump (void * vmgmt, void * vobj, int event, int fdtype)
         if (fdtype != FDT_LISTEN) 
             return -1;
 
-        hl = (HTTPListen *)http_listen_find(mgmt, iodev_lport(vobj));
+        hl = (HTTPListen *)http_listen_find(mgmt, iodev_lip(vobj), iodev_lport(vobj));
         if (!hl) return -1;
 
         return http_cli_accept(mgmt, vobj);

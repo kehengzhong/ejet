@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2003-2020 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
  */
 
@@ -247,7 +247,7 @@ int http_ssl_servername_select (SSL * ssl, int * ad, void * arg)
     if (!hl)
         return SSL_TLSEXT_ERR_NOACK;
 
-    host = http_listen_get_host(hl, servername);
+    host = http_listen_host_get(hl, servername);
     if (!host)
         return SSL_TLSEXT_ERR_NOACK;
 

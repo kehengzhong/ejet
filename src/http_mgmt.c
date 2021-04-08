@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2003-2020 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
  */
 
@@ -24,6 +24,7 @@
 #include "http_fcgi_srv.h"
 #include "http_log.h"
 #include "http_cache.h"
+#include "http_script.h"
 
 char * g_http_version = "1.1.2";
 char * g_http_build = "eJet/1.1.2 Web Server built "__DATE__" "__TIME__" "
@@ -51,7 +52,7 @@ int http_mgmt_get_conf (void * vmgmt)
     sprintf(key, "http.url not escape char");  keylen = strlen(key);
     ret = json_mgetP(mgmt->cnfjson, key, keylen, (void **)&mgmt->uri_unescape_char, NULL);
     if (ret <= 0)
-        mgmt->uri_unescape_char = NULL;
+        mgmt->uri_unescape_char = "-_.~!*'();:@&=+$,/?#][";
 
     sprintf(key, "http.cookie file");  keylen = strlen(key);
     ret = json_mgetP(mgmt->cnfjson, key, keylen, (void **)&mgmt->cookie_file, NULL);
@@ -366,6 +367,8 @@ int http_mgmt_init (void * vmgmt)
 
     mgmt->cookiemgmt = cookie_mgmt_alloc(mgmt, mgmt->cookie_file);
 
+    script_parser_init();
+
     http_listen_init(mgmt);
 
     tolog(0, "\n");
@@ -380,6 +383,8 @@ int http_mgmt_cleanup (void * vmgmt)
     if (!mgmt) return -1;
 
     tolog(0, "\n");
+
+    script_parser_clean();
 
     http_var_free(mgmt);
 
@@ -573,7 +578,7 @@ void http_overhead_recv (void * vmgmt, long recv)
     LeaveCriticalSection(&mgmt->countCS);
 }
  
-int http_set_reqhandler (void * vmgmt, RequestHandler * reqhandler, void * cbobj)
+int http_set_reqhandler (void * vmgmt, HTTPCBHandler * reqhandler, void * cbobj)
 {
     HTTPMgmt * mgmt = (HTTPMgmt *)vmgmt;
 
@@ -584,6 +589,31 @@ int http_set_reqhandler (void * vmgmt, RequestHandler * reqhandler, void * cbobj
 
     return 0;
 }
+
+int http_set_reqcheck(void * vmgmt, HTTPCBHandler * reqcheck, void * checkobj)
+{
+    HTTPMgmt * mgmt = (HTTPMgmt *)vmgmt;
+
+    if (!mgmt) return -1;
+
+    mgmt->req_check = reqcheck;
+    mgmt->req_checkobj = checkobj;
+
+    return 0;
+}
+
+int http_set_rescheck(void * vmgmt, HTTPCBHandler * rescheck, void * checkobj)
+{
+    HTTPMgmt * mgmt = (HTTPMgmt *)vmgmt;
+
+    if (!mgmt) return -1;
+
+    mgmt->res_check = rescheck;
+    mgmt->res_checkobj = checkobj;
+
+    return 0;
+}
+
 
 int http_mgmt_con_add (void * vmgmt, void * vcon)
 {

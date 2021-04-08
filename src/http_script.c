@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2003-2020 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
  */
 
@@ -10,8 +10,20 @@
 #include "http_listen.h"
 #include "http_msg.h"
 #include "http_mgmt.h"
+#include "http_header.h"
 #include "http_variable.h"
 #include "http_script.h"
+
+typedef char * ScriptParser (void * vhsc, char * p, int slen);
+
+typedef struct script_cmd_s {
+    char    * cmd;
+    int       len;
+    void    * parser;
+} scmd_t;
+
+hashtab_t * script_parser_table = NULL;
+
 
 void * http_script_alloc ()
 {
@@ -163,7 +175,6 @@ char * goto_var_end (char * p, int len)
         if (pbgn >= pend) return pbgn;
 
         return pbgn + 1;
-
     }
 
     poct = pbgn;
@@ -204,6 +215,11 @@ char * goto_symbol_end (char * p, int len)
 
         } else if (*pbgn == '"' || *pbgn == '\'') {
             pbgn = skipEscTo(pbgn+1, pend-pbgn-1, pbgn, 1);
+            if (pbgn >= pend) return pbgn;
+            pbgn++;
+
+        } else if (*pbgn == '(') {
+            pbgn = skipToPeer(pbgn, pend-pbgn, '(', ')');
             if (pbgn >= pend) return pbgn;
             pbgn++;
 
@@ -285,11 +301,11 @@ int get_var_value (void * vhsc, char * p, int len, char * value, int vallen, int
     if (len <= 0) return -3;
 
     if (!value || vallen <= 0) return -10;
- 
+
     value[0] = '\0';
- 
+
     pend = pbgn + len;
- 
+
     pbgn = skipOver(pbgn, len, " \t\r\n\f\v", 6);
     if (pbgn >= pend) return -100;
 
@@ -297,8 +313,9 @@ int get_var_value (void * vhsc, char * p, int len, char * value, int vallen, int
     if (poct < pbgn) return -101;
     pend = poct + 1;
 
-    if ((*pbgn == '"' || *pbgn == '\'') && *poct == *pbgn) {
-        pbgn++; 
+    if ( ((*pbgn == '"' || *pbgn == '\'') && *poct == *pbgn) ||
+         (*pbgn == '(' && *poct == ')') ) {
+        pbgn++;
         poct--;
         pend--;
         if (pbgn >= pend) return 0;
@@ -310,45 +327,38 @@ int get_var_value (void * vhsc, char * p, int len, char * value, int vallen, int
     return str_secpy(value, vallen, pbgn, pend-pbgn);
 }
 
-int script_if_conditiion_parse (void * vhsc, char * cond, int condlen)
+
+/* if ( -d /opt/abc.html && -x aaa.txt ) */
+
+static int script_if_file_parse (void * vhsc, char * pbgn, int len, char ** pterm)
 {
     HTTPScript * hsc = (HTTPScript *)vhsc;
-    char         bufa[4096];
-    char         bufb[4096];
-    char       * pbgn = NULL;
+    char         buf[4096];
     char       * pend = NULL;
     char       * poct = NULL;
     char       * pexpend = NULL;
     struct stat  fs;
-    int          reverse = 0;
-    char         cmpsym[8];
 
-    regex_t      regobj;
-    int          ret = 0;
-    regmatch_t   pmat[4];
+    if (pterm) *pterm = pbgn;
 
-    if (!hsc) return 0;
+    if (!hsc || !pbgn || len <= 0) return 0;
 
-    if (!cond) return 0;
-    if (condlen < 0) condlen = strlen(cond);
-    if (condlen <= 0) return 0;
-
-    pbgn = cond;
-    pend = cond + condlen;
-
-    pbgn = skipOver(pbgn, condlen, " \t\r\n\f\v", 6);
-    if (pbgn >= pend) return 0;
-
-    pexpend = rskipOver(pend-1, pend-pbgn, " \t\r\n\f\v", 6);
+    pend = pbgn + len;
 
     if (pend - pbgn > 2 && pbgn[0] == '-' &&
         (pbgn[1] == 'f' || pbgn[1] == 'd' || pbgn[1] == 'e' || pbgn[1] == 'x'))
     {
         poct = skipOver(pbgn+2, pend-pbgn-2, " \t\r\n\f\v", 6);
-        if (poct >= pend) return 0;
+        if (poct >= pend) {
+            if (pterm) *pterm = poct;
+            return 0;
+        }
 
-        get_var_value(hsc, poct, pexpend+1-poct, bufa, sizeof(bufa)-1, 1);
-        poct = trim_var(bufa, strlen(bufa));
+        pexpend = goto_symbol_end(poct, pend-poct);
+        if (pterm) *pterm = pexpend;
+
+        get_var_value(hsc, poct, pexpend-poct, buf, sizeof(buf)-1, 1);
+        poct = trim_var(buf, strlen(buf));
 
         if (pbgn[1] == 'f') {
             if (file_is_regular(poct)) return 1;
@@ -364,18 +374,42 @@ int script_if_conditiion_parse (void * vhsc, char * cond, int condlen)
             if (fs.st_mode & (S_IXUSR | S_IXGRP | S_IXOTH))
                 return 1;
         }
+    }
 
-        return 0;
-    } 
+    return 0;
+}
+
+/* if ( !-d /opt/abc.html && -x aaa.txt ) */
+
+static int script_if_not_file_parse (void * vhsc, char * pbgn, int len, char ** pterm)
+{
+    HTTPScript * hsc = (HTTPScript *)vhsc;
+    char         buf[4096];
+    char       * pend = NULL;
+    char       * poct = NULL;
+    char       * pexpend = NULL;
+    struct stat  fs;
+
+    if (pterm) *pterm = pbgn;
+
+    if (!hsc || !pbgn || len <= 0) return 0;
+
+    pend = pbgn + len;
 
     if (pend - pbgn > 3 && pbgn[0] == '!' && pbgn[1] == '-' &&
         (pbgn[2] == 'f' || pbgn[2] == 'd' || pbgn[2] == 'e' || pbgn[2] == 'x'))
     {
         poct = skipOver(pbgn+3, pend-pbgn-3, " \t\r\n\f\v", 6);
-        if (poct >= pend) return 0;
+        if (poct >= pend) {
+            if (pterm) *pterm = poct;
+            return 0;
+        }
 
-        get_var_value(hsc, poct, pexpend-poct+1, bufa, sizeof(bufa)-1, 1);
-        poct = trim_var(bufa, strlen(bufa));
+        pexpend = goto_symbol_end(poct, pend-poct);
+        if (pterm) *pterm = pexpend;
+
+        get_var_value(hsc, poct, pexpend-poct, buf, sizeof(buf)-1, 1);
+        poct = trim_var(buf, strlen(buf));
 
         if (pbgn[2] == 'f') {
             if (!file_is_regular(poct)) return 1;
@@ -391,81 +425,464 @@ int script_if_conditiion_parse (void * vhsc, char * cond, int condlen)
             if (!(fs.st_mode & (S_IXUSR | S_IXGRP | S_IXOTH)))
                 return 1;
         }
-
-        return 0;
     }
 
-    if (*pbgn == '!') { pbgn++; reverse = 1; }
+    return 0;
+}
 
-    poct = goto_symbol_end(pbgn, pexpend + 1 - pbgn);
-    get_var_value(hsc, pbgn, poct-pbgn, bufa, sizeof(bufa)-1, 1);
+static int str_val_type (char * p, int len)
+{
+    int    i;
+    int    hasdot = 0;
 
-    pbgn = skipOver(poct, pexpend + 1 - poct, " \t\r\n\f\v", 6);
-    if (pbgn > pexpend) {
-        goto onevar;
+    if (!p) return -1;
+    if (len < 0) len = strlen(p);
+    if (len <= 0) return -2;
+
+    if (p[0] < '0' || p[0] > '9')
+        return 0;  //string
+
+    for (i = 1; i < len; i++) {
+        if (p[i] == '.') {
+            hasdot++;
+            if (hasdot > 1) return 0;
+        } else if (p[i] < '0' || p[i] > '9') {
+            return 0; //string
+        }
     }
 
-    /* all kinds of comparing symbol: ==  !=  ~  ^~  ~*  */
-    for (poct = pbgn; poct < pexpend + 1; poct++) {
-        if (is_exp_char(*poct)) break;
-        if (ISSPACE(*poct)) break;
-    }
-    if (poct > pbgn) {
-        str_secpy(cmpsym, sizeof(cmpsym)-1, pbgn, poct-pbgn);
-    } else cmpsym[0] = '\0';
+    if (hasdot == 0) return 1; //integer
 
-    pbgn = skipOver(poct, pexpend + 1 - poct, " \t\r\n\f\v", 6);
-    if (pbgn > pexpend) {
-        goto onevar;
-    }
+    return 2; //double
+}
 
-    /* extracting the second variable */
-    poct = goto_symbol_end(pbgn, pexpend + 1 - pbgn);
-    get_var_value(hsc, pbgn, poct-pbgn, bufb, sizeof(bufb)-1, 1);
+static int script_if_objcmp (void * vhsc, char * avar, int avarlen, char * cmpsym, char * bvar, int bvarlen)
+{
+    HTTPScript * hsc = (HTTPScript *)vhsc;
 
-    pbgn = bufa;
-    poct = bufb;
+    char         bufa[4096];
+    char         bufb[4096];
+    int          lena = 0;
+    int          lenb = 0;
+    char       * pa = NULL;
+    char       * pb = NULL;
+
+    int          valtypea = 0;
+    int          valtypeb = 0;
+    int64        aival64 = 0;
+    int64        bival64 = 0;
+    double       adval = 0;
+    double       bdval = 0;
+
+    regex_t      regobj;
+    regmatch_t   pmat[4];
+    int          ret = 0;
+
+    if (!hsc) return 0;
+
+    if (!avar || avarlen <= 0) return 0;
+    if (!cmpsym && strlen(cmpsym) <= 0) return 0;
+    if (!bvar || bvarlen <= 0) return 0;
+
+    get_var_value(hsc, avar, avarlen, bufa, sizeof(bufa)-1, 1);
+    get_var_value(hsc, bvar, bvarlen, bufb, sizeof(bufb)-1, 1);
+
+    pa = trim_var(bufa, strlen(bufa));
+    pb = trim_var(bufb, strlen(bufb));
+
+    lena = strlen(pa);
+    lenb = strlen(pb);
 
     /* do comparing or matching calculation */
     if (strcasecmp(cmpsym, "==") == 0) {
-        return (strcasecmp(pbgn, poct) == 0) ? 1 : 0;
+        valtypea = str_val_type(pa, lena);
+        valtypeb = str_val_type(pb, lenb);
+        if (valtypea == 1 && valtypeb == 1) {
+            aival64 = strtoll(pa, NULL, 10);
+            bival64 = strtoll(pb, NULL, 10);
+            if (aival64 == bival64) return 1;
+            return 0;
+        } else if (valtypea == 2 && valtypeb == 2) {
+            adval = strtoll(pa, NULL, 10);
+            bdval = strtoll(pb, NULL, 10);
+            if (adval == bdval) return 1;
+            return 0;
+        }
+        return (strcasecmp(pa, pb) == 0) ? 1 : 0;
+
+    } else if (strcasecmp(cmpsym, ">") == 0) {
+        valtypea = str_val_type(pa, lena);
+        valtypeb = str_val_type(pb, lenb);
+        if (valtypea == 1 && valtypeb == 1) {
+            aival64 = strtoll(pa, NULL, 10);
+            bival64 = strtoll(pb, NULL, 10);
+            if (aival64 > bival64) return 1;
+            return 0;
+        } else if (valtypea == 2 && valtypeb == 2) {
+            adval = strtoll(pa, NULL, 10);
+            bdval = strtoll(pb, NULL, 10);
+            if (adval > bdval) return 1;
+            return 0;
+        }
+        return (strcasecmp(pa, pb) > 0) ? 1 : 0;
+
+    } else if (strcasecmp(cmpsym, ">=") == 0) {
+        valtypea = str_val_type(pa, lena);
+        valtypeb = str_val_type(pb, lenb);
+        if (valtypea == 1 && valtypeb == 1) {
+            aival64 = strtoll(pa, NULL, 10);
+            bival64 = strtoll(pb, NULL, 10);
+            if (aival64 >= bival64) return 1;
+            return 0;
+        } else if (valtypea == 2 && valtypeb == 2) {
+            adval = strtoll(pa, NULL, 10);
+            bdval = strtoll(pb, NULL, 10);
+            if (adval >= bdval) return 1;
+            return 0;
+        }
+        return (strcasecmp(pa, pb) >= 0) ? 1 : 0;
+
+    } else if (strcasecmp(cmpsym, "<") == 0) {
+        valtypea = str_val_type(pa, lena);
+        valtypeb = str_val_type(pb, lenb);
+        if (valtypea == 1 && valtypeb == 1) {
+            aival64 = strtoll(pa, NULL, 10);
+            bival64 = strtoll(pb, NULL, 10);
+            if (aival64 < bival64) return 1;
+            return 0;
+        } else if (valtypea == 2 && valtypeb == 2) {
+            adval = strtoll(pa, NULL, 10);
+            bdval = strtoll(pb, NULL, 10);
+            if (adval < bdval) return 1;
+            return 0;
+        }
+        return (strcasecmp(pa, pb) < 0) ? 1 : 0;
+
+    } else if (strcasecmp(cmpsym, "<=") == 0) {
+        valtypea = str_val_type(pa, lena);
+        valtypeb = str_val_type(pb, lenb);
+        if (valtypea == 1 && valtypeb == 1) {
+            aival64 = strtoll(pa, NULL, 10);
+            bival64 = strtoll(pb, NULL, 10);
+            if (aival64 <= bival64) return 1;
+            return 0;
+        } else if (valtypea == 2 && valtypeb == 2) {
+            adval = strtoll(pa, NULL, 10);
+            bdval = strtoll(pb, NULL, 10);
+            if (adval <= bdval) return 1;
+            return 0;
+        }
+        return (strcasecmp(pa, pb) <= 0) ? 1 : 0;
 
     } else if (strcasecmp(cmpsym, "!=") == 0) {
-        return (strcasecmp(pbgn, poct) == 0) ? 0 : 1;
-
+        valtypea = str_val_type(pa, lena);
+        valtypeb = str_val_type(pb, lenb);
+        if (valtypea == 1 && valtypeb == 1) {
+            aival64 = strtoll(pa, NULL, 10);
+            bival64 = strtoll(pb, NULL, 10);
+            if (aival64 != bival64) return 1;
+            return 0;
+        } else if (valtypea == 2 && valtypeb == 2) {
+            adval = strtoll(pa, NULL, 10);
+            bdval = strtoll(pb, NULL, 10);
+            if (adval != bdval) return 1;
+            return 0;
+        }
+        return (strcasecmp(pa, pb) == 0) ? 0 : 1;
+ 
     } else if (strcasecmp(cmpsym, "^~") == 0) {
-        return (strncasecmp(pbgn, poct, strlen(poct)) == 0) ? 1 : 0;
-
+        return (strncasecmp(pa, pb, strlen(pb)) == 0) ? 1 : 0;
+ 
     } else if (strcasecmp(cmpsym, "~") == 0) {
         memset(&regobj, 0, sizeof(regobj));
-        regcomp(&regobj, bufb, REG_EXTENDED);
-        ret = regexec(&regobj, bufa, 4, pmat, 0);
+        regcomp(&regobj, pb, REG_EXTENDED);
+        ret = regexec(&regobj, pa, 4, pmat, 0);
         regfree(&regobj);
-
+ 
         if (ret == 0) return 1;
         if (ret == REG_NOMATCH) return 0;
-
+ 
     } else if (strcasecmp(cmpsym, "~*") == 0) {
         memset(&regobj, 0, sizeof(regobj));
-        regcomp(&regobj, bufb, REG_EXTENDED | REG_ICASE);
-
-        ret = regexec(&regobj, bufa, 4, pmat, 0);
+        regcomp(&regobj, pb, REG_EXTENDED | REG_ICASE);
+ 
+        ret = regexec(&regobj, pa, 4, pmat, 0);
         regfree(&regobj);
-
+ 
         if (ret == 0) return 1;
         if (ret == REG_NOMATCH) return 0;
     }
+ 
+    return 0;
+}
 
-onevar:
-    poct = trim_var(bufa, strlen(bufa));
-    if (strlen(poct) <= 0) return reverse; 
+/* if ( $request_header[content-type] == "text/html" ) */
 
-    if (strcasecmp(poct, "0") == 0 ||  
-        strcasecmp(poct, "false") == 0 ||  
-        strcasecmp(poct, "no") == 0)
-        return reverse;
+static int script_if_objcmp_parse (void * vhsc, char * pbgn, int len, char ** pterm,
+                                   char * pa, int palen, char * pcmp, char * pb, int pblen)
+{
+    HTTPScript * hsc = (HTTPScript *)vhsc;
+    char       * pend = NULL;
+    char       * poct = NULL;
 
-    return !reverse;
+    char       * avar = NULL;
+    char       * bvar = NULL;
+    int          alen = 0;
+    int          blen = 0;
+
+    char         cmpsym[8];
+    int          cmplen = 0;
+
+    if (pterm) *pterm = pbgn;
+
+    if (!hsc) return 0;
+
+    if (pbgn && len > 0) {
+        pend = pbgn + len;
+
+        pbgn = skipOver(pbgn, pend - pbgn, " \t\r\n\f\v", 6);
+        if (pbgn > pend) {
+            if (pterm) *pterm = pbgn;
+            return 0;
+        }
+    }
+
+    if (pa && palen > 0) {
+        avar = pa; alen = palen;
+
+    } else {
+        poct = goto_symbol_end(pbgn, pend - pbgn);
+        avar = pbgn; alen = poct - pbgn;
+
+        if (pterm) *pterm = poct;
+
+        pbgn = skipOver(poct, pend - poct, " \t\r\n\f\v", 6);
+        if (pbgn > pend) {
+            return 2;  //indicate only one obj
+        }
+    }
+
+    if (pcmp) {
+        str_secpy(cmpsym, sizeof(cmpsym)-1, pcmp, strlen(pcmp));
+    } else {
+        /* all kinds of comparing symbol: ==  !=  ~  ^~  ~*  >  <  >=  <= */
+        for (poct = pbgn; poct < pend; poct++) {
+            if (is_exp_char(*poct)) break;
+            if (ISSPACE(*poct)) break;
+        }
+        cmplen = poct - pbgn;
+        if (poct > pbgn)
+            str_secpy(cmpsym, sizeof(cmpsym)-1, pbgn, poct-pbgn);
+        else
+            cmpsym[0] = '\0';
+
+        pbgn = skipOver(poct, pend - poct, " \t\r\n\f\v", 6);
+        if (pbgn > pend) {
+            return 2;  //indicate only one obj
+        }
+    }
+    cmplen = strlen(cmpsym);
+
+    if (pa && palen > 0) {
+        bvar = pa; blen = palen;
+
+    } else {
+        /* extracting the second variable */
+        poct = goto_symbol_end(pbgn, pend - pbgn);
+        bvar = pbgn; blen = poct - pbgn;
+
+        if (pterm) *pterm = poct;
+    }
+
+    if (cmplen <= 0 || cmplen > 2) return 100;
+    if (cmplen == 1 && (cmpsym[0] != '~' && cmpsym[0] != '>' && cmpsym[0] != '<'))
+        return 101;
+    if (cmplen == 2 && (cmpsym[0] != '=' || cmpsym[1] != '=') &&
+        (cmpsym[0] != '!' || cmpsym[1] != '=') &&
+        (cmpsym[0] != '^' || cmpsym[1] != '~') &&
+        (cmpsym[0] != '~' || cmpsym[1] != '*') &&
+        (cmpsym[0] != '>' || cmpsym[1] != '=') &&
+        (cmpsym[0] != '<' || cmpsym[1] != '=')   )
+    {
+        return 102;
+    }
+ 
+    return script_if_objcmp(hsc, avar, alen, cmpsym, bvar, blen);
+}
+
+int script_if_condition_parse (void * vhsc, char * cond, int condlen, char ** pterm)
+{
+    HTTPScript * hsc = (HTTPScript *)vhsc;
+    char         buf[4096];
+    char       * pbgn = NULL;
+    char       * pend = NULL;
+    char       * poct = NULL;
+    char       * pval = NULL;
+    char       * pexpend = NULL;
+
+    int          condnum = 0;
+    int          reverse = 0;
+    int          condval = 0;
+    int          condcmp = 0;  //0-none 1-and(&&) 2-or(||)
+
+    int          ret = 0;
+
+    if (!hsc) return 0;
+
+    if (!cond) return 0;
+    if (condlen < 0) condlen = strlen(cond);
+    if (condlen <= 0) return 0;
+
+    pbgn = cond;
+    pend = cond + condlen;
+
+    pbgn = skipOver(pbgn, condlen, " \t\r\n\f\v", 6);
+    if (pbgn >= pend) return 0;
+
+    pexpend = rskipOver(pend-1, pend-pbgn, " \t\r\n\f\v", 6);
+    pend = pexpend + 1;
+
+    for ( ; pbgn < pend; ) {
+        pbgn = skipOver(pbgn, pend-pbgn, " \t\r\n\f\v", 6);
+        if (pbgn >= pend) return condval;
+
+        if (pend - pbgn > 2 && pbgn[0] == '-' &&
+            (pbgn[1] == 'f' || pbgn[1] == 'd' || pbgn[1] == 'e' || pbgn[1] == 'x'))
+        {
+            ret = script_if_file_parse(hsc, pbgn, pend-pbgn, &poct);
+            if (reverse) ret = ret > 0 ? 0 : 1;
+
+            if (condcmp == 1) condval = condval && ret;
+            else if (condcmp == 2) condval = condval || ret;
+            else condval = ret;
+
+            pbgn = poct;
+            condcmp = 0;
+            reverse = 0;
+            condnum++;
+        }
+
+        else if (pend - pbgn > 3 && pbgn[0] == '!' && pbgn[1] == '-' &&
+                 (pbgn[2] == 'f' || pbgn[2] == 'd' || pbgn[2] == 'e' || pbgn[2] == 'x'))
+        {
+            ret = script_if_not_file_parse(hsc, pbgn, pend-pbgn, &poct);
+            if (reverse) ret = ret > 0 ? 0 : 1;
+
+            if (condcmp == 1) condval = condval && ret;
+            else if (condcmp == 2) condval = condval || ret;
+            else condval = ret;
+
+            pbgn = poct;
+            condcmp = 0;
+            reverse = 0;
+            condnum++;
+
+        } else if (pbgn[0] == '(') {
+            poct = skipToPeer(pbgn, pend-pbgn, '(', ')');
+            if (*poct != ')') return condval;
+
+            pbgn = skipOver(pbgn+1, poct-pbgn-1, " \t\r\n\f\v", 6);
+            if (pbgn >= poct) {
+                pbgn = poct + 1;
+                continue;
+            }
+
+            ret = script_if_condition_parse(hsc, pbgn, poct-pbgn, &pval);
+            if (ret >= 2) { /* the content in bracket will be considered as one variable-object */
+                /* if ( ($request_path) != "/opt/hls.html" ) */
+                /*                    ^                      */
+                /*                    |                      */
+                ret = script_if_objcmp_parse(hsc, poct+1, pend-poct-1, &pval, pbgn, pval-pbgn, NULL, NULL, 0);
+                if (ret >= 2) {
+                    pbgn = pval;
+                    condcmp = 0;
+                    reverse = 0;
+                    condnum++;
+                    continue;
+                }
+            }
+
+            pbgn = poct + 1;
+
+            if (ret == 0 || ret == 1) {
+                if (reverse) ret = ret > 0 ? 0 : 1;
+
+                if (condcmp == 1) condval = condval && ret;
+                else if (condcmp == 2) condval = condval || ret;
+                else condval = ret;
+
+                condcmp = 0;
+                reverse = 0;
+                condnum++;
+            }
+
+        } else if (pbgn[0] == '!') {
+            reverse = 1;
+            pbgn++;
+            continue;
+
+        } else {
+            ret = script_if_objcmp_parse(hsc, pbgn, pend-pbgn, &poct, NULL, 0, NULL, NULL, 0);
+            if (ret == 2) { //only one varobj, eg. if (($request_path) != "/opt/abc.txt") {
+                pval = skipOver(poct, pend-poct, " \t\r\n\f\v", 6);
+                if (pval >= pend) {
+                    if (pterm) *pterm = poct;
+                    if (condnum < 1) return 2;
+                }
+
+                get_var_value(hsc, pbgn, poct-pbgn, buf, sizeof(buf)-1, 1);
+                pval = trim_var(buf, strlen(buf));
+
+                if (strlen(pval) <= 0 ||
+                    strcasecmp(pval, "0") == 0 ||
+                    strcasecmp(pval, "false") == 0 ||
+                    strcasecmp(pval, "no") == 0)
+                    ret = 0;
+                else ret = 1;
+
+                if (condnum > 0) {
+                } else {
+                }
+            }
+
+            if (reverse) ret = ret > 0 ? 0 : 1;
+
+            if (condcmp == 1) condval = condval && ret;
+            else if (condcmp == 2) condval = condval || ret;
+            else condval = ret;
+
+            pbgn = poct;
+            condcmp = 0;
+            reverse = 0;
+            condnum++;
+        }
+
+        pbgn = skipOver(pbgn, pend-pbgn, " \t\r\n\f\v", 6);
+        if (pbgn >= pend) break;
+
+        if (pend - pbgn >= 2) {
+            if (pbgn[0] == '&' && pbgn[1] == '&') {
+                condcmp = 1;  // AND operation
+                pbgn += 2;
+            } else if (pbgn[0] == '|' && pbgn[1] == '|') {
+                condcmp = 2;  // OR operation
+                pbgn += 2;
+            } else if (adf_tolower(pbgn[0]) == 'o' && adf_tolower(pbgn[1]) == 'r') {
+                condcmp = 2;  // OR operation
+                pbgn += 2;
+            }
+        }
+        if (pend - pbgn >= 3) {
+            if (adf_tolower(pbgn[0]) == 'a' && adf_tolower(pbgn[1]) == 'n' && adf_tolower(pbgn[2]) == 'd') {
+                condcmp = 1;  // AND operation
+                pbgn += 3;
+            }
+        }
+
+        if (condcmp == 0) break;
+    }
+
+    return condval;
 }
 
 char * script_if_parse (void * vhsc, char * p, int slen)
@@ -501,21 +918,21 @@ char * script_if_parse (void * vhsc, char * p, int slen)
             pbgn = skipTo(poct, pend-poct, ";", 1);
             return pbgn;
         }
-    
+
         pexpend = skipTo(poct, pend-poct, ";", 1);
         pval = skipToPeer(poct, pexpend-poct, '(', ')');
         if (*pval != ')') {
             return pexpend;
         }
-     
+
         if (!ifbody_exec) {
-            condval = script_if_conditiion_parse(hsc, poct + 1, pval - poct - 1);
+            condval = script_if_condition_parse(hsc, poct + 1, pval - poct - 1, NULL);
         }
-     
+
         /* skip the condition block, stop to the if body */
         pbgn = skipOver(pval+1, pend-pval-1, " \t\r\n\f\v", 6);
         if (pbgn >= pend) return pbgn;
-     
+
         if (*pbgn == '{') {
             /* if (cond) {  ... }  find { and assign to pbgn */
             pval = skipToPeer(pbgn, pend-pbgn, '{', '}');
@@ -525,7 +942,7 @@ char * script_if_parse (void * vhsc, char * p, int slen)
             }
 
             if (*pval == '}') pval++;
-    
+
         } else if (pend - pbgn >= 2 && str_ncmp(pbgn, "if", 2) == 0) {
             /* if (cond) if (cond2) {... } */
             pval = script_if_parse(hsc, pbgn, pend-pbgn);
@@ -1254,6 +1671,330 @@ char * script_del_res_header_parse (void * vhsc, char * p, int len)
     return pexpend;
 }
 
+char * script_add_res_body_parse (void * vhsc, char * p, int len)
+{
+    HTTPScript * hsc = (HTTPScript *)vhsc;
+    HTTPMsg    * msg = NULL;
+    char       * pbgn = NULL;
+    char       * pend = NULL;
+    char       * poct = NULL;
+    char       * pexpend = NULL;
+    HeaderUnit * punit = NULL;
+    int64        val64 = 0;
+    int64        addlen = 0;
+
+    if (!hsc) return p;
+
+    msg = (HTTPMsg *)hsc->msg;
+    if (!msg) return p;
+
+    if (!p) return NULL;
+    if (len < 0) len = strlen(p);
+    if (len <= 2) return p;
+
+    /* addResBody "added body content";
+       insert the content to the head of response body */
+
+    pbgn = p;
+    pend = p + len;
+
+    pbgn = skipOver(pbgn, len, " \t\r\n\f\v", 6);
+    if (pbgn >= pend) return pbgn;
+
+    pexpend = skipQuoteTo(pbgn, pend-pbgn, ";", 1);
+    if (pexpend - pbgn < 12) return pexpend;
+
+    if (strncasecmp(pbgn, "addResBody", 10) != 0) return pexpend;
+    pbgn += 10;
+
+    pbgn = skipOver(pbgn, pexpend-pbgn, " \t\r\n\f\v", 6);
+    if (pbgn >= pexpend) return pexpend;
+
+    /* extracting body value */
+    poct = goto_symbol_end(pbgn, pexpend - pbgn);
+
+    poct = rskipOver(poct-1, poct-pbgn, " \t\r\n\f\v", 6);
+    if (poct < pbgn) return pexpend;
+
+    if ((*pbgn == '"' || *pbgn == '\'') && *poct == *pbgn) {
+        pbgn++; poct--;
+    }
+
+    if (poct >= pbgn) {
+        addlen = poct - pbgn + 1;
+        addlen = chunk_prepend_strip_buffer(msg->res_body_chunk, pbgn, addlen, "\r\n\t\b\f\v'\"\\/", 10, 0);
+        if (addlen < 0) addlen = 0;
+
+        if (msg->res_body_flag == BC_CONTENT_LENGTH) {
+            punit = http_header_get(msg, 1, "Content-Length", 14);
+            if (punit) {
+                val64 = strtoll(punit->value, NULL, 10);
+                val64 += addlen;
+
+                http_header_del(msg, 1, "Content-Length", 14);
+            } else {
+                val64 = addlen;
+            }
+            http_header_append_int64(msg, 1, "Content-Length", 14, val64);
+
+        } else if (msg->res_body_flag == BC_TE) {
+            if (http_header_get(msg, 1, "Transfer-Encoding", -1) == NULL) {
+                http_header_append(msg, 1, "Transfer-Encoding", 17, "chunked", 7);
+            }
+        }
+    }
+
+    return pexpend;
+}
+
+char * script_append_res_body_parse (void * vhsc, char * p, int len)
+{
+    HTTPScript * hsc = (HTTPScript *)vhsc;
+    HTTPMsg    * msg = NULL;
+    char       * pbgn = NULL;
+    char       * pend = NULL;
+    char       * poct = NULL;
+    char       * pexpend = NULL;
+    HeaderUnit * punit = NULL;
+    int64        val64 = 0;
+    int64        addlen = 0;
+
+    if (!hsc) return p;
+
+    msg = (HTTPMsg *)hsc->msg;
+    if (!msg) return p;
+
+    if (!p) return NULL;
+    if (len < 0) len = strlen(p);
+    if (len <= 2) return p;
+
+    /* appendResBody "appended body content";
+       insert the content to the tail of response body */
+
+    pbgn = p;
+    pend = p + len;
+
+    pbgn = skipOver(pbgn, len, " \t\r\n\f\v", 6);
+    if (pbgn >= pend) return pbgn;
+
+    pexpend = skipQuoteTo(pbgn, pend-pbgn, ";", 1);
+    if (pexpend - pbgn < 12) return pexpend;
+
+    if (strncasecmp(pbgn, "appendResBody", 13) != 0) return pexpend;
+    pbgn += 13;
+
+    pbgn = skipOver(pbgn, pexpend-pbgn, " \t\r\n\f\v", 6);
+    if (pbgn >= pexpend) return pexpend;
+
+    /* extracting body value */
+    poct = goto_symbol_end(pbgn, pexpend - pbgn);
+
+    poct = rskipOver(poct-1, poct-pbgn, " \t\r\n\f\v", 6);
+    if (poct < pbgn) return pexpend;
+
+    if ((*pbgn == '"' || *pbgn == '\'') && *poct == *pbgn) {
+        pbgn++; poct--;
+    }
+
+    if (poct >= pbgn) {
+        addlen = poct - pbgn + 1;
+        addlen = chunk_append_strip_buffer(msg->res_body_chunk, pbgn, addlen, "\r\n\t\b\f\v'\"\\/", 10);
+        if (addlen < 0) addlen = 0;
+
+        if (msg->res_body_flag == BC_CONTENT_LENGTH) {
+            punit = http_header_get(msg, 1, "Content-Length", 14);
+            if (punit) {
+                val64 = strtoll(punit->value, NULL, 10);
+                val64 += addlen;
+
+                http_header_del(msg, 1, "Content-Length", 14);
+            } else {
+                val64 = addlen;
+            }
+            http_header_append_int64(msg, 1, "Content-Length", 14, val64);
+
+        } else if (msg->res_body_flag == BC_TE) {
+            if (http_header_get(msg, 1, "Transfer-Encoding", -1) == NULL) {
+                http_header_append(msg, 1, "Transfer-Encoding", 17, "chunked", 7);
+            }
+        }
+
+        if (poct) kfree(poct);
+    }
+
+    return pexpend;
+}
+
+char * script_add_file_to_res_body_parse (void * vhsc, char * p, int len)
+{
+    HTTPScript * hsc = (HTTPScript *)vhsc;
+    HTTPMsg    * msg = NULL;
+    char       * pbgn = NULL;
+    char       * pend = NULL;
+    char       * poct = NULL;
+    char       * pexpend = NULL;
+    char         fpath[2048];
+    char         value[1024];
+    HeaderUnit * punit = NULL;
+    int64        fsize = 0;
+    int64        val64 = 0;
+
+    if (!hsc) return p;
+
+    msg = (HTTPMsg *)hsc->msg;
+    if (!msg) return p;
+
+    if (!p) return NULL;
+    if (len < 0) len = strlen(p);
+    if (len <= 2) return p;
+
+    /* addFile2ResBody /abc/def.js;
+       addFile2ResBody $file_path */
+
+    pbgn = p;
+    pend = p + len;
+
+    pbgn = skipOver(pbgn, len, " \t\r\n\f\v", 6);
+    if (pbgn >= pend) return pbgn;
+
+    pexpend = skipQuoteTo(pbgn, pend-pbgn, ";", 1);
+    if (pexpend - pbgn < 12) return pexpend;
+
+    if (strncasecmp(pbgn, "addFile2ResBody", 15) != 0) return pexpend;
+    pbgn += 15;
+
+    pbgn = skipOver(pbgn, pexpend-pbgn, " \t\r\n\f\v", 6);
+    if (pbgn >= pexpend) return pexpend;
+
+    /* extracting file path to be appended to body */
+    poct = goto_symbol_end(pbgn, pexpend - pbgn);
+    get_var_value(hsc, pbgn, poct-pbgn, value, sizeof(value)-1, 1);
+
+    poct = str_trim(value);
+    if (!poct || strlen(poct) <= 0)
+        return pexpend;
+
+    if (poct[0] == '/') {
+        sprintf(fpath, "%s", msg->GetRootPath(msg));
+        sprintf(fpath + strlen(fpath), "%s", poct);
+    } else {
+        fpath[0] = '\0';
+        msg->GetRealPath(msg, fpath, sizeof(fpath)-1);
+        sprintf(fpath + strlen(fpath), "%s", poct);
+    }
+
+    if (msg->res_body_flag == BC_TE) val64 = 2 * 1024 * 1024;
+    else val64 = 0;
+
+    fsize = chunk_prepend_file(msg->res_body_chunk, fpath, val64);
+    if (fsize > 0) {
+        if (msg->res_body_flag == BC_CONTENT_LENGTH) {
+            punit = http_header_get(msg, 1, "Content-Length", 14);
+            if (punit) {
+                val64 = strtoll(punit->value, NULL, 10);
+                val64 += fsize;
+
+                http_header_del(msg, 1, "Content-Length", 14);
+            } else {
+                val64 = fsize;
+            }
+            http_header_append_int64(msg, 1, "Content-Length", 14, val64);
+
+        } else if (msg->res_body_flag == BC_TE) {
+            if (http_header_get(msg, 1, "Transfer-Encoding", -1) == NULL) {
+                http_header_append(msg, 1, "Transfer-Encoding", 17, "chunked", 7);
+            }
+        }
+    }
+
+    return pexpend;
+}
+
+char * script_append_file_to_res_body_parse (void * vhsc, char * p, int len)
+{
+    HTTPScript * hsc = (HTTPScript *)vhsc;
+    HTTPMsg    * msg = NULL;
+    char       * pbgn = NULL;
+    char       * pend = NULL;
+    char       * poct = NULL;
+    char       * pexpend = NULL;
+    char         fpath[2048];
+    char         value[1024];
+    HeaderUnit * punit = NULL;
+    int64        fsize = 0;
+    int64        val64 = 0;
+ 
+    if (!hsc) return p;
+ 
+    msg = (HTTPMsg *)hsc->msg;
+    if (!msg) return p;
+ 
+    if (!p) return NULL;
+    if (len < 0) len = strlen(p);
+    if (len <= 2) return p;
+ 
+    /* appendFile2ResBody /abc/def.js;
+       appendFile2ResBody $file_path */
+ 
+    pbgn = p;
+    pend = p + len;
+ 
+    pbgn = skipOver(pbgn, len, " \t\r\n\f\v", 6);
+    if (pbgn >= pend) return pbgn;
+ 
+    pexpend = skipQuoteTo(pbgn, pend-pbgn, ";", 1);
+    if (pexpend - pbgn < 12) return pexpend;
+ 
+    if (strncasecmp(pbgn, "appendFile2ResBody", 18) != 0) return pexpend;
+    pbgn += 18;
+ 
+    pbgn = skipOver(pbgn, pexpend-pbgn, " \t\r\n\f\v", 6);
+    if (pbgn >= pexpend) return pexpend;
+ 
+    /* extracting file path to be appended to body */
+    poct = goto_symbol_end(pbgn, pexpend - pbgn);
+    get_var_value(hsc, pbgn, poct-pbgn, value, sizeof(value)-1, 1);
+
+    poct = str_trim(value);
+    if (!poct || strlen(poct) <= 0)
+        return pexpend;
+
+    if (poct[0] == '/') {
+        sprintf(fpath, "%s", msg->GetRootPath(msg));
+        sprintf(fpath + strlen(fpath), "%s", poct);
+    } else {
+        fpath[0] = '\0';
+        msg->GetRealPath(msg, fpath, sizeof(fpath)-1);
+        sprintf(fpath + strlen(fpath), "%s", poct);
+    }
+
+    if (msg->res_body_flag == BC_TE) val64 = 2 * 1024 * 1024;
+    else val64 = 0;
+
+    fsize = chunk_append_file(msg->res_body_chunk, fpath, val64);
+    if (fsize > 0) {
+        if (msg->res_body_flag == BC_CONTENT_LENGTH) {
+            punit = http_header_get(msg, 1, "Content-Length", 14);
+            if (punit) {
+                val64 = strtoll(punit->value, NULL, 10);
+                val64 += fsize;
+
+                http_header_del(msg, 1, "Content-Length", 14);
+            } else {
+                val64 = fsize;
+            }
+            http_header_append_int64(msg, 1, "Content-Length", 14, val64);
+
+        } else if (msg->res_body_flag == BC_TE) {
+            if (http_header_get(msg, 1, "Transfer-Encoding", -1) == NULL) {
+                http_header_append(msg, 1, "Transfer-Encoding", 17, "chunked", 7);
+            }
+        }
+    }
+
+    return pexpend;
+}
+
 char * script_try_files_parse (void * vhsc, char * p, int len)
 { 
     HTTPScript * hsc = (HTTPScript *)vhsc;
@@ -1269,35 +2010,35 @@ char * script_try_files_parse (void * vhsc, char * p, int len)
     int          status = 0;
     HTTPHost   * phost = NULL;
     HTTPLoc    * ploc = NULL;
- 
+
     if (!hsc) return p;
- 
+
     msg = (HTTPMsg *)hsc->msg;
     if (!msg) return p;
- 
+
     if (!p) return NULL;
     if (len < 0) len = strlen(p);
     if (len <= 2) return p;
- 
+
     /* try_files file1 file2 ... uri;;
        or try_files file1 file2 ... =code;  */ 
-     
+
     pbgn = p;   
     pend = p + len;
- 
+
     pbgn = skipOver(pbgn, len, " \t\r\n\f\v", 6);
     if (pbgn >= pend) return pbgn;
- 
+
     pexpend = skipQuoteTo(pbgn, pend-pbgn, ";", 1);
     if (pexpend - pbgn < 12) return pexpend;
- 
+
     if (strncasecmp(pbgn, "try_files", 9) != 0) return pexpend;
     pbgn += 9;
- 
+
     while (pbgn < pend) {
         pbgn = skipOver(pbgn, pexpend-pbgn, " \t\r\n\f\v", 6);
         if (pbgn >= pexpend) return pexpend;
- 
+
         /* extracting file from list to check if existing or not */
         poct = goto_symbol_end(pbgn, pexpend - pbgn);
 
@@ -1348,17 +2089,18 @@ char * script_try_files_parse (void * vhsc, char * p, int len)
             }
         }
     }
- 
+
     return pexpend;
 }
 
 int http_script_parse_exec (void * vhsc, char * sc, int sclen)
 {
-    HTTPScript * hsc = (HTTPScript *)vhsc;
-    char       * pbgn = NULL;
-    char       * pend = NULL;
-    char       * poct = NULL;
-    int          len = 0;
+    HTTPScript   * hsc = (HTTPScript *)vhsc;
+    char         * pbgn = NULL;
+    char         * pend = NULL;
+    char         * poct = NULL;
+    int            len = 0;
+    ScriptParser * parser = NULL;
 
     if (!hsc) return -1;
 
@@ -1411,77 +2153,18 @@ int http_script_parse_exec (void * vhsc, char * sc, int sclen)
             continue;
         }
 
-        for (poct = pbgn; is_var_char(*poct) && poct < pend; poct++);
+        for (poct = pbgn, len = 0; poct < pend; poct++, len++) {
+            if (len == 0 && !is_var_char(*poct)) break;
+            if (len > 0 && !is_var_char(*poct) && !isdigit(*poct)) break;
+        }
 
         len = poct - pbgn;
-        if (len == 2 && str_ncmp(pbgn, "if", 2) == 0) {
-            /* if (conditioin) { ... }  */
-            poct = script_if_parse(hsc, pbgn, pend-pbgn);
+
+        parser = script_parser_get(pbgn, len);
+        if (parser) {
+            poct = (*parser)(hsc, pbgn, pend-pbgn);
             if (!poct) return -101;
 
-            pbgn = poct;
-            continue;
-        }
-
-        else if (len == 3 && str_ncmp(pbgn, "set", 3) == 0) {
-            poct = script_set_parse(hsc, pbgn, pend-pbgn);
-            if (!poct) return -101;
-            pbgn = poct;
-            continue;
-        }
-
-        else if (len == 5 && str_ncmp(pbgn, "reply", 5) == 0) {
-            poct = script_reply_parse(hsc, pbgn, pend-pbgn);
-            if (!poct) return -101;
-            pbgn = poct;
-            continue;
-        }
-
-        else if (len == 6 && str_ncmp(pbgn, "return", 6) == 0) {
-            poct = script_return_parse(hsc, pbgn, pend-pbgn);
-            if (!poct) return -101;
-            pbgn = poct;
-            continue;
-        }
-
-        else if (len == 7 && str_ncmp(pbgn, "rewrite", 7) == 0) {
-            poct = script_rewrite_parse(hsc, pbgn, pend-pbgn);
-            if (!poct) return -101;
-            pbgn = poct;
-            continue;
-        }
-
-        else if (len == 12 && str_ncmp(pbgn, "addReqHeader", 12) == 0) {
-            poct = script_add_req_header_parse(hsc, pbgn, pend-pbgn);
-            if (!poct) return -101;
-            pbgn = poct;
-            continue;
-        }
-
-        else if (len == 12 && str_ncmp(pbgn, "addResHeader", 12) == 0) {
-            poct = script_add_res_header_parse(hsc, pbgn, pend-pbgn);
-            if (!poct) return -101;
-            pbgn = poct;
-            continue;
-        }
-
-        else if (len == 12 && str_ncmp(pbgn, "delReqHeader", 12) == 0) {
-            poct = script_del_req_header_parse(hsc, pbgn, pend-pbgn);
-            if (!poct) return -101;
-            pbgn = poct;
-            continue;
-        }
-
-        else if (len == 12 && str_ncmp(pbgn, "delResHeader", 12) == 0) {
-            poct = script_del_res_header_parse(hsc, pbgn, pend-pbgn);
-            if (!poct) return -101;
-            pbgn = poct;
-            continue;
-        }
-
-        else if (len == 9 && str_ncmp(pbgn, "try_files", 9) == 0) {
-            poct = script_try_files_parse(hsc, pbgn, pend-pbgn);
-            if (!poct) return -101;
             pbgn = poct;
             continue;
         }
@@ -1629,5 +2312,130 @@ int http_script_exec (void * vmsg)
     }
 
     return 1;
+}
+
+int http_reply_script_exec (void * vmsg)
+{
+    HTTPMsg    * msg = (HTTPMsg *)vmsg;
+    HTTPScript   hsc;
+    HTTPListen * hl = NULL;
+    HTTPHost   * host = NULL;
+    HTTPLoc    * ploc = NULL;
+    int          i, num;
+    ckstr_t    * psc = NULL;
+
+    if (!msg) return -1;
+
+    memset(&hsc, 0, sizeof(hsc));
+
+    hl = (HTTPListen *)msg->hl;
+    if (hl) {
+        num = arr_num(hl->reply_script_list);
+
+        for (i = 0; i < num; i++) {
+            psc = arr_value(hl->reply_script_list, i);
+            if (!psc || !psc->p || psc->len <= 0)
+                continue;
+
+            http_script_init(&hsc, msg, psc->p, psc->len, 1, NULL, 0);
+
+            http_script_parse_exec(&hsc, psc->p, psc->len);
+
+            http_script_free(&hsc);
+        }
+    }
+
+    host = (HTTPHost *)msg->phost;
+    if (host) {
+        num = arr_num(host->reply_script_list);
+
+        for (i = 0; i < num; i++) {
+            psc = arr_value(host->reply_script_list, i);
+            if (!psc || !psc->p || psc->len <= 0)
+                continue;
+
+            http_script_init(&hsc, msg, psc->p, psc->len, 2, NULL, 0);
+
+            http_script_parse_exec(&hsc, psc->p, psc->len);
+
+            http_script_free(&hsc);
+        }
+    }
+
+    ploc = (HTTPLoc *)msg->ploc;
+    if (ploc) {
+        num = arr_num(ploc->reply_script_list);
+
+        for (i = 0; i < num; i++) {
+            psc = arr_value(ploc->reply_script_list, i);
+            if (!psc || !psc->p || psc->len <= 0)
+                continue;
+
+            http_script_init(&hsc, msg, psc->p, psc->len, 3, NULL, 0);
+
+            http_script_parse_exec(&hsc, psc->p, psc->len);
+
+            http_script_free(&hsc);
+        }
+    }
+
+    return 1;
+}
+
+void script_parser_init ()
+{
+    int i, num;
+    ckstr_t key;
+
+    static scmd_t scmd_tab [] = {
+        { "if",                 2,  script_if_parse },
+        { "set",                3,  script_set_parse },
+        { "reply",              5,  script_reply_parse },
+        { "return",             6,  script_return_parse },
+        { "rewrite",            7,  script_rewrite_parse },
+        { "addReqHeader",       12, script_add_req_header_parse },
+        { "addResHeader",       12, script_add_res_header_parse },
+        { "delReqHeader",       12, script_del_req_header_parse },
+        { "delResHeader",       12, script_del_res_header_parse },
+        { "addResBody",         10, script_add_res_body_parse },
+        { "appendResBody",      13, script_append_res_body_parse },
+        { "addFile2ResBody",    15, script_add_file_to_res_body_parse },
+        { "appendFile2ResBody", 18, script_append_file_to_res_body_parse },
+        { "try_files",          9,  script_try_files_parse }
+    };
+
+    if (script_parser_table) return;
+
+    script_parser_table = ht_only_new(200, ckstr_cmp);
+    if (!script_parser_table) return;
+
+    ht_set_hash_func(script_parser_table, ckstr_string_hash);
+
+    num = sizeof(scmd_tab) / sizeof(scmd_tab[0]);
+    for (i = 0; i < num; i++) {
+        key.p = scmd_tab[i].cmd;
+        key.len = scmd_tab[i].len;
+        ht_set(script_parser_table, &key, &scmd_tab[i]);
+    }
+}
+
+void script_parser_clean ()
+{
+    if (!script_parser_table) return;
+
+    ht_free(script_parser_table);
+
+    script_parser_table = NULL;
+}
+
+void * script_parser_get (char * cmd, int len)
+{
+    ckstr_t  key = ckstr_init(cmd, len);
+    scmd_t * scmd;
+
+    scmd = ht_get(script_parser_table, &key);
+    if (scmd) return scmd->parser;
+
+    return NULL;
 }
 

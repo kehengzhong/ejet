@@ -13,9 +13,11 @@
 #include "http_request.h"
 #include "http_listen.h"
 #include "http_con.h"
+#include "http_script.h"
 //#include "zlibgzip.h"
 //#include "xml.h"
 
+extern HTTPMgmt * gp_httpmgmt;
 
 int http_res_getstatus (void * vmsg)
 {
@@ -421,46 +423,46 @@ int http_res_errpage (void * vmsg)
     char         * reason = NULL;
     char         * desc = NULL;
     int            ind = 0;
- 
+
     if (!msg) return -1;
- 
+
     if (msg->res_status < 400 || chunk_size(msg->res_body_chunk, 0) > 0)
         return 0;
- 
+
     if (msg->phost) {
         phost = msg->phost;
- 
+
         if (msg->res_status < 500) {
             ind = msg->res_status - 400;
             if (ind < 20)
                 errfile = phost->errpage.err400[ind];
- 
+
         } else {
             ind = msg->res_status - 500;
             if (ind < 20)
                 errfile = phost->errpage.err500[ind];
         }
- 
+
         if (errfile && strlen(errfile) > 0) {
             if (phost->errpage.root)
                 snprintf(path, sizeof(path)-1, "%s/%s", phost->errpage.root, errfile);
             else
                 snprintf(path, sizeof(path)-1, "%s", errfile);
- 
+
             if (msg->AddResFile(msg, path, 0, -1) >= 0) {
                 msg->res_body_length = chunk_size(msg->res_body_chunk, 0);
                 msg->SetResContentLength(msg, msg->res_body_length);
             }
         }
     }
- 
+
     if (chunk_size(msg->res_body_chunk, 0) <= 0) {
         http_get_status2(msg->httpmgmt, msg->res_status, &reason);
         if (!reason) reason = "";
- 
+
         frm = frame_new(512);
         frame_append(frm, "<html>\n<head><title>");
- 
+
         switch (msg->res_status) {
         case 400:
             reason = "Bad Request";
@@ -512,45 +514,55 @@ int http_res_errpage (void * vmsg)
             desc = "";
             break;
         }
- 
+
         frame_appendf(frm, "%d %s", msg->res_status, reason);
         frame_appendf(frm, "</title></head>\n<body bgcolor=\"white\">\n<center><h1>");
         frame_appendf(frm, "%d %s", msg->res_status, reason);
         frame_appendf(frm, "</h1></center>\n<p align=center>");
         frame_appendf(frm, "The requested URL <font color=blue>%s</font>", frameS(msg->absuri->uri));
         frame_appendf(frm, "%s", desc);
- 
+
         frame_appendf(frm, ".</p>\n<hr><center>eJet/%s<br><i>", g_http_version);
         frame_html_escape(g_http_author, -1, frm);
         frame_append(frm, "</i></center>\n</body>\n</html>");
- 
+
         msg->AddResContent(msg, frameP(frm), frameL(frm));
         msg->SetResContentType(msg, "text/html", -1);
         msg->SetResContentLength(msg, frameL(frm));
 
         frame_free(frm);
     }
- 
+
     return 0;
 }
 
 int http_res_encoding (void * vmsg)
 {       
     HTTPMsg      * msg = (HTTPMsg *)vmsg;
+    HTTPMgmt     * mgmt = NULL;
     HeaderUnit   * punit = NULL;
     HeaderUnit   * acchu = NULL;
     HTTPHost     * phost = NULL;
+    char           buf[2048];
     int            i, num;
     int            ret = 0;
     time_t         gmtval;
 
     if (!msg) return -1;
 
+    mgmt = (HTTPMgmt *)msg->httpmgmt;
+    if (!mgmt) mgmt = gp_httpmgmt;
+    if (!mgmt) return -2;
+
     frame_empty(msg->res_stream);
 
-    /* building response line */
-    ret = http_res_status_encode(msg, msg->res_stream);
-    if (ret < 0) return ret;
+    if (mgmt->res_check) {
+        msg->GetRealFile(msg, buf, sizeof(buf)-1);
+        (*mgmt->res_check)(mgmt->res_checkobj, msg, buf);
+    }
+
+    /* now execute reply-scripts defined in configure file. */
+    http_reply_script_exec(msg);
 
     if (msg->res_status >= 400 && chunk_size(msg->res_body_chunk, 0) <= 0)
         http_res_errpage(msg);
@@ -560,6 +572,10 @@ int http_res_encoding (void * vmsg)
         gmtval = time(NULL);
         http_header_append_date(msg, 1, "Date", 4, gmtval);
     }
+
+    /* building response line */
+    ret = http_res_status_encode(msg, msg->res_stream);
+    if (ret < 0) return ret;
 
     if (msg->res_body_flag == BC_CONTENT_LENGTH || msg->res_body_flag == BC_TE) {
 #if 0
@@ -577,7 +593,7 @@ int http_res_encoding (void * vmsg)
             acchu = http_header_get(msg, 0, "Accept-Charset", 14);
             if (!acchu) goto go_on_execute;
 
-            http_res_charset_conv(msg, acchu, HUValue(punit), punit->valuelen);
+            http_res_charset_conv (msg, acchu, HUValue(punit), punit->valuelen);
         }
 #endif
 
@@ -601,10 +617,15 @@ int http_res_encoding (void * vmsg)
         }
 
 go_on_execute:
-        if (http_header_get(msg, 1, "Transfer-Encoding", -1) == NULL) {
-            punit = http_header_get(msg, 1, "Content-Length", 14);
-            if (!punit) {
-                http_header_append_int64(msg, 1, "Content-Length", 14, chunk_size(msg->res_body_chunk, 0));
+        if (msg->res_body_flag == BC_CONTENT_LENGTH) {
+            if (http_header_get(msg, 1, "Content-Length", 14) == NULL) {
+                if (msg->res_body_length <= 0)
+                    msg->res_body_length = chunk_size(msg->res_body_chunk, 0);
+                http_header_append_int64(msg, 1, "Content-Length", 14, msg->res_body_length);
+            }
+        } else {
+            if (http_header_get(msg, 1, "Transfer-Encoding", -1) == NULL) {
+                http_header_append(msg, 1, "Transfer-Encoding", 17, "chunked", 7);
             }
         }
     }
@@ -652,9 +673,9 @@ int print_response (void * vmsg, FILE * fp)
     char           buf[2048];
     int            i, num;
     char         * poct = NULL;
- 
+
     if (!msg) return -1;
- 
+
     /* printf the response status line */
     if (fp == stdout || fp == stderr)
         fprintf(fp, "\n-------------Response ConID=%lu reqnum=%d MsgID=%ld  reqfd=%d "
@@ -662,9 +683,9 @@ int print_response (void * vmsg, FILE * fp)
                http_con_id(msg->pcon), http_con_reqnum(msg->pcon), msg->msgid,
                iodev_fd(http_con_iodev(msg->pcon)), msg->srcip, msg->srcport);
     //fprintf(fp, "%s\n", frameString(msg->res_line));
- 
+
     poct = frameP(msg->res_line);
- 
+
     /* print res_line:  HTTP/1.1 200 OK */
     str_secpy(buf, sizeof(buf)-1, poct + msg->res_verloc, msg->res_verlen);
     str_secat(buf, sizeof(buf)-1-strlen(buf), " ", 1);
@@ -678,27 +699,27 @@ int print_response (void * vmsg, FILE * fp)
     for (i = 0; i < num; i++) {
         unit = arr_value(msg->res_header_list, i);
         if (!unit) continue;
- 
+
         poct = HUName(unit);
         if (unit->namelen > 0) {
             str_secpy(buf, sizeof(buf)-1, poct, unit->namelen);
             fprintf(fp, "  %s: ", buf);
         } else fprintf(fp, "   : ");
- 
+
         poct = HUValue(unit);
         if (unit->valuelen > 0) {
             str_secpy(buf, sizeof(buf)-1, poct, unit->valuelen);
             fprintf(fp, "%s\n", buf);
         } else fprintf(fp, "\n");
     }
- 
+
     /* printf the response body */
     if (msg->res_body_length > 0) {
         int64  sndlen = 0;
- 
+
         chunk_read_ptr(msg->res_body_chunk, msg->res_header_length, -1, (void **)&poct, &sndlen, 0);
         fprintf(fp, "response body %lld bytes, chunk len=%lld:\n", msg->res_body_length, sndlen);
- 
+
         /*unit = http_header_get(msg, 1, "Content-Type", 12);
         if (unit && (strncasecmp(HUValue(unit), "text/", 5)==0 ||
             strncasecmp(HUValue(unit), "application/json", 16)==0))
@@ -709,7 +730,7 @@ int print_response (void * vmsg, FILE * fp)
             printOctet(fp, poct, 0, sndlen, 2);
         //}
     }
- 
+
     if (msg->res_file_cache > 0) {
         printf("response body stored %lld bytes in file:\n", msg->res_body_length);
         if (msg->res_file_cache == 1)
@@ -717,15 +738,15 @@ int print_response (void * vmsg, FILE * fp)
         if (msg->res_file_cache == 2)
             printf("  ExternalFile: %s\n", msg->res_store_file);
     }
- 
+
     print_hashtab(msg->res_header_table, fp);
- 
+
     if (fp == stdout || fp == stderr)
         fprintf(fp, "------------------------end of the response: id=%ld "
                     "--------------------\n", msg->msgid);
- 
+
     fflush(fp);
- 
+
     return 0;
 }
 

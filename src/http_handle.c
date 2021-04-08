@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2003-2020 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
  */
 
@@ -134,7 +134,7 @@ int http_request_process (void * vcon, void * vmsg)
     HTTPMgmt   * mgmt = NULL;
     CacheInfo  * cacinfo = NULL;
     char         path[1024];
-    int          i, ret = -100;
+    int          i, fret, ret = -100;
     ulong        msgid = 0;
 
     if (!pcon) return -1;
@@ -184,14 +184,23 @@ int http_request_process (void * vcon, void * vmsg)
         http_req_set_docuri(msg, frameP(msg->uri->uri), frameL(msg->uri->uri), 0, 0);
     }
 
-    if (msg->issued <= 0 && mgmt->req_handler) {
-        msg->cbobj = mgmt->req_cbobj;
-        ret = (*mgmt->req_handler)(mgmt->req_cbobj, msg);
+    ploc = (HTTPLoc *)msg->ploc;
+
+    fret = msg->GetRealFile(msg, path, sizeof(path) - 1);
+
+    if (msg->issued <= 0 && ploc && (ploc->type & SERV_CALLBACK) && ploc->cbfunc) {
+        msg->cbobj = ploc->cbobj;
+        ret = (*ploc->cbfunc)(ploc->cbobj, msg, ploc->tplfile ? ploc->tplfile : path);
     }
 
     if (msg->issued <= 0 && hl->cbfunc) {
         msg->cbobj = hl->cbobj;
-        ret = (*hl->cbfunc)(hl->cbobj, msg);
+        ret = (*hl->cbfunc)(hl->cbobj, msg, path);
+    }
+
+    if (msg->issued <= 0 && mgmt->req_handler) {
+        msg->cbobj = mgmt->req_cbobj;
+        ret = (*mgmt->req_handler)(mgmt->req_cbobj, msg, path);
     }
 
     /* if the upper callback handled and replied the request, the msg already recycled.
@@ -203,14 +212,12 @@ int http_request_process (void * vcon, void * vmsg)
             return msg->Reply(msg);
         }
 
-        ret = msg->GetRealFile(msg, path, sizeof(path));
-
         if (strstr(path, "../")) {
             msg->SetStatus(msg, 404, NULL);          
             return msg->Reply(msg);
         }
 
-        if (ret > 0 && file_is_regular(path)) {
+        if (fret > 0 && file_is_regular(path)) {
             if (msg->AddResFile(msg, path, 0, -1) < 0)
                 msg->SetStatus(msg, 404, NULL);
             else
@@ -232,7 +239,7 @@ int http_request_process (void * vcon, void * vmsg)
             }
 
             /* read the current directory to reply.
-               Caution: uncommenting following fractions is dangerous for 
+               Caution: uncommenting following fractions is dangerous for
                         exposure of file system. please watch your step! */
             /*ret = msg->DisplayDirectory(msg);
             if (ret >= 0) return 0;*/

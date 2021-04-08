@@ -20,6 +20,7 @@
 #include "http_form.h"
 #include "http_dispdir.h"
 #include "http_cgi.h"
+#include "http_pagetpl.h"
 
 extern HTTPMgmt * gp_httpmgmt;
 
@@ -208,7 +209,12 @@ int http_msg_init_method (void * vmsg)
     if (!msg) return -1;
 
     msg->SetTearDownNotify = http_msg_set_teardown_notify;
-    msg->SetResponseHandle = http_msg_set_response_handle;
+    msg->SetResponseNotify = http_msg_set_response_notify;
+
+    msg->SetResStoreFile = http_msg_set_res_store_file;
+    msg->SetResRecvAllNotify = http_msg_set_res_recvall_notify;
+    msg->SetResRecvProcNotify = http_msg_set_res_recvproc_notify;
+    msg->SetReqSendProcNotify = http_msg_set_req_sendproc_notify;
 
     msg->GetMIME = http_msg_get_mime;
     msg->GetMIMEMgmt = http_msg_get_mimemgmt;
@@ -238,6 +244,7 @@ int http_msg_init_method (void * vmsg)
     msg->GetSrcPort = http_msg_srcport;
     msg->GetMsgID = http_msg_id;
     msg->GetMethod = GetMethod;
+    msg->GetMethodInd = GetMethodInd;
     msg->SetMethod = http_req_set_reqmeth;
 
     msg->GetURL = GetURL;
@@ -382,6 +389,7 @@ int http_msg_init_method (void * vmsg)
     msg->AddResContentPtr = AddResContentPtr;
     msg->AddResFile = AddResFile;
     msg->AddResAppCBContent = AddResAppCBContent;
+    msg->AddResTplFile = http_pagetpl_add;
 
     msg->RedirectReply = RedirectReply;
     msg->Reply = Reply;
@@ -457,10 +465,10 @@ int http_msg_init (void * vmsg)
 
     http_msg_init_res(msg);
 
-    msg->reshandle = NULL;
-    msg->reshandle_called = 0;
-    msg->reshandle_para = NULL;
-    msg->reshandle_cbval = NULL;
+    msg->resnotify = NULL;
+    msg->resnotify_called = 0;
+    msg->resnotify_para = NULL;
+    msg->resnotify_cbval = NULL;
  
     msg->res_store_file = NULL;
     msg->res_store_offset = 0;
@@ -499,9 +507,9 @@ int http_msg_recycle (void * vmsg)
         ht_free_member(msg->script_var_tab, var_obj_free);
     }
 
-    if (msg->reshandle && !msg->reshandle_called) {
-        (*msg->reshandle)(msg, msg->reshandle_para, msg->reshandle_cbval, msg->res_status);
-        msg->reshandle_called = 1;
+    if (msg->resnotify && !msg->resnotify_called) {
+        (*msg->resnotify)(msg, msg->resnotify_para, msg->resnotify_cbval, msg->res_status);
+        msg->resnotify_called = 1;
     }
 
     if (msg->pcon) {
@@ -999,7 +1007,7 @@ int http_msg_set_teardown_notify (void * vmsg, void * func, void * para)
     return 0;
 }
 
-int http_msg_set_response_handle (void * vmsg, void * func, void * para, void * cbval,
+int http_msg_set_response_notify (void * vmsg, void * func, void * para, void * cbval,
                                   char * storefile, int64 offset,
                                   void * procnotify, void * notifypara)
 {
@@ -1007,16 +1015,66 @@ int http_msg_set_response_handle (void * vmsg, void * func, void * para, void * 
 
     if (!msg) return -1;
 
-    msg->reshandle = func;
-    msg->reshandle_called = 0;
-    msg->reshandle_para = para;
-    msg->reshandle_cbval = cbval;
+    msg->resnotify = func;
+    msg->resnotify_called = 0;
+    msg->resnotify_para = para;
+    msg->resnotify_cbval = cbval;
 
     msg->res_store_file = storefile;
     msg->res_store_offset = offset;
 
     msg->res_recv_procnotify = procnotify;
     msg->res_recv_procnotify_para = notifypara;
+
+    return 0;
+}
+
+int http_msg_set_res_recvall_notify (void * vmsg, void * func, void * para, void * cbval)
+{
+    HTTPMsg * msg = (HTTPMsg *) vmsg;
+
+    if (!msg) return -1;
+
+    msg->resnotify = func;
+    msg->resnotify_called = 0;
+    msg->resnotify_para = para;
+    msg->resnotify_cbval = cbval;
+
+    return 0;
+}
+
+int http_msg_set_res_store_file (void * vmsg, char * storefile, int64 offset)
+{
+    HTTPMsg * msg = (HTTPMsg *) vmsg;
+
+    if (!msg) return -1;
+
+    msg->res_store_file = storefile;
+    msg->res_store_offset = offset;
+
+    return 0;
+}
+
+int http_msg_set_res_recvproc_notify (void * vmsg, void * procnotify, void * notifypara)
+{
+    HTTPMsg * msg = (HTTPMsg *) vmsg;
+
+    if (!msg) return -1;
+
+    msg->res_recv_procnotify = procnotify;
+    msg->res_recv_procnotify_para = notifypara;
+
+    return 0;
+}
+
+int http_msg_set_req_sendproc_notify (void * vmsg, void * procnotify, void * notifypara)
+{
+    HTTPMsg * msg = (HTTPMsg *) vmsg;
+
+    if (!msg) return -1;
+
+    msg->req_send_procnotify = procnotify;
+    msg->req_send_procnotify_para = notifypara;
 
     return 0;
 }

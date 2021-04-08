@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2003-2020 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
  */
 
@@ -281,10 +281,11 @@ int cookie_mgmt_read  (void * vmgmt, char * cookiefile)
 
     mgmt->cookie_file = cookiefile;
 
+    buf[0] = '\0';
     for ( ; !feof(fp); ) {
         fgets(buf, sizeof(buf)-1, fp);
         p = str_trim(buf);
-        len = strlen(buf);
+        len = strlen(p);
 
         if (len <= 0 || *p == '#')
             continue;

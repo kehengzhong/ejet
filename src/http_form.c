@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2003-2020 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
  */
 
@@ -93,6 +93,27 @@ void http_form_free (void * vform)
         kfree(form->basename);
 
     kfree(form);
+}
+
+void * http_form_node (void * vmsg, char * key)
+{
+    HTTPMsg     * msg = (HTTPMsg *)vmsg;
+    http_form_t * form = NULL;
+    int           i, num;
+ 
+    if (!msg || !key) return NULL;
+ 
+    num = arr_num(msg->req_formlist);
+    for (i = 0; i < num; i++) {
+        form = arr_value(msg->req_formlist, i);
+        if (!form) continue;
+ 
+        if (form->name && strcasecmp(key, form->name) == 0) {
+            return form;
+        }
+    }
+ 
+    return NULL;
 }
 
 int http_form_get (void * vmsg, char * key, char ** ctype, uint8 * formtype, char ** fname, int64 * valuelen)
