@@ -68,20 +68,25 @@
         * [4.2.4 Ô¤¶¨ÒåµÄ²ÎÊý±äÁ¿ÁÐ±íºÍÊµÏÖÔ­Àí](#424-Ô¤¶¨ÒåµÄ²ÎÊý±äÁ¿ÁÐ±íºÍÊµÏÖÔ­Àí)
     * [4.3 HTTP Script½Å±¾](#43-http-script½Å±¾)
         * [4.3.1 HTTP Script½Å±¾¶¨Òå](#431-http-script½Å±¾¶¨Òå)
-        * [4.3.2 Script½Å±¾Ç¶ÈëÎ»ÖÃ](#432-script½Å±¾Ç¶ÈëÎ»ÖÃ)
-        * [4.3.3 Script½Å±¾·¶Àý](#433-script½Å±¾·¶Àý)
-        * [4.3.4 Script½Å±¾Óï¾ä](#434-script½Å±¾Óï¾ä)
-            * [4.3.4.1 Ìõ¼þÓï¾ä](#4341-Ìõ¼þÓï¾ä)
-            * [4.3.4.2 ¸³ÖµÓï¾ä](#4342-¸³ÖµÓï¾ä)
-            * [4.3.4.3 ·µ»ØÓï¾ä](#4343-·µ»ØÓï¾ä)
-            * [4.3.4.4 ÏìÓ¦Óï¾ä](#4344-ÏìÓ¦Óï¾ä)
-            * [4.3.4.5 rewriteÓï¾ä](#4345-rewriteÓï¾ä)
-            * [4.3.4.6 addReqHeaderÓï¾ä](#4346-addreqheaderÓï¾ä)
-            * [4.3.4.7 addResHeaderÓï¾ä](#4347-addresheaderÓï¾ä)
-            * [4.3.4.8 delReqHeaderÓï¾ä](#4348-delreqheaderÓï¾ä)
-            * [4.3.4.9 delResHeaderÓï¾ä](#4349-delresheaderÓï¾ä)
-            * [4.3.4.10 try_files Óï¾ä](#43410-try_files-Óï¾ä)
-            * [4.3.4.11 ×¢ÊÍÓï¾ä](#43411-×¢ÊÍÓï¾ä)
+        * [4.3.2 HTTP Script½Å±¾ÀàÐÍ](#432-http-script½Å±¾ÀàÐÍ)
+        * [4.3.3 Script½Å±¾Ç¶ÈëÎ»ÖÃ](#432-script½Å±¾Ç¶ÈëÎ»ÖÃ)
+        * [4.3.4 Script½Å±¾·¶Àý](#433-script½Å±¾·¶Àý)
+        * [4.3.5 Script½Å±¾Óï¾ä](#434-script½Å±¾Óï¾ä)
+            * [4.3.5.1 Ìõ¼þÓï¾ä](#4341-Ìõ¼þÓï¾ä)
+            * [4.3.5.2 ¸³ÖµÓï¾ä](#4342-¸³ÖµÓï¾ä)
+            * [4.3.5.3 ·µ»ØÓï¾ä](#4343-·µ»ØÓï¾ä)
+            * [4.3.5.4 ÏìÓ¦Óï¾ä](#4344-ÏìÓ¦Óï¾ä)
+            * [4.3.5.5 rewriteÓï¾ä](#4345-rewriteÓï¾ä)
+            * [4.3.5.6 addReqHeaderÓï¾ä](#4346-addreqheaderÓï¾ä)
+            * [4.3.5.7 addResHeaderÓï¾ä](#4347-addresheaderÓï¾ä)
+            * [4.3.5.8 delReqHeaderÓï¾ä](#4348-delreqheaderÓï¾ä)
+            * [4.3.5.9 delResHeaderÓï¾ä](#4349-delresheaderÓï¾ä)
+            * [4.3.5.10 addResBodyÓï¾ä](#43410-addResBodyÓï¾ä)
+            * [4.3.5.11 appendResBodyÓï¾ä](#43411-appendResBodyÓï¾ä)
+            * [4.3.5.12 addFile2ResBodyÓï¾ä](#43412-addFile2ResBodyÓï¾ä)
+            * [4.3.5.13 appendFile2ResBodyÓï¾ä](#43413-appendFile2ResBodyÓï¾ä)
+            * [4.3.5.14 try_files Óï¾ä](#43414-try_files-Óï¾ä)
+            * [4.3.5.15 ×¢ÊÍÓï¾ä](#43415-×¢ÊÍÓï¾ä)
         * [4.3.5 Script½Å±¾½âÊÍÆ÷](#435-script½Å±¾½âÊÍÆ÷)
     * [4.4 JSon¸ñÊ½µÄÏµÍ³ÅäÖÃÎÄ¼þ](#44-json¸ñÊ½µÄÏµÍ³ÅäÖÃÎÄ¼þ)
         * [4.4.1 JSONÓï·¨ÌØµã](#441-jsonÓï·¨ÌØµã)
@@ -759,20 +764,37 @@ eJetÏµÍ³ÔÚÅäÖÃÎÄ¼þÉÏÀ©Õ¹ÁËScript½Å±¾ÓïÑÔµÄÓï·¨¶¨Òå£¬¶ÔJSonÓï·¨¹æ·¶½øÐÐÀ©Õ¹£¬¶¨Òå
 
 Script½Å±¾ÊÇÓÉÒ»ÏµÁÐ·ûºÏ¶¨ÒåµÄÓï·¨¹æÔò¶ø±àÐ´µÄ´úÂëÓï¾ä×é³É£¬´úÂëÓï¾ä·ç¸ñÀàËÆJavascriptºÍCÓïÑÔ£¬Ã¿ÌõÓï¾äÓÉÒ»µ½¶àÌõÖ¸Áî¹¹³É£¬²¢ÒÔ·ÖºÅ;½áÎ²¡£
 
-#### 4.3.2 Script½Å±¾Ç¶ÈëÎ»ÖÃ
+#### 4.3.2 HTTP Script½Å±¾ÀàÐÍ
+
+HTTP Script½Å±¾¹²ÓÐÁ½ÖÖÀàÐÍ£¬Ò»ÖÖÊÇÒÔ¹Ø¼ü´Ê"script"Îª±êÊ¶·ûµÄ½Å±¾£¬ÁíÒ»ÖÖÊÇÒÔ¹Ø¼ü´Ê"reply_script"Îª±êÊ¶·ûµÄ½Å±¾¡£
+
+ÒÔ"script"Îª±êÊ¶·ûµÄ½Å±¾³ÌÐòÊÇÔÚHTTPÇëÇóµ½´ïeJet·þÎñÆ÷²¢½øÐÐHTTPMsgÊµÀý»¯¹ý³ÌÖÐ£¬±»µ÷ÓÃ½øÐÐ½âÊÍÖ´ÐÐ¡£
+
+ÒÔ"reply_script"Îª±êÊ¶·ûµÄ½Å±¾³ÌÐòÔòÊÇÔÚHTTPÏìÓ¦·¢ËÍµ½¿Í»§¶ËÖ®Ç°£¬±»µ÷ÓÃÆðÀ´½øÐÐ½âÊÍÖ´ÐÐ¡£
+
+ÕâÑù£¬¿ÉÒÔÀûÓÃ"script"½Å±¾³ÌÐò£¬¶Ô¿Í»§¶Ë·¢ÆðµÄHTTPÇëÇóÍ·ºÍÇëÇóÌå£¬½øÐÐ¼ì²é¡¢Ð£Ñé¡¢»òÌí¼ÓºÍÐÞ¸ÄµÈ²Ù×÷¡£¿ÉÒÔÀûÓÃ"reply_script"½Å±¾³ÌÐò¶Ô·µ»Ø¸ø¿Í»§¶ËµÄHTTPÏìÓ¦Í·ºÍÏìÓ¦Ìå£¬½øÐÐ¼ì²é¡¢Ð£Ñé¡¢Ìí¼ÓºÍÐÞ¸ÄµÈ²Ù×÷¡£
+
+#### 4.3.3 Script½Å±¾Ç¶ÈëÎ»ÖÃ
 
 HTTP Script½Å±¾³ÌÐòµÄÇ¶ÈëÎ»ÖÃ£¬¹²ÓÐÁ½ÖÖ¡£µÚÒ»ÖÖÇ¶ÈëÎ»ÖÃÊÇÔÚÅäÖÃÎÄ¼þµÄListen¡¢Host¡¢LocationÏÂ£¬Í¨¹ýÔö¼ÓJSon¶ÔÏóscript£¬½«½Å±¾³ÌÐò×÷Îªscript¶ÔÏóµÄÄÚÈÝ£¬À´ÊµÏÖÅäÖÃÎÄ¼þÖÐÇ¶Èë½Å±¾±à³Ì¹¦ÄÜ¡£ÔÚÕâÖÖÎ»ÖÃÖÐ£¬²åÈëscript½Å±¾´úÂëµÄÓï·¨¹²¶¨ÒåÁËÈýÖÖ£º
 ```
   script = {....};
   script = if()... else...;
   <script> .... </script>
-```
-ÁíÍâÒ»ÖÖÇ¶ÈëScript½Å±¾³ÌÐòµÄÎ»ÖÃ£¬ÊÇÔÚJSonÖÐµÄKey-Value¶ÔÖÐ£¬ÔÚValueÀïÔö¼ÓÌØÊâ±ÕºÏ±êÇ©<script> Script Codes </script>£¬ÔÚ±êÇ©ÀïÃæÇ¶ÈëScript½Å±¾´úÂë£¬Ö´ÐÐÍê´úÂëºó·µ»ØµÄÄÚÈÝ£¬×÷ÎªKeyµÄÖµ£¬ÕâÖÖ·½Ê½Ê¹µÃJSon¹æ·¶ÖÐKeyµÄÖµ¿ÉÒÔ¶¯Ì¬µØÓÉScript½Å±¾³ÌÐò¼ÆËãµÃÀ´¡£ÔÚListen¡¢Host»òLocationµÄ³£Á¿¸³ÖµÖÐ£¬ValueÄÚÈÝ¿ÉÒÔÊÇscript½Å±¾£¬Èç
-```
-  cache file = <script> if ()... return... </script>
+»ò
+  reply_script = {....};
+  reply_script = if()... else...;
+  <reply_script> .... </reply_script>
 ```
 
-¶Ôadif »ù´¡¿âÖÐµÄjson.cÎÄ¼þ×öÁËÐÞ¸ÄÀ©Õ¹£¬Ê¹µÃJson¶ÔÏó¶¼ÄÜÖ§³Öscript½Å±¾¶¨ÒåµÄÕâ¼¸ÖÖÓï·¨£¬Èç¹ûÄ³¸ö¶ÔÏóÏÂÓÐÃû³ÆÎªscriptµÄÊý¾ÝÏî£¬¾ÍÈÏÎª¸ÃÊý¾ÝÏîÏÂµÄValueÖµÎª½Å±¾ÄÚÈÝ¡£Õâ¾Í½«Ãû³Æscript×÷ÎªJsonµÄÈ±Ê¡³£Á¿Ãû³ÆÁË£¬Ê¹ÓÃÊ±ÇáÒ×²»ÒªÊ¹ÓÃscript×÷Îª±äÁ¿Ãû¡£
+ÁíÍâÒ»ÖÖÇ¶ÈëScript½Å±¾³ÌÐòµÄÎ»ÖÃ£¬ÊÇÔÚJSonÖÐµÄKey-Value¶ÔÖÐ£¬ÔÚValueÀïÔö¼ÓÌØÊâ±ÕºÏ±êÇ©<script> Script Codes </script>»òÕß<reply_script> Script Codes </reply_script>£¬ÔÚ±êÇ©ÀïÃæÇ¶ÈëScript½Å±¾´úÂë£¬Ö´ÐÐÍê´úÂëºó·µ»ØµÄÄÚÈÝ£¬×÷ÎªKeyµÄÖµ£¬ÕâÖÖ·½Ê½Ê¹µÃJSon¹æ·¶ÖÐKeyµÄÖµ¿ÉÒÔ¶¯Ì¬µØÓÉScript½Å±¾³ÌÐò¼ÆËãµÃÀ´¡£ÔÚListen¡¢Host»òLocationµÄ³£Á¿¸³ÖµÖÐ£¬ValueÄÚÈÝ¿ÉÒÔÊÇscript½Å±¾£¬Èç
+```
+  cache file = <script> if ()... return... </script>
+»ò
+  cache file = <reply_script> if ()... return... </reply_script>
+```
+
+¶Ôadif »ù´¡¿âÖÐµÄjson.cÎÄ¼þ×öÁËÐÞ¸ÄÀ©Õ¹£¬Ê¹µÃJson¶ÔÏó¶¼ÄÜÖ§³Öscript½Å±¾¶¨ÒåµÄÕâ¼¸ÖÖÓï·¨£¬Èç¹ûÄ³¸ö¶ÔÏóÏÂÓÐÃû³ÆÎªscript»òÕßreply_scriptµÄÊý¾ÝÏî£¬¾ÍÈÏÎª¸ÃÊý¾ÝÏîÏÂµÄValueÖµÎª½Å±¾ÄÚÈÝ¡£Õâ¾Í½«Ãû³ÆscriptºÍreply_script×÷ÎªJsonµÄÈ±Ê¡³£Á¿Ãû³ÆÁË£¬Ê¹ÓÃÊ±ÇáÒ×²»ÒªÊ¹ÓÃscriptºÍreply_script×÷Îª±äÁ¿Ãû¡£
  
 #### 4.3.3 Script½Å±¾·¶Àý
 
@@ -798,15 +820,27 @@ HTTP Script½Å±¾³ÌÐòÊ¾ÀýÈçÏÂ£º
  <script>
      if ($scheme == "http://") rewrite ^(.*)$  https://$host$1;
  </script>
+
+ reply_script = {
+     if ($response_header[Content-Type] ^~ "text/plain")
+         addResBody "nihao,laoke\n";
+     if ($response_header[Content-Type] ^~ "text/html")
+         appendFile2ResBody /ad.js;
+     }
+ }
 ```
 
-HTTP Script½Å±¾³ÌÐòµÄ½âÊÍÖ´ÐÐ£¬ÊÇÔÚ´´½¨HTTPMsgÊµÀý²¢ÉèÖÃÍêDocURIºó£¬¿ªÊ¼Ö´ÐÐ×ÊÔ´Î»ÖÃÊµÀý»¯Á÷³Ì£¬ÔÚÊµÀý»¯¹ý³ÌÖÐ£¬·Ö±ðÖ´ÐÐHTTPListenµÄScript½Å±¾¡¢HTTPHostµÄScript½Å±¾¡¢HTTPLocµÄScript½Å±¾¡£
+HTTP Script½Å±¾³ÌÐòÖÐÀàÐÍÎª"script"µÄ½âÊÍÖ´ÐÐ£¬ÊÇÔÚ´´½¨HTTPMsgÊµÀý²¢ÉèÖÃÍêDocURIºó£¬¿ªÊ¼Ö´ÐÐ×ÊÔ´Î»ÖÃÊµÀý»¯Á÷³Ì£¬ÔÚÊµÀý»¯¹ý³ÌÖÐ£¬·Ö±ðÖ´ÐÐHTTPListenµÄScript½Å±¾¡¢HTTPHostµÄScript½Å±¾¡¢HTTPLocµÄScript½Å±¾¡£
 
-#### 4.3.4 Script½Å±¾Óï¾ä
+HTTP Script½Å±¾³ÌÐòÖÐÀàÐÍÎª"reply_script"µÄ½âÊÍÖ´ÐÐ£¬ÊÇÔÚHTTPMsgÊµÀý±»·µ»Ø¸ø¿Í»§¶ËÖ®Ç°£¬¿ªÊ¼Ö´ÐÐÏìÓ¦ÏûÏ¢Í·ºÍÏûÏ¢ÌåµÄ±àÂë´¦ÀíÖ®Ç°£¬·Ö±ðÖ´ÐÐHTTPListenµÄReplyScript½Å±¾¡¢HTTPHostµÄReplyScript½Å±¾¡¢HTTPLocµÄReplyScript½Å±¾¡£
+
+×¢Òâ£ºHTTP ReplyScript½Å±¾³ÌÐò»á´¦ÀíeJetËùÓÐÄ£Ê½µÄHTTPÏìÓ¦ÏûÏ¢£¬°üÀ¨eJet³äµ±Origin·þÎñÆ÷¡¢Ç°Ïò´úÀí¡¢·´Ïò´úÀí¡¢FastCGI×ª·¢µÈ¸÷ÖÖÄ£Ê½ÏÂ·µ»ØµÄHTTPÏûÏ¢ÄÚÈÝ£¬ÔÚ·¢ËÍÇ°£¬¶¼»áÖ´ÐÐReplyScript½Å±¾À´½øÐÐ¼ì²é¡¢Ð£Ñé¡¢ÔöÉ¾¸ÄµÈ²Ù×÷¡£
+
+#### 4.3.5 Script½Å±¾Óï¾ä
 
 script½Å±¾ÊÇÓÉÒ»ÏµÁÐÓï¾ä¹¹³ÉµÄ³ÌÐò£¬Óï·¨ÀàËÆÓÚJavaScriptºÍCÓïÒô£¬Ö÷Òª°üÀ¨ÈçÏÂÓï¾ä£º
  
-##### 4.3.4.1 Ìõ¼þÓï¾ä
+##### 4.3.5.1 Ìõ¼þÓï¾ä
 
 Ìõ¼þÓï¾äÖ÷ÒªÒÔif¡¢else if¡¢else×é³É£¬»ù±¾Óï·¨Îª£º
 ```
@@ -818,6 +852,18 @@ script½Å±¾ÊÇÓÉÒ»ÏµÁÐÓï¾ä¹¹³ÉµÄ³ÌÐò£¬Óï·¨ÀàËÆÓÚJavaScriptºÍCÓïÒô£¬Ö÷Òª°üÀ¨ÈçÏÂÓï¾
 * (b) ÅÐ¶ÏÌõ¼þÖÐ°üº¬ÁËÁ½¸ö±äÁ¿£»
 * (c) ÎÄ¼þ»òÄ¿Â¼ÊôÐÔµÄÅÐ¶Ï£»
  
+Ò»¸öifÓï¾äÖÐ£¬¿ÉÒÔÔÊÐíÓÐ¶à¸öÅÐ¶ÏÌõ¼þ£¬Í¨¹ý Óë²Ù×÷£¨AND¡¢&&£©»ò »ò²Ù×÷£¨OR¡¢||£©À´ÊµÏÖ¶à¸öÅÐ¶ÏÌõ¼þµÄ ²¢ÇÒ¹ØÏµ »ò »òÕß¹ØÏµ¡£»ù±¾Óï·¨ÈçÏÂ£º
+```
+  if (ÅÐ¶ÏÌõ¼þ1 && ÅÐ¶ÏÌõ¼þ2) { ... } else if (ÅÐ¶ÏÌõ¼þ3 || ÅÐ¶ÏÌõ¼þ4) { ... } else { ... }
+```
+ÆäÖÐ£¬²¢ÇÒ¹ØÏµ·û && Ò²¿ÉÒÔÓÃ and»òAND À´´úÌæ£¬»òÕß¹ØÏµ·û || Ò²¿ÉÒÔÓÃ or»òOR À´´úÌæ¡£
+
+ifÓï¾äÖÐµÄÅÐ¶ÏÌõ¼þ¿ÉÒÔÔÊÐíÒ»¶¨³Ì¶ÈµÄÇ¶Ì×£¬Í¨¹ýÐ¡À¨ºÅ()À´Çø¸ô¶à¸ö×éºÏÅÐ¶ÏÌõ¼þ£¬ÈçÏÂËùÊ¾£º
+```
+  if ( (ÅÐ¶ÏÌõ¼þ1 && ÅÐ¶ÏÌõ¼þ2) || ÅÐ¶ÏÌõ¼þ3 || (ÅÐ¶ÏÌõ¼þ4 AND ÅÐ¶ÏÌõ¼þ5) ) { ... }
+```
+
+
 ÅÐ¶Ï±È½Ï²Ù×÷Ö÷Òª°üÀ¨£º
 * (a) ±äÁ¿1 == ±äÁ¿2£¬ÅÐ¶ÏÊÇ·ñÏàµÈ£¬Á½¸ö±äÁ¿ÖµÄÚÈÝÏàÍ¬ÎªTRUE£¬·ñÔòÎªFALSE
 * (b) ±äÁ¿1 != ±äÁ¿2£¬ÅÐ¶Ï²»ÏàµÈ£¬Á½¸ö±äÁ¿ÖµÄÚÈÝ²»ÏàÍ¬ÎªTRUE£¬·ñÔòÎªFALSE
@@ -834,15 +880,19 @@ script½Å±¾ÊÇÓÉÒ»ÏµÁÐÓï¾ä¹¹³ÉµÄ³ÌÐò£¬Óï·¨ÀàËÆÓÚJavaScriptºÍCÓïÒô£¬Ö÷Òª°üÀ¨ÈçÏÂÓï¾
 * (m) !-e ±äÁ¿£¬È¡±äÁ¿Öµ×Ö·û´®¶ÔÓ¦µÄÎÄ¼þ¡¢Ä¿Â¼¡¢Á´½ÓÎÄ¼þ²»´æÔÚ£¬ÔòÎªTRUE£¬·ñÔòÎªFALSE
 * (n) -x ±äÁ¿£¬È¡±äÁ¿Öµ×Ö·û´®¶ÔÓ¦µÄÎÄ¼þ´æÔÚ²¢ÇÒ¿ÉÖ´ÐÐ£¬ÔòÎªTRUE£¬·ñÔòÎªFALSE
 * (o) !-x ±äÁ¿£¬È¡±äÁ¿Öµ×Ö·û´®¶ÔÓ¦µÄÎÄ¼þ²»´æÔÚ»ò²»¿ÉÖ´ÐÐ£¬ÔòÎªTRUE£¬·ñÔòÎªFALSE
+* (p) ±äÁ¿1 > ±äÁ¿2£¬ÅÐ¶ÏÊýÖµ1ÊÇ·ñ´óÓÚÊýÖµ2£¬Á½¸ö±äÁ¿ÖµÄÚÈÝÊÇÕûÐÍ»ò¸¡µãÐÍ£¬±È½ÏÆä´óÐ¡£¬Èç¹ûÎª×Ö·û´®ÐÍ£¬Ôò×ö×Ö·û´®±È½Ï
+* (q) ±äÁ¿1 >= ±äÁ¿2£¬ÅÐ¶ÏÊýÖµ1ÊÇ·ñ´óÓÚµÈÓÚÊýÖµ2£¬Á½¸ö±äÁ¿ÖµÄÚÈÝÊÇÕûÐÍ»ò¸¡µãÐÍ£¬±È½ÏÆä´óÐ¡£¬Èç¹ûÎª×Ö·û´®ÐÍ£¬Ôò×ö×Ö·û´®±È½Ï
+* (r) ±äÁ¿1 < ±äÁ¿2£¬ÅÐ¶ÏÊýÖµ1ÊÇ·ñÐ¡ÓÚÊýÖµ2£¬Á½¸ö±äÁ¿ÖµÄÚÈÝÊÇÕûÐÍ»ò¸¡µãÐÍ£¬±È½ÏÆä´óÐ¡£¬Èç¹ûÎª×Ö·û´®ÐÍ£¬Ôò×ö×Ö·û´®±È½Ï
+* (s) ±äÁ¿1 <= ±äÁ¿2£¬ÅÐ¶ÏÊýÖµ1ÊÇ·ñÐ¡ÓÚµÈÓÚÊýÖµ2£¬Á½¸ö±äÁ¿ÖµÄÚÈÝÊÇÕûÐÍ»ò¸¡µãÐÍ£¬±È½ÏÆä´óÐ¡£¬Èç¹ûÎª×Ö·û´®ÐÍ£¬Ôò×ö×Ö·û´®±È½Ï
  
-##### 4.3.4.2 ¸³ÖµÓï¾ä
+##### 4.3.5.2 ¸³ÖµÓï¾ä
 
 ¸³ÖµÓï¾äÖ÷ÒªÓÉsetÓï¾ä¹¹³É£¬eJetÏµÍ³ÖÐ¾Ö²¿±äÁ¿µÄ´´½¨ºÍ¸³ÖµÊÇÍ¨¹ýsetÓï¾äÀ´Íê³ÉµÄ¡£ÆäÓï·¨ÈçÏÂ£º
 ```
   set $±äÁ¿Ãû  value;
 ```
  
-##### 4.3.4.3 ·µ»ØÓï¾ä
+##### 4.3.5.3 ·µ»ØÓï¾ä
 
 ·µ»ØÓï¾äÒ²¼´ÊÇreturnÓï¾ä£¬½«script±ÕºÏ±êÇ©ÄÚÇ¶ÈëµÄScirpt½Å±¾´úÂëÖ´ÐÐÔËËãºóµÄ½á¹û£¬»òKey-Value¶ÔÖÐValueÄÚÇ¶µÄ½Å±¾³ÌÐò£¬½âÊÍÖ´ÐÐºóµÄ½á¹û·µ»Ø¸øKey±äÁ¿£¬»ù±¾Óï·¨Îª£º
 ```
@@ -855,7 +905,7 @@ script½Å±¾ÊÇÓÉÒ»ÏµÁÐÓï¾ä¹¹³ÉµÄ³ÌÐò£¬Óï·¨ÀàËÆÓÚJavaScriptºÍCÓïÒô£¬Ö÷Òª°üÀ¨ÈçÏÂÓï¾
   cache file = <script> if ($user_agent ~* "MSIE") return $real_file; </script>;
 ```
 
-##### 4.3.4.4 ÏìÓ¦Óï¾ä
+##### 4.3.5.4 ÏìÓ¦Óï¾ä
 
 ÏìÓ¦Óï¾äÒ²¾ÍÊÇreplyÓï¾ä£¬Ö´ÐÐ¸ÃÓï¾äºó£¬eJetÏµÍ³½«ÖÕÖ¹µ±Ç°HTTPÇëÇóHTTPMsgµÄÈÎºÎ´¦Àí£¬Ö±½Ó·µ»ØHTTPÏìÓ¦¸ø¿Í»§¶Ë£¬ÆäÓï·¨ÈçÏÂ£º
 ```
@@ -877,7 +927,7 @@ script½Å±¾ÊÇÓÉÒ»ÏµÁÐÓï¾ä¹¹³ÉµÄ³ÌÐò£¬Óï·¨ÀàËÆÓÚJavaScriptºÍCÓïÒô£¬Ö÷Òª°üÀ¨ÈçÏÂÓï¾
  
 eJetÏµÍ³ÔÚ½âÊÍÆ÷½âÊÍÖ´ÐÐScript´úÂëÊ±£¬ÏÈÖ´ÐÐListenÏÂµÄscript½Å±¾¡¢ÔÙÖ´ÐÐHostÏÂµÄscript½Å±¾£¬×îºóÔÙÖ´ÐÐLocationÏÂµÄscript½Å±¾¡£ÔÚÖ´ÐÐÏÂÒ»¸ö½Å±¾Ö®Ç°£¬ÏÈÅÐ¶Ï¸Õ¸ÕÖ´ÐÐµÄscript½Å±¾ÊÇ·ñÒÑ¾­ReplyÁË»òÕßÒÑ¾­¹Ø±Õµ±Ç°HTTPMsgÁË¡£Èç¹ûReplyÁË»ò¹Ø±Õµ±Ç°ÏûÏ¢ÁË£¬ÔòÖ±½Ó·µ»Ø£¬ÎÞÐè¼ÌÐø½âÎö²¢Ö´ÐÐºóÐøµÄscript½Å±¾³ÌÐò¡£
  
-##### 4.3.4.5 rewriteÓï¾ä
+##### 4.3.5.5 rewriteÓï¾ä
 
 eJetÏµÍ³ÖÐµÄURLÖØÐ´ÊÇÍ¨¹ýScript½Å±¾À´ÊµÏÖµÄ£¬·Ö±ð½è¼øÁËApacheºÍNginxµÄ³É¹¦¾­Ñé¡£
 
@@ -935,7 +985,7 @@ rewrite ^/([0-9]+)/.*$ /aticle.php?id=$1?;
 
 ÔÚeJetÏµÍ³ÖÐ£¬replacementºó¼Ó£¿ºÍ²»¼Ó£¿ÊÇÓÐ²î±ðµÄ£¬¼Ó£¿ÒâÎ¶×Åquery²ÎÊýÃ»ÁË£¬²»¼ÓÔò»á×Ô¶¯°ÑÔ´URLÖÐµÄquery´®£¨?query£©Ìí¼Óµ½Ìæ»»ºóµÄURLÖÐ¡£
  
-##### 4.3.4.6 addReqHeaderÓï¾ä
+##### 4.3.5.6 addReqHeaderÓï¾ä
 
 ÌØ¶¨Çé¿öÏÂ£¬ÐèÒª¶Ô¿Í»§¶ËÇëÇóÏûÏ¢Ìí¼Ó¶îÍâµÄÇëÇóÍ·£¬½»¸øºóÐø´¦Àí³ÌÐò£¬ÈçÓ¦ÓÃ²ã´¦Àí³ÌÐò¡¢PHP³ÌÐò¡¢Proxy¡¢Origin·þÎñÆ÷µÈµÈ£¬À´´¦Àí»òÊ¹ÓÃµ½ÕâÐ©ÐÅÏ¢¡£Æ©ÈçÔÚ×÷ÎªHTTP Proxy¹¦ÄÜÊ±£¬·¢ËÍ¸øÔ¶³ÌOrigin·þÎñÆ÷µÄÇëÇóÖÐ¶¼ÐèÒªÌí¼ÓÁ½¸öÇëÇóÍ·£ºÒ»¸öÊÇX-Real-IP£¬ÁíÒ»¸öÊÇX-Forwarded-For£¬Ê¹ÓÃ±¾Óï¾ä¿ÉÒÔºÜ·½±ãµØÊµÏÖÁË¡£
  
@@ -954,28 +1004,80 @@ if ($proxied) {
 }
 ```
  
-##### 4.3.4.7 addResHeaderÓï¾ä
+##### 4.3.5.7 addResHeaderÓï¾ä
 
 Æä»ù±¾Óï·¨Îª£º
 ```
  addResHeader  <header name>  <header value>;
 ``` 
  
-##### 4.3.4.8 delReqHeaderÓï¾ä
+##### 4.3.5.8 delReqHeaderÓï¾ä
 
 Æä»ù±¾Óï·¨Îª£º
 ```
  delReqHeader  <header name>;
 ```
  
-##### 4.3.4.9 delResHeaderÓï¾ä
+##### 4.3.5.9 delResHeaderÓï¾ä
 
 Æä»ù±¾Óï·¨Îª£º
 ```
   delResHeader  <header name>;
 ``` 
 
-##### 4.3.4.10 try_files Óï¾ä
+##### 4.3.5.10 addResBodyÓï¾ä
+
+ÔÚ·µ»ØÏìÓ¦ÄÚÈÝ¸ø¿Í»§¶ËÖ®Ç°£¬¿ÉÒÔÍ¨¹ý½Å±¾Ö¸ÁîaddResBody¸øÏìÓ¦ÌåÊ×²¿¶îÍâÌí¼ÓÄÚÈÝ£¬ÈçÔÚHTMLÄÚÈÝÖÐÌí¼ÓÒ»¶ÎJavaScript½Å±¾³ÌÐò¡£
+
+Ìí¼ÓµÄÄÚÈÝÐèÒªË«ÒýºÅ°üº¬×¡£¬ÄÚÈÝÖÐÈç¹ûº¬ÓÐË«ÒýºÅÊ±£¬ÐèÊ¹ÓÃ·´Ð±¸Üescape£¬´ËÍâÐèÒªÔÚÒýºÅÄÚescapeµÄ×Ö·û°üÀ¨£º
+»»ÐÐ·û\n»ò\r
+µ¥ÒýºÅ'
+ÖÆ±í·û\t
+Õý·´Ð±¸Ü \ /
+
+Æä»ù±¾Óï·¨Îª£º
+```
+  addResBody <"content to be added">;
+``` 
+
+##### 4.3.5.11 appendResBodyÓï¾ä
+ 
+¸úaddResBodyÏà¶ÔÓ¦£¬ÔÚ·µ»ØÏìÓ¦ÄÚÈÝ¸ø¿Í»§¶ËÖ®Ç°£¬¿ÉÒÔÍ¨¹ý½Å±¾Ö¸ÁîaddResBody¸øÏìÓ¦ÌåÎ²²¿¶îÍâÌí¼ÓÄÚÈÝ£¬ÈçÔÚHTMLÄÚÈÝÖÐÌí¼ÓÒ»¶ÎJavaScript½Å±¾³Ì>
+ 
+Æä»ù±¾Óï·¨Îª£º
+```
+  appendResBody <"content to be appended">; 
+```
+ 
+##### 4.3.5.12 addFile2ResBodyÓï¾ä
+   
+½«µ±Ç°×ÊÔ´Î»ÖÃLocationÏÂµÄÎÄ¼þÄÚÈÝÌí¼Óµ½ÏìÓ¦ÏûÏ¢ÌåµÄÍ·²¿£¬ÎÄ¼þÃûµÄÂ·¾¶ÖÐÈç¹ûÊÇÒÔ¸ùÄ¿Â¼/¿ªÊ¼£¬ÄÇÃ´ÎÄ¼þÃûÔòÏà¶ÔÓÚµ±Ç°HTTPÇëÇóÊµÀý»¯µÄ×ÊÔ´Î»ÖÃLocationµÄ¸ùÂ·¾¶£¬Èç¹ûÎÄ¼þÃûµÄÂ·¾¶ÖÐÃ»ÓÐÒÔ¸ùÄ¿Â¼/¿ªÊ¼£¬ÔòÎÄ¼þÃûµÄÂ·¾¶ÊÇÏà¶ÔÓÚµ±Ç°HTTPÇëÇóµÄÏà¶ÔÂ·¾¶¡£
+
+Ê¹ÓÃ±¾Ö¸Áî£¬½«Ö¸¶¨ÎÄ¼þµÄÄÚÈÝ¶ÁÈ¡µ½ÏìÓ¦ÌåµÄÍ·²¿£¬²¢·µ»Ø¸ø¿Í»§¶Ë¡£
+
+ÎÄ¼þÃû¿ÉÒÔÊÇ×é³ÉÎÄ¼þÃûµÄ×Ö·û´®Íâ£¬Ò²¿ÉÒÔÊÇ¸÷ÖÖ±äÁ¿¡£
+
+Æä»ù±¾Óï·¨Îª£º
+```
+  addFile2ResBody <FileName or Variable>
+```
+
+##### 4.3.5.13 appendFile2ResBodyÓï¾ä
+ 
+½«µ±Ç°×ÊÔ´Î»ÖÃLocationÏÂµÄÎÄ¼þÄÚÈÝÌí¼Óµ½ÏìÓ¦ÏûÏ¢ÌåµÄÎ²²¿£¬ÎÄ¼þÃûµÄÂ·¾¶ÖÐÈç¹ûÊÇÒÔ¸ùÄ¿Â¼/¿ªÊ¼£¬ÄÇÃ´ÎÄ¼þÃûÔòÏà¶ÔÓÚµ±Ç°HTTP
+ÇëÇóÊµÀý»¯µÄ×ÊÔ´Î»ÖÃLocationµÄ¸ùÂ·¾¶£¬Èç¹ûÎÄ¼þÃûµÄÂ·¾¶ÖÐÃ»ÓÐÒÔ¸ùÄ¿Â¼/¿ªÊ¼£¬ÔòÎÄ¼þÃûµÄÂ·¾¶ÊÇÏà¶ÔÓÚµ±Ç°HTTPÇëÇóµÄÏà¶ÔÂ·¾¶
+¡£
+ 
+Ê¹ÓÃ±¾Ö¸Áî£¬½«Ö¸¶¨ÎÄ¼þµÄÄÚÈÝ¶ÁÈ¡µ½ÏìÓ¦ÌåµÄÎ²²¿£¬²¢·µ»Ø¸ø¿Í»§¶Ë¡£
+ 
+ÎÄ¼þÃû¿ÉÒÔÊÇ×é³ÉÎÄ¼þÃûµÄ×Ö·û´®Íâ£¬Ò²¿ÉÒÔÊÇ¸÷ÖÖ±äÁ¿¡£
+
+Æä»ù±¾Óï·¨Îª£º 
+```  
+  appendFile2ResBody <FileName or Variable>
+```
+
+##### 4.3.5.14 try_files Óï¾ä
 
 try_files ÊÇÒ»¸öÖØÒªµÄÖ¸Áî£¬½¨ÒéÎ»ÓÚLocation¡¢HostÏÂÃæ¡£Ê¹ÓÃ¸ÃÖ¸Áî£¬ÒÀ´Î²âÊÔÁÐ±íÖÐµÄÎÄ¼þÊÇ·ñ´æÔÚ£¬´æÔÚ¾Í½«ÆäÉèÖÃDocURI£¬Èç²»²»´æÔÚ£¬Ôò½«×îºóµÄURIÉèÖÃÎªDocURI£¬»ò¸ø¿Í»§¶Ë·µ»Ø×´Ì¬Âëcode¡£
  
@@ -986,7 +1088,7 @@ try_files»ù±¾Óï·¨ÈçÏÂ£º
   try_files file ... =code;
 ``` 
 
-##### 4.3.4.11 ×¢ÊÍÓï¾ä
+##### 4.3.5.15 ×¢ÊÍÓï¾ä
 
 Script½Å±¾³ÌÐòÖÐ£¬Èç¹ûÒ»ÐÐ³ýÈ¥¿Õ¸ñ×Ö·ûÍâ£¬ÒÔ#ºÅ´òÍ·£¬ÄÇÃ´µ±Ç°ÐÐÎª×¢ÊÍÐÐ£¬²»±»½âÊÍÆ÷½âÊÍÖ´ÐÐ£»ÁíÍâÍ¨¹ýCÓïÑÔ´úÂë¿é×¢ÊÍ±ê¼Ç /*  xxx  */Ò²±»eJetÏµÍ³²ÉÓÃ¡£
 
