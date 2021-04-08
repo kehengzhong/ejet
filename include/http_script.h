@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2003-2020 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
  */
 
@@ -40,6 +40,14 @@ int http_script_parse_exec (void * vhsc, char * sc, int sclen);
 int http_script_segment_exec (void * vmsg, char * psc, int sclen, char ** pval,
                               int * vallen, char * vname, int vtype);
 int http_script_exec (void * vmsg);
+
+int http_reply_script_exec (void * vmsg);
+
+
+void   script_parser_init  ();
+void   script_parser_clean ();
+
+void * script_parser_get   (char * cmd, int len);
 
 #ifdef __cplusplus
 }

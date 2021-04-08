@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2003-2020 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
  */
 
@@ -30,6 +30,8 @@ typedef struct HTTPForm_ {
 
 void * http_form_alloc();
 void   http_form_free (void * vform);
+
+void * http_form_node (void * vmsg, char * key);
 
 int http_form_get    (void * vmsg, char * key, char ** ctype, uint8 * formtype, char ** fname, int64 * valuelen);
 int http_form_value  (void * vmsg, char * key, char * value, int64 valuelen);

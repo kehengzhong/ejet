@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2003-2020 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
  */
 
@@ -10,12 +10,30 @@
 extern "C" {
 #endif
 
+/* HTTP Method Constants Definition */
+#define HTTP_METHOD_NONE       0
+#define HTTP_METHOD_CONNECT    1
+#define HTTP_METHOD_DELETE     2
+#define HTTP_METHOD_GET        3
+#define HTTP_METHOD_HEAD       4
+#define HTTP_METHOD_VERSION_10 5
+#define HTTP_METHOD_VERSION_11 6
+#define HTTP_METHOD_OPTIONS    7
+#define HTTP_METHOD_POST       8
+#define HTTP_METHOD_PUT        9
+#define HTTP_METHOD_TRACE      10
+
+
 typedef int    HTTPObjInit    (void * httpmgmt, void * vobj, void * hconf);
 typedef int    HTTPObjClean   (void * vobj);
+
 typedef void * HTTPCBInit     (void * httpmgmt, int argc, char ** argv);
-typedef int    RequestHandler (void * cbobj, void * vmsg);
+typedef int    HTTPCBHandler  (void * cbobj, void * vmsg, void * tplfile);
 typedef void   HTTPCBClean    (void * cbobj);
-typedef int    ResponseHandle (void * vmsg, void * para, void * cbval, int status);
+
+typedef int    PageTplCB      (void * cbobj, void * vmsg, void * tplvar, void * tplunit, frame_p cfrm);
+
+typedef int    RecvAllNotify  (void * vmsg, void * para, void * cbval, int status);
 typedef int    TearDownNotify (void * vmsg, void * para);
 
 
@@ -296,10 +314,10 @@ typedef struct http_msg {
     TearDownNotify   * tear_down_notify;
     void             * tear_down_para;
  
-    ResponseHandle   * reshandle;
-    uint8              reshandle_called;
-    void             * reshandle_para;
-    void             * reshandle_cbval;
+    RecvAllNotify    * resnotify;
+    uint8              resnotify_called;
+    void             * resnotify_para;
+    void             * resnotify_cbval;
  
     char             * res_store_file;
     int64              res_store_offset;
@@ -312,10 +330,15 @@ typedef struct http_msg {
  
  
     int    (*SetTearDownNotify)(void * vmsg, void * func, void * para);
-    int    (*SetResponseHandle)(void * vmsg, void * func, void * para, void * cbval,
-                                  char * storefile, int64 offset,
-                                  void * procnotify, void * notifypara);
+    int    (*SetResponseNotify)(void * vmsg, void * func, void * para, void * cbval,
+                                char * storefile, int64 offset,
+                                void * procnotify, void * notifypara);
  
+    int    (*SetResStoreFile)      (void * vmsg, char * storefile, int64 offset);
+    int    (*SetResRecvAllNotify)  (void * vmsg, void * func, void * para, void * cbval);
+    int    (*SetResRecvProcNotify) (void * vmsg, void * procnotify, void * notifypara);
+    int    (*SetReqSendProcNotify) (void * vmsg, void * procnotify, void * notifypara);
+
     char * (*GetMIME)        (void * vmsg, char * extname, uint32 * mimeid);
     void * (*GetMIMEMgmt)    (void * vmsg);
  
@@ -344,6 +367,7 @@ typedef struct http_msg {
     int    (*GetSrcPort)     (void * vmsg);
     ulong  (*GetMsgID)       (void * vmsg);
  
+    int    (*GetMethodInd)   (void * vmsg);
     char * (*GetMethod)      (void * vmsg);
     int    (*SetMethod)      (void * vmsg, char * meth, int methlen);
  
@@ -495,6 +519,7 @@ typedef struct http_msg {
     int    (*AddResFile)          (void * vmsg, char * filename, int64 startpos, int64 len);
     int    (*AddResAppCBContent)  (void * vmsg, void * prewrite, void * prewobj, int64 offset, int64 length,
                                    void * movefunc, void * movepara, void * endwrite, void * endwobj);
+    int    (*AddResTplFile)       (void * vmsg, char * tplfile, void * tplvar);
  
     int    (*RedirectReply)  (void * vmsg, int status, char * redurl);
     int    (*Reply)          (void * vmsg);
@@ -514,6 +539,48 @@ int    http_mgmt_obj_init  (void * vmgmt, HTTPObjInit * objinit, void * hconf);
 int    http_mgmt_obj_clean (void * vmgmt, HTTPObjClean * objclean);
 void * http_mgmt_obj       (void * vmgmt);
  
+void * http_ssl_listen_start (void * vmgmt, char * localip, int port, uint8 fwdpxy,
+                              char * cert, char * prikey, char * cacert, char * libfile);
+void * http_listen_start     (void * vmgmt, char * localip, int port, uint8 fwdpxy, char * libfile);
+ 
+void * http_listen_find  (void * vmgmt, char * localip, int port);
+int    http_listen_stop  (void * vmgmt, char * localip, int port);
+
+
+int    http_prefix_match_cb (void * vhl, char * hostn, int hostlen, char * matstr, int len,
+                             char * root, void * cbfunc, void * cbobj, void * tplfile);
+int    http_exact_match_cb  (void * vhl, char * hostn, int hostlen, char * matstr, int len,
+                             char * root, void * cbfunc, void * cbobj, void * tplfile) ;
+int    http_regex_match_cb  (void * vhl, char * hostn, int hostlen, char * matstr, int len, int ignorecase,
+                             char * root, void * cbfunc, void * cbobj, void * tplfile);
+
+/* <?ejetpl TEXT $CURROOT PARA=abcd ?>                                                  */
+/* <?ejetpl LINK $LINKNAME URL=/csc/disponlist.so SHOW=第一页 PARA=listfile?>           */
+/* <?ejetpl IMG $IMGNAME URL=/csc/drawimg.so?randval=234 SHOW=实时走势 PARA="a=1"?>     */
+/* <?ejetpl LIST $ACCESSLOG PARA=1?>                                                    */
+/* <?ejetpl INCLUDE /home/hzke/dxcang/httpdoc/foot.html ?>                        */
+ 
+typedef struct pagetplunit {
+    uint8    type; //1-TEXT, 2-LINK, 3-IMG, 4-LIST, 5-INCLUDE, 0-Unknown
+    char   * text;
+    int      textlen;
+    char   * url;
+    int      urllen;
+    char   * show;
+    int      showlen;
+    char   * para;
+    int      paralen;
+    size_t   bgnpos;
+    size_t   endpos;
+    char   * tplfile;
+} PageTplUnit;
+
+int    http_pagetpl_text_cb (void * vhl, char * hostn, int hostlen,
+                             void * text, int textlen, void * func, void * cbobj);
+int    http_pagetpl_list_cb (void * vhl, char * hostn, int hostlen,
+                             void * text, int textlen, void * func, void * cbobj);
+
+
 void   http_overhead       (void * vmgmt, uint64 * recv, uint64 * sent,
                              struct timeval * lasttick, int reset, struct timeval * curt);
  
@@ -521,7 +588,10 @@ int    http_msg_mgmt_add (void * vmgmt, void * vmsg);
 void * http_msg_mgmt_get (void * vmgmt, ulong msgid);
 void * http_msg_mgmt_del (void * vmgmt, ulong msgid);
 
-int    http_set_reqhandler (void * vmgmt, RequestHandler * reqhandler, void * cbobj);
+int    http_set_reqhandler (void * vmgmt, HTTPCBHandler * reqhandler, void * cbobj);
+
+int    http_set_reqcheck (void * vmgmt, HTTPCBHandler * reqcheck, void * checkobj);
+int    http_set_rescheck (void * vmgmt, HTTPCBHandler * rescheck, void * checkobj);
 
 void * http_get_json_conf  (void * vmgmt);
 void * http_get_mimemgmt   (void * vmgmt);

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2003-2020 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
  */
 
@@ -29,6 +29,7 @@ int GetPathOnly      (void * vmsg, char * path, int pathlen);
 int GetFileOnly      (void * vmsg, char * path, int pathlen);
 int GetFileExt       (void * vmsg, char * path, int pathlen);
 
+int    GetMethodInd  (void * vmsg);
 char * GetMethod     (void * vmsg);
 int    GetBaseURL    (void * vmsg, char ** pbase, int * plen);
 char * GetAbsURL     (void * vmsg);

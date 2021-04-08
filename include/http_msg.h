@@ -12,8 +12,8 @@
 extern "C" {
 #endif
 
+typedef int RecvAllNotify  (void * vmsg, void * para, void * cbval, int status);
 typedef int TearDownNotify (void * vmsg, void * para);
-typedef int ResponseHandle (void * vmsg, void * para, void * cbval, int status);
 
 
 #define REUSE_BUF_THRESHOLD  64*1024
@@ -293,10 +293,10 @@ typedef struct http_msg {
     TearDownNotify   * tear_down_notify;
     void             * tear_down_para;
 
-    ResponseHandle   * reshandle;
-    uint8              reshandle_called;
-    void             * reshandle_para;
-    void             * reshandle_cbval;
+    RecvAllNotify    * resnotify;
+    uint8              resnotify_called;
+    void             * resnotify_para;
+    void             * resnotify_cbval;
 
     char             * res_store_file;
     int64              res_store_offset;
@@ -309,9 +309,14 @@ typedef struct http_msg {
 
 
     int    (*SetTearDownNotify)(void * vmsg, void * func, void * para);
-    int    (*SetResponseHandle)(void * vmsg, void * func, void * para, void * cbval,
-                                  char * storefile, int64 offset,
-                                  void * procnotify, void * notifypara);
+    int    (*SetResponseNotify)(void * vmsg, void * func, void * para, void * cbval,
+                                char * storefile, int64 offset,
+                                void * procnotify, void * notifypara);
+    
+    int    (*SetResStoreFile)      (void * vmsg, char * storefile, int64 offset);
+    int    (*SetResRecvAllNotify)  (void * vmsg, void * func, void * para, void * cbval);
+    int    (*SetResRecvProcNotify) (void * vmsg, void * procnotify, void * notifypara);
+    int    (*SetReqSendProcNotify) (void * vmsg, void * procnotify, void * notifypara);
 
     char * (*GetMIME)        (void * vmsg, char * extname, uint32 * mimeid);
     void * (*GetMIMEMgmt)    (void * vmsg);
@@ -341,6 +346,7 @@ typedef struct http_msg {
     int    (*GetSrcPort)     (void * vmsg);
     ulong  (*GetMsgID)       (void * vmsg);
 
+    int    (*GetMethodInd)   (void * vmsg);
     char * (*GetMethod)      (void * vmsg);
     int    (*SetMethod)      (void * vmsg, char * meth, int methlen);
 
@@ -492,6 +498,7 @@ typedef struct http_msg {
     int    (*AddResFile)          (void * vmsg, char * filename, int64 startpos, int64 len);
     int    (*AddResAppCBContent)  (void * vmsg, void * prewrite, void * prewobj, int64 offset, int64 length,
                                    void * movefunc, void * movepara, void * endwrite, void * endwobj);
+    int    (*AddResTplFile)       (void * vmsg, char * tplfile, void * tplvar);
 
     int    (*RedirectReply)  (void * vmsg, int status, char * redurl);
     int    (*Reply)          (void * vmsg);
@@ -531,9 +538,16 @@ char * http_msg_get_mime (void * vmsg, char * extname, uint32 * mimeid);
 void * http_msg_get_mimemgmt (void * vmsg);
 
 int    http_msg_set_teardown_notify (void * vmsg, void * func, void * para);
-int    http_msg_set_response_handle (void * vmsg, void * func, void * para, void * cbval,
-                                  char * storefile, int64 offset,
-                                  void * procnotify, void * notifypara);
+int    http_msg_set_response_notify (void * vmsg, void * func, void * para, void * cbval,
+                                     char * storefile, int64 offset,
+                                     void * procnotify, void * notifypara);
+
+int http_msg_set_res_store_file      (void * vmsg, char * storefile, int64 offset);
+int http_msg_set_res_recvall_notify  (void * vmsg, void * func, void * para, void * cbval);
+int http_msg_set_res_recvproc_notify (void * vmsg, void * procnotify, void * notifypara);
+
+int http_msg_set_req_sendproc_notify (void * vmsg, void * procnotify, void * notifypara);
+
 
 /* 1 - temporary cache file
    2 - application-given file for storing response body

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2003-2020 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
  */
 
@@ -18,8 +18,8 @@ extern "C" {
 #define HTTP_PROXY        0x04
 #define HTTP_GATEWAY      0x08
 
-typedef int HTTPObjInit    (void * httpmgmt, void * vobj, void * hconf);
-typedef int HTTPObjClean   (void * vobj);
+typedef int    HTTPObjInit    (void * httpmgmt, void * vobj, void * hconf);
+typedef int    HTTPObjClean   (void * vobj);
 
 extern char * g_http_version;
 extern char * g_http_build;
@@ -145,8 +145,14 @@ typedef struct http_mgmt_ {
     uint8              mimemgmt_alloc;
     void             * appmime;
 
-    RequestHandler   * req_handler;
+    HTTPCBHandler    * req_handler;
     void             * req_cbobj;
+
+    HTTPCBHandler    * req_check;
+    void             * req_checkobj;
+
+    HTTPCBHandler    * res_check;
+    void             * res_checkobj;
 
     void             * xmlmgmt;
     void             * pcore;
@@ -185,7 +191,10 @@ int    http_listen_check (void * vmgmt, void * vobj, int event, int fdtype);
 
 void   http_uri_escape_init (void * vmgmt);
 
-int    http_set_reqhandler (void * vmgmt, RequestHandler * reqhandler, void * cbobj);
+int    http_set_reqhandler (void * vmgmt, HTTPCBHandler * reqhandler, void * cbobj);
+
+int    http_set_reqcheck (void * vmgmt, HTTPCBHandler * reqcheck, void * checkobj);
+int    http_set_rescheck (void * vmgmt, HTTPCBHandler * rescheck, void * checkobj);
 
 int    http_mgmt_con_add (void * vmgmt, void * vcon);
 void * http_mgmt_con_get (void * vmgmt, ulong conid);
