@@ -73,6 +73,11 @@ typedef struct http_location {
 void * http_loc_alloc (char * path, int pathlen, uint8 pathdup, int matchtype, int servtype, char * root);
 void   http_loc_free  (void * vloc);
 
+int http_loc_set_root (void * vloc, char * root, int rootlen);
+int http_loc_set_index (void * vloc, char ** indexlist, int num);
+int http_loc_set_proxy (void * vloc, char * passurl, char * cachefile);
+int http_loc_set_fastcgi (void * vloc, char * passurl);
+
 int http_loc_cmp_path (void * vloc, void * vpath);
 
 int http_loc_build (void * vhost, void * jhost);
@@ -198,8 +203,11 @@ void * http_ssl_listen_start (void * vmgmt, char * localip, int port, uint8 fwdp
                               uint8 ssl, char * cert, char * prikey, char * cacert, char * libfile);
 void * http_listen_start     (void * vmgmt, char * localip, int port, uint8 fwdpxy, char * libfile);
 
-void * http_listen_find  (void * vmgmt, char * localip, int port);
-int    http_listen_stop  (void * vmgmt, char * localip, int port);
+int    http_listen_num  (void * vmgmt);
+void * http_listen_get  (void * vmgmt, int index);
+
+void * http_listen_find (void * vmgmt, char * localip, int port);
+int    http_listen_stop (void * vmgmt, char * localip, int port);
 
 int    http_listen_check_self (void * vmgmt, char * host, int hostlen, char * dstip, int dstport);
 
@@ -213,14 +221,14 @@ int    http_real_file (void * vmsg, char * path, int len);
 int    http_real_path (void * vmsg, char * path, int len);
 
 
-int http_prefix_match_cb (void * vhl, char * hostn, int hostlen, char * matstr, int len,
-                          char * root, void * cbfunc, void * cbobj, void * tplfile);
+void * http_prefix_loc (void * vhl, char * hostn, int hostlen, char * matstr, int len,
+                        char * root, void * cbfunc, void * cbobj, void * tplfile);
 
-int http_exact_match_cb (void * vhl, char * hostn, int hostlen, char * matstr, int len,
-                         char * root, void * cbfunc, void * cbobj, void * tplfile) ;
+void * http_exact_loc (void * vhl, char * hostn, int hostlen, char * matstr, int len,
+                       char * root, void * cbfunc, void * cbobj, void * tplfile) ;
 
-int http_regex_match_cb (void * vhl, char * hostn, int hostlen, char * matstr, int len, int ignorecase,
-                         char * root, void * cbfunc, void * cbobj, void * tplfile);
+void * http_regex_loc (void * vhl, char * hostn, int hostlen, char * matstr, int len, int ignorecase,
+                       char * root, void * cbfunc, void * cbobj, void * tplfile);
 
 #ifdef __cplusplus
 }

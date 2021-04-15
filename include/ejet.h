@@ -543,16 +543,27 @@ void * http_ssl_listen_start (void * vmgmt, char * localip, int port, uint8 fwdp
                               char * cert, char * prikey, char * cacert, char * libfile);
 void * http_listen_start     (void * vmgmt, char * localip, int port, uint8 fwdpxy, char * libfile);
  
-void * http_listen_find  (void * vmgmt, char * localip, int port);
-int    http_listen_stop  (void * vmgmt, char * localip, int port);
+int    http_listen_num  (void * vmgmt);
+void * http_listen_get  (void * vmgmt, int index);
+
+void * http_listen_find (void * vmgmt, char * localip, int port);
+int    http_listen_stop (void * vmgmt, char * localip, int port);
 
 
-int    http_prefix_match_cb (void * vhl, char * hostn, int hostlen, char * matstr, int len,
-                             char * root, void * cbfunc, void * cbobj, void * tplfile);
-int    http_exact_match_cb  (void * vhl, char * hostn, int hostlen, char * matstr, int len,
-                             char * root, void * cbfunc, void * cbobj, void * tplfile) ;
-int    http_regex_match_cb  (void * vhl, char * hostn, int hostlen, char * matstr, int len, int ignorecase,
-                             char * root, void * cbfunc, void * cbobj, void * tplfile);
+void * http_prefix_loc (void * vhl, char * hostn, int hostlen, char * matstr, int len,
+                        char * root, void * cbfunc, void * cbobj, void * tplfile);
+
+void * http_exact_loc (void * vhl, char * hostn, int hostlen, char * matstr, int len,
+                       char * root, void * cbfunc, void * cbobj, void * tplfile);
+
+void * http_regex_loc (void * vhl, char * hostn, int hostlen, char * matstr, int len, int ignorecase,
+                       char * root, void * cbfunc, void * cbobj, void * tplfile);
+
+int    http_loc_set_root    (void * vloc, char * root, int rootlen);
+int    http_loc_set_index   (void * vloc, char ** indexlist, int num);
+int    http_loc_set_proxy   (void * vloc, char * passurl, char * cachefile);
+int    http_loc_set_fastcgi (void * vloc, char * passurl);
+
 
 /* <?ejetpl TEXT $CURROOT PARA=abcd ?>                                                  */
 /* <?ejetpl LINK $LINKNAME URL=/csc/disponlist.so SHOW=µÚÒ»Ò³ PARA=listfile?>           */

@@ -135,6 +135,9 @@ typedef struct http_mgmt_ {
     mpool_t          * fcgimsg_pool;
 
     hashtab_t        * status_table;
+
+    /* HTTPListen instances list */
+    CRITICAL_SECTION   listenlistCS;
     arr_t            * listen_list;
 
     /* matching next proxy host and port when sending request */
