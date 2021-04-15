@@ -398,6 +398,10 @@ int http_cli_recv_parse (void * vcon)
             pcon->rcv_state = HTTP_CON_READY;
         }
 
+#if defined _DEBUG
+  print_request(msg, stdout);
+#endif
+
         if (http_proxy_handle(msg) >= 0)
             return 0;
  

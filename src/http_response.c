@@ -579,10 +579,6 @@ int http_res_encoding (void * vmsg)
 
     if (msg->res_body_flag == BC_CONTENT_LENGTH || msg->res_body_flag == BC_TE) {
 #if 0
-        HTTPMgmt     * mgmt = NULL;
-
-        mgmt = msg->httpmgmt;
-
         if (msg->proxied && mgmt->charset_conv && msg->res_status == 200) {
             /* character set conversion */
             /* check the response content type */
@@ -661,6 +657,10 @@ go_on_execute:
     msg->res_header_length = frameL(msg->res_stream);
 
     chunk_prepend_bufptr(msg->res_body_chunk, frameP(msg->res_stream), frameL(msg->res_stream), 1);
+
+#if defined _DEBUG
+print_response(msg, stderr);
+#endif
 
     return 0;
 }

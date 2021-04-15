@@ -115,10 +115,10 @@ int http_pagetpl_add (void * vmsg, char * tplfile, void * tplvar)
         /* <?ejetpl INCLUDE /home/hzke/dxcang/httpdoc/foot.html PARA=1?>                     */
 
         pval = sun_find_string(pbgn, pend - pbgn, "<?ejetpl", 8, NULL);
-        if (pbgn >= pend) break;
+        if (!pval || pval >= pend) break;
 
         pvalend = sun_find_string(pval + 8, pend - pval - 8, "?>", 2, NULL);
-        if (pvalend >= pend) break;
+        if (!pvalend || pvalend >= pend) break;
 
         if (pval > pbgn) {
             chunk_add_file(msg->res_body_chunk, tplfile, pbgn - pbyte, pval - pbgn, 1);
@@ -129,7 +129,8 @@ int http_pagetpl_add (void * vmsg, char * tplfile, void * tplvar)
         tpl.endpos = pvalend + 2 - pbyte;
         tpl.tplfile = tplfile;
 
-        /* move to the end of pagetpl tag: <?ejetpl xxxx xxx ?> */
+        /* move pval to the begining, pbgn to the end of pagetpl tag: <?ejetpl xxxx xxx ?> */
+        pval = pval + 8;
         pbgn = pvalend + 2;
 
         /* pval is begining of command keyword, poct is the end of command.
@@ -226,6 +227,8 @@ int http_pagetpl_add (void * vmsg, char * tplfile, void * tplvar)
 
     munmap(pbyte, st.st_size);
     close(fd);
+
+    msg->SetResContentType (msg, "text/html", 9);
 
     return 0;
 }

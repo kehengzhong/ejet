@@ -1914,6 +1914,11 @@ int AddResFile (void * vmsg, char * filename, int64 startpos, int64 len)
  
     if (file_stat(filename, &st) < 0) return -3;
 
+    ret = strlen(filename);
+    if (ret > 7 && str_casecmp(filename + ret - 7, ".ejetpl") == 0) {
+        return msg->AddResTplFile(msg, filename, NULL);
+    }
+
     if ((num = vstar_num(msg->partial_list)) > 0) {
 
         if (num == 1) {

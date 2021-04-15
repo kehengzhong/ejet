@@ -80,6 +80,67 @@ void http_loc_free (void * vloc)
     kfree(ploc);
 }
 
+int http_loc_set_root (void * vloc, char * root, int rootlen)
+{
+    HTTPLoc * ploc = (HTTPLoc *)vloc;
+
+    if (!ploc) return -1;
+
+    return str_secpy(ploc->root, sizeof(ploc->root) - 1, root, rootlen);
+}
+
+int http_loc_set_index (void * vloc, char ** indexlist, int num)
+{
+    HTTPLoc * ploc = (HTTPLoc *)vloc;
+    int       i;
+
+    if (!ploc) return -1;
+
+    if (!indexlist || num <= 0) return -2;
+
+    ploc->indexnum = num;
+
+    for (i = 0; i < num; i++) {
+        ploc->index[i] = indexlist[i];
+    }
+
+    return num;
+}
+
+int http_loc_set_proxy (void * vloc, char * passurl, char * cachefile)
+{
+    HTTPLoc * ploc = (HTTPLoc *)vloc;
+
+    if (!ploc) return -1;
+
+    if (!passurl) return -2;
+
+    ploc->type = SERV_PROXY;
+    ploc->passurl = passurl;
+
+    if (cachefile) {
+        ploc->cache = 1;
+        ploc->cachefile = cachefile;
+    }
+
+    return 0;
+}
+
+int http_loc_set_fastcgi (void * vloc, char * passurl)
+{
+    HTTPLoc * ploc = (HTTPLoc *)vloc;
+
+    if (!ploc) return -1;
+
+    if (!passurl) return -2;
+
+    ploc->type = SERV_FASTCGI;
+    ploc->passurl = passurl;
+
+    return 0;
+}
+
+
 int http_loc_cmp_path (void * vloc, void * vpath)
 {
     HTTPLoc * ploc = (HTTPLoc *)vloc;
@@ -875,6 +936,8 @@ int http_listen_init (void * vmgmt)
 
     if (!mgmt) return -1;
 
+    InitializeCriticalSection(&mgmt->listenlistCS);
+
     if (!mgmt->listen_list) {
         mgmt->listen_list = arr_new(4);
     }
@@ -907,6 +970,8 @@ int http_listen_cleanup (void * vmgmt)
     arr_free(mgmt->listen_list);
     mgmt->listen_list = NULL;
 
+    DeleteCriticalSection(&mgmt->listenlistCS);
+
     return 0;
 }
 
@@ -923,6 +988,8 @@ void * http_listen_add (void * vmgmt, char * localip, int port, uint8 fwdpxy)
     if (localip == NULL) localip = "";
     else if (strcmp(localip, "*") == 0) localip = "";
 
+    EnterCriticalSection(&mgmt->listenlistCS);
+
     num = arr_num(mgmt->listen_list);
     for (i = 0; i < num; i++) {
 
@@ -930,6 +997,7 @@ void * http_listen_add (void * vmgmt, char * localip, int port, uint8 fwdpxy)
         if (!hl) continue;
 
         if (hl->port == port && strcasecmp(hl->localip, localip) == 0)
+            LeaveCriticalSection(&mgmt->listenlistCS);
             return hl;
     }
 
@@ -938,6 +1006,8 @@ void * http_listen_add (void * vmgmt, char * localip, int port, uint8 fwdpxy)
         hl->httpmgmt = mgmt;
         arr_push(mgmt->listen_list, hl);
     }
+
+    LeaveCriticalSection(&mgmt->listenlistCS);
 
     return hl;
 }
@@ -951,6 +1021,8 @@ int http_listen_start_all (void * vmgmt)
     int          i, num;
 
     if (!mgmt) return -1;
+
+    EnterCriticalSection(&mgmt->listenlistCS);
 
     num = arr_num(mgmt->listen_list);
     for (i = 0; i < num; i++) {
@@ -976,6 +1048,8 @@ int http_listen_start_all (void * vmgmt)
                    strlen(hl->localip) > 0 ? hl->localip : "*",
                    hl->port, hl->ssl_link ? " SSL" : "");
     }
+
+    LeaveCriticalSection(&mgmt->listenlistCS);
 
     return 0;
 }
@@ -1033,6 +1107,32 @@ void * http_listen_start (void * vmgmt, char * localip, int port, uint8 fwdpxy, 
     return http_ssl_listen_start(mgmt, localip, port, fwdpxy, 0, NULL, NULL, NULL, libfile);
 }
 
+int http_listen_num (void * vmgmt)
+{
+    HTTPMgmt   * mgmt = (HTTPMgmt *)vmgmt;
+    int          num = 0;
+
+    if (!mgmt) return -1;
+
+    EnterCriticalSection(&mgmt->listenlistCS);
+    num = arr_num(mgmt->listen_list);
+    LeaveCriticalSection(&mgmt->listenlistCS);
+
+    return num;
+}
+
+void * http_listen_get (void * vmgmt, int index)
+{
+    HTTPMgmt   * mgmt = (HTTPMgmt *)vmgmt;
+    HTTPListen * hl = NULL;
+
+    EnterCriticalSection(&mgmt->listenlistCS);
+    hl = arr_value(mgmt->listen_list, index);
+    LeaveCriticalSection(&mgmt->listenlistCS);
+
+    return hl;
+}
+
 void * http_listen_find (void * vmgmt, char * localip, int port)
 {
     HTTPMgmt   * mgmt = (HTTPMgmt *)vmgmt;
@@ -1044,6 +1144,8 @@ void * http_listen_find (void * vmgmt, char * localip, int port)
     if (localip == NULL) localip = "";
     else if (strcmp(localip, "*") == 0) localip = "";
 
+    EnterCriticalSection(&mgmt->listenlistCS);
+
     num = arr_num(mgmt->listen_list);
 
     for (i = 0; i < num; i++) {
@@ -1052,9 +1154,12 @@ void * http_listen_find (void * vmgmt, char * localip, int port)
         if (!hl) continue;
 
         if (hl->port == port && strcasecmp(hl->localip, localip) == 0) {
+            LeaveCriticalSection(&mgmt->listenlistCS);
             return hl;
         }
     }
+
+    LeaveCriticalSection(&mgmt->listenlistCS);
 
     return NULL;
 }
@@ -1071,6 +1176,8 @@ int http_listen_stop (void * vmgmt, char * localip, int port)
 
     if (localip == NULL) localip = "";
     else if (strcmp(localip, "*") == 0) localip = "";
+
+    EnterCriticalSection(&mgmt->listenlistCS);
 
     num = arr_num(mgmt->listen_list);
 
@@ -1089,10 +1196,15 @@ int http_listen_stop (void * vmgmt, char * localip, int port)
             strcasecmp(hl->localip, localip) == 0)
         {
             arr_delete(mgmt->listen_list, i);
+
+            LeaveCriticalSection(&mgmt->listenlistCS);
+
             http_listen_free(hl);
             return 0;
         }
     }
+
+    LeaveCriticalSection(&mgmt->listenlistCS);
 
     return -1;
 }
@@ -1107,6 +1219,8 @@ int http_listen_check_self (void * vmgmt, char * host, int hostlen, char * dstip
  
     if (!mgmt) return -1;
  
+    EnterCriticalSection(&mgmt->listenlistCS);
+
     num = arr_num(mgmt->listen_list);
     for (i = 0; i < num; i++) {
         hl = (HTTPListen *)arr_value(mgmt->listen_list, i);
@@ -1119,11 +1233,15 @@ int http_listen_check_self (void * vmgmt, char * host, int hostlen, char * dstip
         key.p = host; key.len = hostlen;
 
         if (ht_get(hl->host_table, &key) != NULL) {
+            LeaveCriticalSection(&mgmt->listenlistCS);
+
             /* checked host is one of hosts under listened port */ 
             return 1;
         }
     }
  
+    LeaveCriticalSection(&mgmt->listenlistCS);
+
     if (!port_listened) return 0;
  
     /* check if the dstpip is loop-back ip */
@@ -1577,8 +1695,8 @@ int http_real_path (void * vmsg, char * path, int len)
 }
 
 
-int http_prefix_match_cb (void * vhl, char * hostn, int hostlen, char * matstr, int len,
-                          char * root, void * cbfunc, void * cbobj, void * tplfile)
+void * http_prefix_loc (void * vhl, char * hostn, int hostlen, char * matstr, int len,
+                        char * root, void * cbfunc, void * cbobj, void * tplfile)
 {
     HTTPListen * hl = (HTTPListen *)vhl;
     HTTPHost   * host = NULL;
@@ -1586,13 +1704,13 @@ int http_prefix_match_cb (void * vhl, char * hostn, int hostlen, char * matstr, 
     char       * ptmp = NULL;
     int          i, num;
 
-    if (!hl) return -1;
-    if (!matstr) return -2;
+    if (!hl) return NULL;
+    if (!matstr) return NULL;
     if (len < 0) len = strlen(matstr);
-    if (len <= 0) return -3;
+    if (len <= 0) return NULL;
 
     host = http_host_create(hl, hostn, hostlen, NULL, NULL, NULL, NULL);
-    if (!host) return -100;
+    if (!host) return NULL;
 
     EnterCriticalSection(&host->hostCS);
 
@@ -1612,8 +1730,12 @@ int http_prefix_match_cb (void * vhl, char * hostn, int hostlen, char * matstr, 
         ploc = http_loc_alloc(matstr, len, 1, MATCH_PREFIX, SERV_CALLBACK, root);
         if (!ploc) {
             LeaveCriticalSection(&host->hostCS);
-            return -110;
+            return NULL;
         }
+
+        ploc->indexnum = 2;
+        ploc->index[0] = "index.html";
+        ploc->index[1] = "index.htm";
 
         arr_push(host->prefix_loc_list, ploc);
         actrie_add(host->prefix_actrie, ploc->path, -1, ploc);
@@ -1637,12 +1759,12 @@ int http_prefix_match_cb (void * vhl, char * hostn, int hostlen, char * matstr, 
     ploc->cbobj = cbobj;
     ploc->tplfile = tplfile;
 
-    return 0;
+    return ploc;
 }
 
 
-int http_exact_match_cb (void * vhl, char * hostn, int hostlen, char * matstr, int len,
-                         char * root, void * cbfunc, void * cbobj, void * tplfile)
+void * http_exact_loc (void * vhl, char * hostn, int hostlen, char * matstr, int len,
+                       char * root, void * cbfunc, void * cbobj, void * tplfile)
 {
     HTTPListen * hl = (HTTPListen *)vhl;
     HTTPHost   * host = NULL;
@@ -1650,13 +1772,13 @@ int http_exact_match_cb (void * vhl, char * hostn, int hostlen, char * matstr, i
     char       * ptmp = NULL;
     char         buf[1024];
 
-    if (!hl) return -1;
-    if (!matstr) return -2;
+    if (!hl) return NULL;
+    if (!matstr) return NULL;
     if (len < 0) len = strlen(matstr);
-    if (len <= 0) return -3;
+    if (len <= 0) return NULL;
 
     host = http_host_create(hl, hostn, hostlen, NULL, NULL, NULL, NULL);
-    if (!host) return -100;
+    if (!host) return NULL;
 
     str_secpy(buf, sizeof(buf)-1, matstr, len);
 
@@ -1668,7 +1790,7 @@ int http_exact_match_cb (void * vhl, char * hostn, int hostlen, char * matstr, i
         ploc = http_loc_alloc(matstr, len, 1, MATCH_EXACT, SERV_CALLBACK, root);
         if (!ploc) {
             LeaveCriticalSection(&host->hostCS);
-            return -110;
+            return NULL;
         }
 
         ht_set(host->exact_loc_table, ploc->path, ploc);
@@ -1692,12 +1814,12 @@ int http_exact_match_cb (void * vhl, char * hostn, int hostlen, char * matstr, i
     ploc->cbobj = cbobj;
     ploc->tplfile = tplfile;
 
-    return 0;
+    return ploc;
 }
 
 
-int http_regex_match_cb (void * vhl, char * hostn, int hostlen, char * matstr, int len, int ignorecase,
-                         char * root, void * cbfunc, void * cbobj, void * tplfile)
+void * http_regex_loc (void * vhl, char * hostn, int hostlen, char * matstr, int len, int ignorecase,
+                       char * root, void * cbfunc, void * cbobj, void * tplfile)
 {
     HTTPListen * hl = (HTTPListen *)vhl;
     HTTPHost   * host = NULL;
@@ -1706,13 +1828,13 @@ int http_regex_match_cb (void * vhl, char * hostn, int hostlen, char * matstr, i
     char       * ptmp = NULL;
     int          i, num;
 
-    if (!hl) return -1;
-    if (!matstr) return -2;
+    if (!hl) return NULL;
+    if (!matstr) return NULL;
     if (len < 0) len = strlen(matstr);
-    if (len <= 0) return -3;
+    if (len <= 0) return NULL;
 
     host = http_host_create(hl, hostn, hostlen, NULL, NULL, NULL, NULL);
-    if (!host) return -100;
+    if (!host) return NULL;
 
     EnterCriticalSection(&host->hostCS);
 
@@ -1734,7 +1856,7 @@ int http_regex_match_cb (void * vhl, char * hostn, int hostlen, char * matstr, i
                               SERV_CALLBACK, root);
         if (!ploc) {
             LeaveCriticalSection(&host->hostCS);
-            return -110;
+            return NULL;
         }
 
         arr_push(host->regex_loc_list, ploc);
@@ -1768,6 +1890,6 @@ int http_regex_match_cb (void * vhl, char * hostn, int hostlen, char * matstr, i
     ploc->cbobj = cbobj;
     ploc->tplfile = tplfile;
 
-    return 0;
+    return ploc;
 }
 

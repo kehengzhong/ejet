@@ -188,6 +188,10 @@ int http_request_process (void * vcon, void * vmsg)
 
     fret = msg->GetRealFile(msg, path, sizeof(path) - 1);
 
+#ifdef _DEBUG
+printf("####Path: %s\n", path);
+#endif
+
     if (msg->issued <= 0 && ploc && (ploc->type & SERV_CALLBACK) && ploc->cbfunc) {
         msg->cbobj = ploc->cbobj;
         ret = (*ploc->cbfunc)(ploc->cbobj, msg, ploc->tplfile ? ploc->tplfile : path);
