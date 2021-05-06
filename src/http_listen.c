@@ -996,9 +996,10 @@ void * http_listen_add (void * vmgmt, char * localip, int port, uint8 fwdpxy)
         hl = (HTTPListen *)arr_value(mgmt->listen_list, i);
         if (!hl) continue;
 
-        if (hl->port == port && strcasecmp(hl->localip, localip) == 0)
+        if (hl->port == port && strcasecmp(hl->localip, localip) == 0) {
             LeaveCriticalSection(&mgmt->listenlistCS);
             return hl;
+        }
     }
 
     hl = http_listen_alloc(localip, port, fwdpxy);

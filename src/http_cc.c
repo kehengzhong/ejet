@@ -229,7 +229,7 @@ int http_srv_recv_cc (void * vcon)
     }
  
     msg = http_con_msg_first(pcon);
-    if (msg && msg->proxied == 2 && (climsg = msg->proxymsg) &&
+    if (msg && msg->proxied == 2 && (climsg = msg->proxymsg) && !climsg->cacheon &&
             chunk_rest_size(climsg->res_body_chunk, 0) >= mgmt->proxy_buffer_size)
     {
         /* congestion control: by neglecting the read-ready event,

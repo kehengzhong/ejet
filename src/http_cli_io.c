@@ -732,15 +732,15 @@ int http_cli_send (void * vcon)
                 /* no available data to send, waiting for more data... */
                 pcon->snd_state = HTTP_CON_SEND_READY;
 
-                if (msg->cacheon && msg->res_cache_info) {
-                    /* read cache file again, if no data in cache file, request it from origin */
-                    return http_proxy_cli_cache_send(pcon, msg);
-                }
-
                 /* all octets in buffer are sent to client and de-congesting process 
                    should be started. connection of server-side is checked to add Read notification
                    if it's removed before */
                 http_cli_send_cc(pcon);
+
+                if (msg->cacheon && msg->res_cache_info) {
+                    /* read cache file again, if no data in cache file, request it from origin */
+                    return http_proxy_cli_cache_send(pcon, msg);
+                }
 
                 return 0;
             }
