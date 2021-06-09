@@ -135,7 +135,6 @@ int http_request_process (void * vcon, void * vmsg)
     CacheInfo  * cacinfo = NULL;
     char         path[1024];
     int          i, fret, ret = -100;
-    ulong        msgid = 0;
 
     if (!pcon) return -1;
     if (!msg) return -2;
@@ -145,8 +144,6 @@ int http_request_process (void * vcon, void * vmsg)
 
     hl = (HTTPListen *)pcon->hl;
     if (!hl) return -4;
-
-    msgid = msg->msgid;
 
     if (msg->cacheon && msg->res_file_cache >= 3) {
         cacinfo = msg->res_cache_info;
@@ -210,7 +207,7 @@ printf("####Path: %s\n", path);
     /* if the upper callback handled and replied the request, the msg already recycled.
      * some default handlings should be done by determining if the msg got correctly dealt with */
 
-    if (ret < 0 || (http_msg_mgmt_get(mgmt, msgid) == msg && msg->issued <= 0)) {
+    if (msg->issued <= 0) {
         if (!(ploc = (HTTPLoc *)msg->ploc)) {
             msg->SetStatus(msg, 404, NULL);          
             return msg->Reply(msg);
@@ -250,7 +247,7 @@ printf("####Path: %s\n", path);
         }
     }
 
-    if (http_msg_mgmt_get(mgmt, msgid) == msg && msg->issued <= 0) {
+    if (msg->issued <= 0) {
         msg->SetStatus(msg, 404, NULL);
         return msg->Reply(msg);
     }

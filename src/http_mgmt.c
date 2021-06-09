@@ -322,7 +322,7 @@ int http_mgmt_init (void * vmgmt)
         mgmt->header_unit_pool = bpool_init(NULL);
         bpool_set_freefunc(mgmt->header_unit_pool, hunit_free);
         bpool_set_unitsize(mgmt->header_unit_pool, sizeof(HeaderUnit));
-        bpool_set_allocnum(mgmt->header_unit_pool, 32);
+        bpool_set_allocnum(mgmt->header_unit_pool, 256);
     }
 
     if (!mgmt->frame_pool) {

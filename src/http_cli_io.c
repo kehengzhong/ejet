@@ -150,6 +150,7 @@ int http_cli_recv (void * vcon)
     HTTPCon    * pcon = (HTTPCon *)vcon;
     HTTPMgmt   * mgmt = NULL;
     HTTPMsg    * msg = NULL;
+    ulong        conid = 0;
     int          ret = 0, num = 0;
     int          err = 0;
 
@@ -165,6 +166,8 @@ int http_cli_recv (void * vcon)
        TCP stack will start congestion control mechanism */
     if (http_cli_recv_cc(pcon) > 0)
         return 0;
+
+    conid = pcon->conid;
 
     while (1) {
 
@@ -216,8 +219,12 @@ int http_cli_recv (void * vcon)
 
             if (!msg) continue;
 
-            if (msg && msg->proxied == 0)
+            if (msg && msg->proxied == 0) {
                 http_msg_handle(pcon, msg);
+
+                if (http_mgmt_con_get(mgmt, conid) != pcon)
+                    return 0;
+            }
         }
 
     } //end while (1)
@@ -795,6 +802,9 @@ int http_cli_send (void * vcon)
  
         if (chunk_get_end(chunk, msg->res_stream_sent, httpchunk) == 1) {
             if (msg->res_status >= 400)
+                closecon++;
+
+            if (msg->req_ver_major < 1 || (msg->req_ver_major == 1 && msg->req_ver_minor == 0))
                 closecon++;
 
             /* send response to client successfully */
