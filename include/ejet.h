@@ -609,6 +609,8 @@ void * http_get_mimemgmt   (void * vmgmt);
 void * http_get_frame_pool (void * vmgmt);
 void * http_get_epump      (void * vmgmt);
 
+char * http_get_mime (void * vmgmt, char * file, uint32 * mimeid);
+
 
 /* sending HTTP Request to HTTPServer and receiving the response */
 int    do_http_request (void * vmsg);
