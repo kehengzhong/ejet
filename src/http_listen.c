@@ -1305,7 +1305,7 @@ int http_listen_build (void * vmgmt)
             ip = value;
         }
 
-        json_get_int(jhl, "port", -1, &port);
+        json_mget_int(jhl, "port", -1, &port);
 
         ret = json_mgetP(jhl, "forward proxy", -1, (void **)&value, &valuelen);
         if (ret > 0 && value && valuelen > 0) {

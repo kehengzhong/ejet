@@ -207,7 +207,7 @@ printf("####Path: %s\n", path);
     /* if the upper callback handled and replied the request, the msg already recycled.
      * some default handlings should be done by determining if the msg got correctly dealt with */
 
-    if (msg->issued <= 0) {
+    if (ret < 0 && msg->issued <= 0) {
         if (!(ploc = (HTTPLoc *)msg->ploc)) {
             msg->SetStatus(msg, 404, NULL);          
             return msg->Reply(msg);
@@ -245,9 +245,7 @@ printf("####Path: %s\n", path);
             /*ret = msg->DisplayDirectory(msg);
             if (ret >= 0) return 0;*/
         }
-    }
 
-    if (msg->issued <= 0) {
         msg->SetStatus(msg, 404, NULL);
         return msg->Reply(msg);
     }

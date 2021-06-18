@@ -60,7 +60,7 @@ int http_mgmt_get_conf (void * vmgmt)
         mgmt->cookie_file = "./cookie.txt";
 
     sprintf(key, "http.receive request.max header size");  keylen = strlen(key);
-    ret = json_get_int(mgmt->cnfjson, key, keylen, &mgmt->cli_max_header_size);
+    ret = json_mget_int(mgmt->cnfjson, key, keylen, &mgmt->cli_max_header_size);
     if (ret <= 0)
         mgmt->cli_max_header_size = 32*1024;
 
@@ -73,54 +73,54 @@ int http_mgmt_get_conf (void * vmgmt)
         mgmt->cli_body_cache = 0;
 
     sprintf(key, "http.receive request.body cache threshold");  keylen = strlen(key);
-    ret = json_get_int(mgmt->cnfjson, key, keylen, &mgmt->cli_body_cache_threshold);
+    ret = json_mget_int(mgmt->cnfjson, key, keylen, &mgmt->cli_body_cache_threshold);
     if (ret <= 0)
         mgmt->cli_body_cache_threshold = 64*1024;
 
     sprintf(key, "http.receive request.keepalive timeout");  keylen = strlen(key);
-    ret = json_get_int(mgmt->cnfjson, key, keylen, &mgmt->cli_keepalive_time);
+    ret = json_mget_int(mgmt->cnfjson, key, keylen, &mgmt->cli_keepalive_time);
     if (ret <= 0)
         mgmt->cli_keepalive_time = 30;
 
     sprintf(key, "http.receive request.connection idle timeout");  keylen = strlen(key);
-    ret = json_get_int(mgmt->cnfjson, key, keylen, &mgmt->cli_conn_idle_time);
+    ret = json_mget_int(mgmt->cnfjson, key, keylen, &mgmt->cli_conn_idle_time);
     if (ret <= 0)
         mgmt->cli_conn_idle_time = 10;
 
     sprintf(key, "http.receive request.header idle timeout");  keylen = strlen(key);
-    ret = json_get_int(mgmt->cnfjson, key, keylen, &mgmt->cli_header_idletime);
+    ret = json_mget_int(mgmt->cnfjson, key, keylen, &mgmt->cli_header_idletime);
     if (ret <= 0)
         mgmt->cli_header_idletime = 10;
 
     sprintf(key, "http.receive request.header timeout");  keylen = strlen(key);
-    ret = json_get_int(mgmt->cnfjson, key, keylen, &mgmt->cli_header_time);
+    ret = json_mget_int(mgmt->cnfjson, key, keylen, &mgmt->cli_header_time);
     if (ret <= 0)
         mgmt->cli_header_time = 30;
 
     sprintf(key, "http.receive request.request handle timeout");  keylen = strlen(key);
-    ret = json_get_int(mgmt->cnfjson, key, keylen, &mgmt->cli_request_handle_time);
+    ret = json_mget_int(mgmt->cnfjson, key, keylen, &mgmt->cli_request_handle_time);
     if (ret <= 0)
         mgmt->cli_request_handle_time = 180;
 
     /* when sending request to remote origin server, configuration as following */
 
     sprintf(key, "http.send request.max header size");  keylen = strlen(key);
-    ret = json_get_int(mgmt->cnfjson, key, keylen, &mgmt->srv_max_header_size);
+    ret = json_mget_int(mgmt->cnfjson, key, keylen, &mgmt->srv_max_header_size);
     if (ret <= 0)
         mgmt->srv_max_header_size = 32*1024;
 
     sprintf(key, "http.send request.connecting timeout");  keylen = strlen(key);
-    ret = json_get_int(mgmt->cnfjson, key, keylen, &mgmt->srv_connecting_time);
+    ret = json_mget_int(mgmt->cnfjson, key, keylen, &mgmt->srv_connecting_time);
     if (ret <= 0)
         mgmt->srv_connecting_time = 8;
 
     sprintf(key, "http.send request.keepalive timeout");  keylen = strlen(key);
-    ret = json_get_int(mgmt->cnfjson, key, keylen, &mgmt->srv_keepalive_time);
+    ret = json_mget_int(mgmt->cnfjson, key, keylen, &mgmt->srv_keepalive_time);
     if (ret <= 0)
         mgmt->srv_keepalive_time = 10;
 
     sprintf(key, "http.send request.connection idle timeout");  keylen = strlen(key);
-    ret = json_get_int(mgmt->cnfjson, key, keylen, &mgmt->srv_conn_idle_time);
+    ret = json_mget_int(mgmt->cnfjson, key, keylen, &mgmt->srv_conn_idle_time);
     if (ret <= 0)
         mgmt->srv_conn_idle_time = 180;
 
@@ -172,7 +172,7 @@ int http_mgmt_get_conf (void * vmgmt)
         mgmt->proxy_tunnel = 0;
 
     sprintf(key, "http.proxy.tunnel keepalive timeout");  keylen = strlen(key);
-    ret = json_get_int(mgmt->cnfjson, key, keylen, &mgmt->tunnel_keepalive_time);
+    ret = json_mget_int(mgmt->cnfjson, key, keylen, &mgmt->tunnel_keepalive_time);
     if (ret <= 0)
         mgmt->tunnel_keepalive_time = 60;
 
@@ -185,34 +185,34 @@ int http_mgmt_get_conf (void * vmgmt)
         mgmt->auto_redirect = 0;
 
     sprintf(key, "http.proxy.buffer size");  keylen = strlen(key);
-    ret = json_get_int(mgmt->cnfjson, key, keylen, &mgmt->proxy_buffer_size);
+    ret = json_mget_int(mgmt->cnfjson, key, keylen, &mgmt->proxy_buffer_size);
     if (ret <= 0)
         mgmt->proxy_buffer_size = 256*1024;
 
     /* FastCGI interface parameters, maintaining TCP/UnixSock connection to FCGI server */
 
     sprintf(key, "http.fastcgi.connecting timeout");  keylen = strlen(key);
-    ret = json_get_int(mgmt->cnfjson, key, keylen, &mgmt->fcgi_connecting_time);
+    ret = json_mget_int(mgmt->cnfjson, key, keylen, &mgmt->fcgi_connecting_time);
     if (ret <= 0)
         mgmt->fcgi_connecting_time = 10;
  
     sprintf(key, "http.fastcgi.keepalive timeout");  keylen = strlen(key);
-    ret = json_get_int(mgmt->cnfjson, key, keylen, &mgmt->fcgi_keepalive_time);
+    ret = json_mget_int(mgmt->cnfjson, key, keylen, &mgmt->fcgi_keepalive_time);
     if (ret <= 0)
         mgmt->fcgi_keepalive_time = 30;
  
     sprintf(key, "http.fastcgi.connection idle timeout");  keylen = strlen(key);
-    ret = json_get_int(mgmt->cnfjson, key, keylen, &mgmt->fcgi_conn_idle_time);
+    ret = json_mget_int(mgmt->cnfjson, key, keylen, &mgmt->fcgi_conn_idle_time);
     if (ret <= 0)
         mgmt->fcgi_conn_idle_time = 90;
 
     sprintf(key, "http.fastcgi.fcgi server alive timeout");  keylen = strlen(key);
-    ret = json_get_int(mgmt->cnfjson, key, keylen, &mgmt->fcgi_srv_alive_time);
+    ret = json_mget_int(mgmt->cnfjson, key, keylen, &mgmt->fcgi_srv_alive_time);
     if (ret <= 0)
         mgmt->fcgi_srv_alive_time = 120;
  
     sprintf(key, "http.fastcgi.buffer size");  keylen = strlen(key);
-    ret = json_get_int(mgmt->cnfjson, key, keylen, &mgmt->fcgi_buffer_size);
+    ret = json_mget_int(mgmt->cnfjson, key, keylen, &mgmt->fcgi_buffer_size);
     if (ret <= 0)
         mgmt->fcgi_buffer_size = 256*1024;
 
