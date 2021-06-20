@@ -519,6 +519,7 @@ typedef struct http_msg {
     int    (*AddResFile)          (void * vmsg, char * filename, int64 startpos, int64 len);
     int    (*AddResAppCBContent)  (void * vmsg, void * prewrite, void * prewobj, int64 offset, int64 length,
                                    void * movefunc, void * movepara, void * endwrite, void * endwobj);
+    int    (*AddResTpl)           (void * vmsg, void * pbyte, ssize_t bytelen, void * tplvar);
     int    (*AddResTplFile)       (void * vmsg, char * tplfile, void * tplvar);
  
     int    (*RedirectReply)  (void * vmsg, int status, char * redurl);

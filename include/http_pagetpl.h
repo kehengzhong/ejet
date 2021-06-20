@@ -50,8 +50,9 @@ void   http_pagetpl_free (void * a);
 
 int    http_pagetpl_callback (void * vmsg, void * vtplunit, void * tplvar, frame_p cfrm);
 
-int    http_pagetpl_add   (void * vmsg, char * tplfile, void * tplvar);
-int    http_pagetpl_reply (void * vmsg, char * tplfile, void * tplvar);
+int    http_pagetpl_parse    (void * msg, char * file, void * vb, ssize_t len, void * var, frame_p frm);
+int    http_pagetpl_add      (void * msg, void * pbyte, ssize_t bytelen, void * tplvar);
+int    http_pagetpl_add_file (void * msg, char * tplfile, void * tplvar);
 
 int    http_pagetpl_text_cb (void * vhl, char * hostn, int hostlen,
                              void * text, int textlen, void * func, void * cbobj);
