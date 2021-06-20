@@ -389,7 +389,9 @@ int http_msg_init_method (void * vmsg)
     msg->AddResContentPtr = AddResContentPtr;
     msg->AddResFile = AddResFile;
     msg->AddResAppCBContent = AddResAppCBContent;
-    msg->AddResTplFile = http_pagetpl_add;
+
+    msg->AddResTpl = http_pagetpl_add;
+    msg->AddResTplFile = http_pagetpl_add_file;
 
     msg->RedirectReply = RedirectReply;
     msg->Reply = Reply;

@@ -8,6 +8,7 @@
 #include "http_listen.h"
 #include "http_msg.h"
 #include "http_mgmt.h"
+#include "http_header.h"
 #include "http_pagetpl.h"
 
 int http_pagetpl_cmp_key (void * a, void * b)
@@ -65,74 +66,87 @@ int http_pagetpl_callback (void * vmsg, void * vtplunit, void * tplvar, frame_p 
 }
 
 
-int http_pagetpl_add (void * vmsg, char * tplfile, void * tplvar)
+int http_pagetpl_parse (void * vmsg, char * tplfile, void * vbyte, ssize_t bytelen, void * tplvar, frame_p objfrm)
 {
     HTTPMsg     * msg = (HTTPMsg *)vmsg;
-
+    char        * pbyte = (char *)vbyte;
+ 
     struct stat   st;
-    int           fd;
-    char        * pbyte = NULL;
-
+    int           fd = -1;
+ 
     char        * pbgn = NULL;
     char        * pend = NULL;
     char        * pval = NULL;
     char        * pvalend = NULL;
     char        * poct = NULL;
     char        * ptxt = NULL;
-
+ 
     int           len, tplnum = 0;
     PageTplUnit   tpl;
     frame_p       cfrm = NULL;
     char          fname[1024];
-
+ 
     if (!msg) return -1;
-
-    if (file_stat(tplfile, &st) < 0)
-        return -100;
  
-    if (st.st_size > 128*1024*1024)
-        return -101;
-
-    fd = open(tplfile, O_RDONLY);
-    if (fd < 0) return -200;
+    if (tplfile && file_stat(tplfile, &st) >= 0) {
+        if (st.st_size > 128*1024*1024)
+            return -101;
  
-    pbyte = mmap(NULL, st.st_size, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
-    if (!pbyte) {
-        close(fd);
-        return -300;
+        fd = open(tplfile, O_RDONLY);
+        if (fd < 0) return -200;
+ 
+        pbyte = mmap(NULL, st.st_size, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
+        if (!pbyte) {
+            close(fd);
+            return -300;
+        }
+ 
+        bytelen = st.st_size;
+ 
+    } else {
+        tplfile = NULL;
+ 
+        if (!pbyte) return -2;
+        if (bytelen < 0) bytelen = str_len(pbyte);
+        if (bytelen <= 0) return -3;
     }
-
-    pbgn = pbyte;
-    pend = pbyte + st.st_size;
-
+ 
     cfrm = msg->GetFrame(msg);
-
+ 
+    pbgn = pbyte;
+    pend = pbyte + bytelen;
+ 
     for ( ; pbgn < pend; ) {
         /* <?ejetpl TEXT $CURROOT PARA=abcd ?>                                               */
         /* <?ejetpl LINK $LINKNAME URL=/csc/disponlist.so SHOW=第一页 PARA=listfile?>        */
         /* <?ejetpl IMG $IMGNAME URL=/csc/drawimg.so?randval=234 SHOW=实时走势 PARA="a=1"?>  */
         /* <?ejetpl LIST $ACCESSLOG PARA=1?>                                                 */
         /* <?ejetpl INCLUDE /home/hzke/dxcang/httpdoc/foot.html PARA=1?>                     */
-
+ 
         pval = sun_find_string(pbgn, pend - pbgn, "<?ejetpl", 8, NULL);
         if (!pval || pval >= pend) break;
-
+ 
         pvalend = sun_find_string(pval + 8, pend - pval - 8, "?>", 2, NULL);
         if (!pvalend || pvalend >= pend) break;
-
+ 
         if (pval > pbgn) {
-            chunk_add_file(msg->res_body_chunk, tplfile, pbgn - pbyte, pval - pbgn, 1);
+            if (objfrm)
+                frame_put_nlast(objfrm, pbgn, pval - pbgn);
+            else if (tplfile)
+                chunk_add_file(msg->res_body_chunk, tplfile, pbgn - pbyte, pval - pbgn, 1);
+            else
+                chunk_add_buffer(msg->res_body_chunk, pbgn, pval - pbgn);
         }
-
+ 
         memset(&tpl, 0, sizeof(tpl));
         tpl.bgnpos = pval - pbyte;
         tpl.endpos = pvalend + 2 - pbyte;
         tpl.tplfile = tplfile;
-
+ 
         /* move pval to the begining, pbgn to the end of pagetpl tag: <?ejetpl xxxx xxx ?> */
         pval = pval + 8;
         pbgn = pvalend + 2;
-
+ 
         /* pval is begining of command keyword, poct is the end of command.
                       |   |
                       V   V
@@ -140,10 +154,10 @@ int http_pagetpl_add (void * vmsg, char * tplfile, void * tplvar)
         pval = skipOver(pval, pvalend - pval, " \t\r\n\f\v", 6);
         if (pval >= pvalend) continue;
         poct = skipTo(pval, pvalend-pval, ",; \t\r\n\f\v", 8);
-
+ 
         ptxt = pval;
         len = poct - pval;
-
+ 
         /* pval is begining of command content, poct is the end of content.
                               |      |
                               V      V
@@ -151,102 +165,131 @@ int http_pagetpl_add (void * vmsg, char * tplfile, void * tplvar)
         pval = skipOver(poct, pvalend - poct, ",; \t\r\n\f\v", 8);
         if (pval >= pvalend) continue;
         poct = skipTo(pval, pvalend-pval, ",; \t\r\n\f\v", 8);
-
+ 
         frame_empty(cfrm);
-
+ 
         if (len == 4 && str_ncasecmp(ptxt, "TEXT", 4) == 0) {
             tpl.type = 1;
-
+ 
         } else if (len == 4 && str_ncasecmp(ptxt, "LINK", 4) == 0) {
             /* <?ejetpl LINK $LINKNAME URL=/csc/disponlist.so SHOW=第一页 PARA=listfile?>        */
             tpl.type = 2;
-
+ 
         } else if (len == 3 && str_ncasecmp(ptxt, "IMG", 3) == 0) {
             /* <?ejetpl IMG $IMGNAME URL=/csc/drawimg.so?randval=234 SHOW=实时走势 PARA="a=1"?>  */
             tpl.type = 3;
-
+ 
         } else if (len == 4 && str_ncasecmp(ptxt, "LIST", 4) == 0) {
             tpl.type = 4;
-
+ 
         } else if (len == 7 && str_ncasecmp(ptxt, "INCLUDE", 7) == 0) {
             /* <?ejetpl INCLUDE /home/hzke/dxcang/httpdoc/foot.html PARA=1?>  */
             tpl.type = 5;
-
+ 
             pval = skipOver(pval, poct-pval, "'\"", 2);
             poct = rskipOver(poct-1, poct-pval, "'\"", 2);
             if (poct < pval) continue;
-
+ 
             tpl.url = pval; tpl.urllen = poct - pval + 1;
             str_secpy(fname, sizeof(fname)-1, tpl.url, tpl.urllen);
-
+ 
             if (file_is_regular(fname)) {
-                http_pagetpl_add(msg, fname, tplvar);
-
+                http_pagetpl_parse(msg, fname, NULL, 0, tplvar, objfrm);
+ 
             } else {
                 msg->GetRealPath(msg, fname, sizeof(fname)-1);
                 len = strlen(fname);
                 str_secpy(fname + len, sizeof(fname)-1-len, tpl.url, tpl.urllen);
-                if (file_is_regular(fname)) 
-                    http_pagetpl_add(msg, fname, tplvar);
+                if (file_is_regular(fname))
+                    http_pagetpl_parse(msg, fname, NULL, 0, tplvar, objfrm);
             }
             tplnum++;
             continue;
-
+ 
         } else {
             continue;
         }
-
+ 
         tpl.text = pval;
         tpl.textlen = poct - pval;
         if (tpl.textlen <= 0) continue;
-
+ 
         if (tpl.text[0] != '$') {
             frame_put_nlast(cfrm, tpl.text, tpl.textlen);
         } else {
             tpl.text++; tpl.textlen--;
             if (tpl.textlen <= 0) continue;
-
+ 
             str_value_by_key(pval, pvalend-pval, "PARA", (void **)&tpl.para, &tpl.paralen);
             if (tpl.type == 2 || tpl.type == 3) {
                 str_value_by_key(pval, pvalend-pval, "URL", (void **)&tpl.url, &tpl.urllen);
                 str_value_by_key(pval, pvalend-pval, "SHOW", (void **)&tpl.show, &tpl.showlen);
             }
-
+ 
             http_pagetpl_callback(msg, &tpl, tplvar, cfrm);
         }
         tplnum++;
-
-        if (frameL(cfrm) > 0)
-            chunk_add_buffer(msg->res_body_chunk, frameP(cfrm), frameL(cfrm));
+ 
+        if (frameL(cfrm) > 0) {
+            if (objfrm)
+                frame_put_nlast(objfrm, pbgn, pval - pbgn);
+            else
+                chunk_add_buffer(msg->res_body_chunk, frameP(cfrm), frameL(cfrm));
+        }
     }
-
+ 
     msg->RecycleFrame(msg, cfrm);
-
-    if (pbgn < pend)
-        chunk_add_file(msg->res_body_chunk, tplfile, pbgn - pbyte, pend - pbgn, 1);
-
-    munmap(pbyte, st.st_size);
-    close(fd);
-
-    msg->SetResContentType (msg, "text/html", 9);
-
+ 
+    if (pbgn < pend) {
+        if (objfrm)
+            frame_put_nlast(objfrm, pbgn, pend - pbgn);
+        else if (tplfile)
+            chunk_add_file(msg->res_body_chunk, tplfile, pbgn - pbyte, pend - pbgn, 1);
+        else
+            chunk_add_buffer(msg->res_body_chunk, pbgn, pend - pbgn);
+    }
+ 
+    if (tplfile && fd >= 0) {
+        munmap(pbyte, st.st_size);
+        close(fd);
+    }
+ 
     return 0;
 }
-
-int http_pagetpl_reply (void * vmsg, char * tplfile, void * tplvar)
+ 
+ 
+int http_pagetpl_add (void * vmsg, void * pbyte, ssize_t bytelen, void * tplvar)
 {
-    HTTPMsg     * msg = (HTTPMsg *)vmsg;
-    int           ret = 0;
-
+    HTTPMsg * msg = (HTTPMsg *)vmsg;
+    int ret = 0;
+ 
     if (!msg) return -1;
-
-    ret = http_pagetpl_add(msg, tplfile, tplvar);
-    if (ret < 0) return ret;
-
-    msg->SetResContentType (msg, "text/html", 9);
-    msg->Reply(msg);  
-
-    return 0;
+ 
+    ret = http_pagetpl_parse(msg, NULL, pbyte, bytelen, tplvar, NULL);
+    if (ret >= 0) {
+        if (http_header_get(msg, 1, "Content-Type", 12) == NULL) {
+            msg->SetResContentType (msg, "text/html", 9);
+        }
+    }
+ 
+    return ret;
+}
+ 
+int http_pagetpl_add_file (void * vmsg, char * tplfile, void * tplvar)
+{
+    HTTPMsg * msg = (HTTPMsg *)vmsg;
+    int ret = 0;
+ 
+    if (!msg) return -1;
+ 
+    ret = http_pagetpl_parse(msg, tplfile, NULL, 0, tplvar, NULL);
+    if (ret >= 0) {
+        if (http_header_get(msg, 1, "Content-Type", 12) == NULL) {
+            msg->SetResContentType (msg, "text/html", 9);
+        }
+    }
+ 
+    return ret;
 }
 
 
