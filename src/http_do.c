@@ -133,6 +133,11 @@ int do_http_request (void * vmsg)
  
     chunk_set_end(msg->req_body_chunk);
 
+    /* store current threadid as workerid, in order to set workerid for
+       new-created TCP iodev_t, assuring that ePump IO events delivered
+       to current worker thread. */
+    msg->workerid = get_threadid();
+
     if (http_srv_msg_dns(msg, http_srv_msg_dns_cb) < 0) {
         http_msg_close(msg);
         return -100;
@@ -143,7 +148,8 @@ int do_http_request (void * vmsg)
  
 void * do_http_get_msg (void * vmgmt, char * url, int urllen,
                         void * resfunc, void * para, void * cbval,
-                        void * rcvprocfunc, void * funcpara, char * resfile, long resoff)
+                        void * rcvprocfunc, void * rcvpara, uint64 rcvcbval,
+                        char * resfile, long resoff)
 {
     HTTPMgmt     * mgmt = (HTTPMgmt *)vmgmt;
     HTTPMsg      * msg = NULL;
@@ -162,7 +168,8 @@ void * do_http_get_msg (void * vmgmt, char * url, int urllen,
  
     msg->dstport = msg->req_port;
  
-    msg->SetResponseNotify(msg, resfunc, para, cbval, resfile, resoff, rcvprocfunc, funcpara);
+    msg->SetResponseNotify(msg, resfunc, para, cbval, resfile, resoff,
+                           rcvprocfunc, rcvpara, rcvcbval);
  
     http_header_append(msg, 0, "Accept", -1, hdr_accept, strlen(hdr_accept));
     http_header_append(msg, 0, "Accept-Charset", -1, hdr_accept_charset, strlen(hdr_accept_charset));
@@ -174,8 +181,10 @@ void * do_http_get_msg (void * vmgmt, char * url, int urllen,
 }
  
  
-void * do_http_get (void * vmgmt, char * url, int urllen, void * resfunc, void * para, void * cbval,
-                 void * rcvprocfunc, void * funcpara, char * resfile, long resoff)
+void * do_http_get (void * vmgmt, char * url, int urllen,
+                    void * resfunc, void * para, void * cbval,
+                    void * rcvprocfunc, void * rcvpara, uint64 rcvcbval,
+                    char * resfile, long resoff)
 {
     HTTPMgmt * mgmt = (HTTPMgmt *)vmgmt;
     HTTPMsg  * msg = NULL;
@@ -183,7 +192,7 @@ void * do_http_get (void * vmgmt, char * url, int urllen, void * resfunc, void *
     if (!mgmt) return NULL;
  
     msg = do_http_get_msg(mgmt, url, urllen, resfunc, para, cbval,
-                          rcvprocfunc, funcpara, resfile, resoff);
+                          rcvprocfunc, rcvpara, rcvcbval, resfile, resoff);
     if (!msg) return NULL;
  
     if (do_http_request(msg) < 0) {
@@ -198,8 +207,9 @@ void * do_http_post_msg (void * vmgmt, char * url, int urllen, char * mime,
                          char * body, int bodylen,
                          char * fname, long offset, long length,
                          void * resfunc, void * para, void * cbval,
-                         void * rcvprocfunc, void * rcvpara,
-                         void * sndprocfunc, void * sndpara, char * resfile, long resoff)
+                         void * rcvprocfunc, void * rcvpara, uint64 rcvcbval,
+                         void * sndprocfunc, void * sndpara, uint64 sndcbval,
+                         char * resfile, long resoff)
 {
     HTTPMgmt * mgmt = (HTTPMgmt *)vmgmt;
     HTTPMsg  * msg = NULL;
@@ -228,7 +238,8 @@ void * do_http_post_msg (void * vmgmt, char * url, int urllen, char * mime,
  
     msg->dstport = msg->req_port;
  
-    msg->SetResponseNotify(msg, resfunc, para, cbval, resfile, resoff, rcvprocfunc, rcvpara);
+    msg->SetResponseNotify(msg, resfunc, para, cbval, resfile, resoff,
+                           rcvprocfunc, rcvpara, rcvcbval);
  
     http_header_append(msg, 0, "Accept", -1, hdr_accept, strlen(hdr_accept));
     http_header_append(msg, 0, "Accept-Charset", -1, hdr_accept_charset, strlen(hdr_accept_charset));
@@ -247,6 +258,7 @@ void * do_http_post_msg (void * vmgmt, char * url, int urllen, char * mime,
     if (sndprocfunc) {
         msg->req_send_procnotify = sndprocfunc;
         msg->req_send_procnotify_para = sndpara;
+        msg->req_send_procnotify_cbval = sndcbval;
     }
  
     if (mime) msg->SetReqContentType(msg, mime, strlen(mime));
@@ -255,11 +267,12 @@ void * do_http_post_msg (void * vmgmt, char * url, int urllen, char * mime,
 }
  
 void * do_http_post (void * vmgmt, char * url, int urllen, char * mime,
-                  char * body, int bodylen,
-                  char * fname, long offset, long length,
-                  void * resfunc, void * para, void * cbval,
-                  void * rcvprocfunc, void * rcvpara,
-                  void * sndprocfunc, void * sndpara, char * resfile, long resoff)
+                     char * body, int bodylen,
+                     char * fname, long offset, long length,
+                     void * resfunc, void * para, void * cbval,
+                     void * rcvprocfunc, void * rcvpara, uint64 rcvcbval,
+                     void * sndprocfunc, void * sndpara, uint64 sndcbval,
+                     char * resfile, long resoff)
 {
     HTTPMgmt * mgmt = (HTTPMgmt *)vmgmt;
     HTTPMsg  * msg = NULL;
@@ -269,8 +282,9 @@ void * do_http_post (void * vmgmt, char * url, int urllen, char * mime,
     msg = do_http_post_msg(mgmt, url, urllen, mime, body, bodylen,
                            fname, offset, length,
                            resfunc, para, cbval,
-                           rcvprocfunc, rcvpara,
-                           sndprocfunc, sndpara, resfile, resoff);
+                           rcvprocfunc, rcvpara, rcvcbval,
+                           sndprocfunc, sndpara, sndcbval,
+                           resfile, resoff);
     if (!msg) return NULL;
  
     if (do_http_request(msg) < 0) {

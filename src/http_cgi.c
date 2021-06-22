@@ -2063,182 +2063,195 @@ int Check304Resp (void * vmsg, uint64 mediasize, time_t mtime, uint32 inode)
 }
 
 
-int Reply (void * vmsg)
+int AsynReply (void * vmsg, int bodyend, int probewrite)
 {
     HTTPMsg  * msg = (HTTPMsg *)vmsg;
     HTTPMgmt * mgmt = NULL;
     int        ret = 0;
     time_t     gmtval = 0;
     char       rangestr[64];
-
+ 
     int64      fsize = 0;
     time_t     mtime = 0;
     long       inode = 0;
     char     * fname = NULL;
     char     * mime = NULL;
-
+ 
     if (!msg) return -1;
-
+ 
     mgmt = (HTTPMgmt *)gp_httpmgmt;
     if (!mgmt) mgmt = (HTTPMgmt *)msg->httpmgmt;
     if (!mgmt) return -2;
-
+ 
     if (http_msg_mgmt_get(mgmt, msg->msgid) != msg)
         return -100;
-
-    if (msg->issued) return 0;
-
-    msg->issued = 1;
-
-    gmtval = time(NULL);
-
-    memset(rangestr, 0, sizeof(rangestr));
-
-    GetReqHdr(msg, "Super-Magic", -1, rangestr, sizeof(rangestr)-1);
-    ret = atoi(rangestr);
-    if (ret == 1) {
-        AddResHdr(msg, "Random", -1, mgmt->uploadso, str_len(mgmt->uploadso));
-        AddResHdr(msg, "RandomVar", -1, mgmt->uploadvar, str_len(mgmt->uploadvar));
-    }
-
-    /* append some necessary headers to fail-response */
-    http_header_append(msg, 1, "Server", 6, mgmt->useragent, str_len(mgmt->useragent));
-    if (http_header_get(msg, 1, "Date", 4) == NULL)
-        http_header_append_date(msg, 1, "Date", 4, gmtval);
-    //if (http_header_get(msg, 1, "Expires", 7) == NULL)
-    //    http_header_append_date(msg, 1, "Expires", 7, gmtval + 24*3600);
-    //if (http_header_get(msg, 1, "Cache-Control", 13) == NULL)
-    //    http_header_append(msg, 1, "Cache-Control", 13, "no-cache", 8);
-    //    http_header_append(msg, 1, "Cache-Control", 13, "max-age=86400", 13);
-
-    if (msg->flag304) {
-        http_res_statusline_set(msg, mgmt->httpver1, str_len(mgmt->httpver1), 304, "Not Modified");
-        goto encoding;
-    }
-
-    if (chunk_is_file(msg->res_body_chunk, &fsize, &mtime, &inode, &fname)) {
-        Check304Resp(msg, fsize, mtime, inode);
-
+ 
+    if (msg->issued == 0) {
+        msg->issued = 1;
+ 
+        gmtval = time(NULL);
+ 
+        memset(rangestr, 0, sizeof(rangestr));
+ 
+        GetReqHdr(msg, "Super-Magic", -1, rangestr, sizeof(rangestr)-1);
+        ret = atoi(rangestr);
+        if (ret == 1) {
+            AddResHdr(msg, "Random", -1, mgmt->uploadso, str_len(mgmt->uploadso));
+            AddResHdr(msg, "RandomVar", -1, mgmt->uploadvar, str_len(mgmt->uploadvar));
+        }
+ 
+        /* append some necessary headers to fail-response */
+        http_header_append(msg, 1, "Server", 6, mgmt->useragent, str_len(mgmt->useragent));
+        if (http_header_get(msg, 1, "Date", 4) == NULL)
+            http_header_append_date(msg, 1, "Date", 4, gmtval);
+        //if (http_header_get(msg, 1, "Expires", 7) == NULL)
+        //    http_header_append_date(msg, 1, "Expires", 7, gmtval + 24*3600);
+        //if (http_header_get(msg, 1, "Cache-Control", 13) == NULL)
+        //    http_header_append(msg, 1, "Cache-Control", 13, "no-cache", 8);
+        //    http_header_append(msg, 1, "Cache-Control", 13, "max-age=86400", 13);
+ 
         if (msg->flag304) {
             http_res_statusline_set(msg, mgmt->httpver1, str_len(mgmt->httpver1), 304, "Not Modified");
             goto encoding;
         }
-
-        if (http_header_get(msg, 1, "Content-Type", 12) == NULL && fname && str_len(fname) > 0) {
-            mime = http_get_mime(msg->httpmgmt, fname, NULL);
-            SetResContentType (msg, mime, str_len(mime));
+ 
+        if (chunk_is_file(msg->res_body_chunk, &fsize, &mtime, &inode, &fname)) {
+            Check304Resp(msg, fsize, mtime, inode);
+ 
+            if (msg->flag304) {
+                http_res_statusline_set(msg, mgmt->httpver1, str_len(mgmt->httpver1), 304, "Not Modified");
+                goto encoding;
+            }
+ 
+            if (http_header_get(msg, 1, "Content-Type", 12) == NULL && fname && str_len(fname) > 0) {
+                mime = http_get_mime(msg->httpmgmt, fname, NULL);
+                SetResContentType (msg, mime, str_len(mime));
+            }
         }
-    }
-
-    if (http_header_get(msg, 1, "Accept-Ranges", 13) == NULL)
-        http_header_append(msg, 1, "Accept-Ranges", 13, "bytes", 5);
-
-    if (msg->partial_flag > 0 && msg->res_status != 206)
-        SetStatus(msg, 206, "Partial Content");
-
-    if (msg->res_status < 100)
-        SetStatus(msg, 200, NULL);
-
-    if (msg->res_body_flag == BC_TE) {
-        if (http_header_get(msg, 1, "Transfer-Encoding", 17) == NULL)
-            http_header_append(msg, 1, "Transfer-Encoding", 17, "chunked", 7);
-
-    } else {
-        msg->res_body_length = chunk_size(msg->res_body_chunk, 0);
-
-        SetResContentLength(msg, msg->res_body_length);
-    }
-
+ 
+        if (http_header_get(msg, 1, "Accept-Ranges", 13) == NULL)
+            http_header_append(msg, 1, "Accept-Ranges", 13, "bytes", 5);
+ 
+        if (msg->partial_flag > 0 && msg->res_status != 206)
+            SetStatus(msg, 206, "Partial Content");
+ 
+        if (msg->res_status < 100)
+            SetStatus(msg, 200, NULL);
+ 
+        if (msg->res_body_flag == BC_TE) {
+            if (http_header_get(msg, 1, "Transfer-Encoding", 17) == NULL)
+                http_header_append(msg, 1, "Transfer-Encoding", 17, "chunked", 7);
+ 
+        } else {
+            if (bodyend) {
+                msg->res_body_length = chunk_size(msg->res_body_chunk, 0);
+                SetResContentLength(msg, msg->res_body_length);
+            }
+        }
+ 
 encoding:
-    ret = http_res_encoding(msg);
-    if (ret < 0) {
-        msg->issued = 0;
-        return ret;
+        ret = http_res_encoding(msg);
+        if (ret < 0) {
+            msg->issued = 0;
+            return ret;
+        }
+ 
+        msg->state = HTTP_MSG_REQUEST_HANDLED;
     }
-
-    chunk_set_end(msg->res_body_chunk);
-
-    msg->state = HTTP_MSG_REQUEST_HANDLED;
-
-    /* directly send response to client without probing if the fd is wirte-ready */
-    http_cli_send(msg->pcon);
-
+ 
+    if (bodyend)
+        chunk_set_end(msg->res_body_chunk);
+ 
+    if (probewrite) {
+        /* probing if the fd is wirte-ready. sending handling in http_cli_send
+           is called when the fd is write-ready */
+        http_cli_send_probe(msg->pcon);
+ 
+    } else {
+        /* directly send response to client without probing fd's wirtable */
+        http_cli_send(msg->pcon);
+    }
+ 
     return 0;
 }
-
+ 
+int Reply (void * vmsg)
+{
+    HTTPMsg  * msg = (HTTPMsg *)vmsg;
+ 
+    if (!msg) return -1;
+ 
+    return AsynReply(msg, 1, 0);
+}
+ 
 int ReplyFeeding (void * vmsg)
 {
     HTTPMsg  * msg = (HTTPMsg *)vmsg;
-    HTTPMgmt * mgmt = NULL;
-
+ 
     if (!msg) return -1;
-
-    mgmt = (HTTPMgmt *)gp_httpmgmt;
-    if (!mgmt) mgmt = (HTTPMgmt *)msg->httpmgmt;
-    if (!mgmt) return -2;
-
-    if (http_msg_mgmt_get(mgmt, msg->msgid) != msg)
-        return -100;
-
-    if (!msg->issued) return Reply(msg);
-
-    /* directly send response to client without probing if the fd is wirte-ready */
-    http_cli_send(msg->pcon);
-
-    return 0;
+ 
+    return AsynReply(msg, 0, 1);
 }
-
-
+ 
+int ReplyFeedingEnd (void * vmsg)
+{
+    HTTPMsg  * msg = (HTTPMsg *)vmsg;
+ 
+    if (!msg) return -1;
+ 
+    return AsynReply(msg, 1, 1);
+}
+ 
 int RedirectReply (void * vmsg, int status, char * url)
 {
     HTTPMsg  * msg = (HTTPMsg *)vmsg;
     HTTPMgmt * mgmt = NULL;
     int        ret = 0;
     time_t     gmtval = 0;
-
+ 
     if (!msg) return -1;
     if (!url) return -2;
-
+ 
     mgmt = (HTTPMgmt *)gp_httpmgmt;
     if (!mgmt) mgmt = (HTTPMgmt *)msg->httpmgmt;
     if (!mgmt) return -2;
-
+ 
     if (http_msg_mgmt_get(mgmt, msg->msgid) != msg)
         return -100;
-
+ 
     gmtval = time(NULL);
-
+ 
     http_header_append(msg, 1, "Location", 8, url, str_len(url));
-
+ 
     if (status < 300 || status >= 400) status = 302;
-
+ 
     SetStatus(msg, status, NULL);
-
+ 
     /* append some necessary headers to fail-response */
-
+ 
     http_header_append(msg, 1, "Server", 6, mgmt->useragent, str_len(mgmt->useragent));
-
+ 
     if (http_header_get(msg, 1, "Accept-Ranges", 13) == NULL)
         http_header_append(msg, 1, "Accept-Ranges", 13, "bytes", 5);
-
+ 
     if (http_header_get(msg, 1, "Date", 4) == NULL)
         http_header_append_date(msg, 1, "Date", 4, gmtval);
-
+ 
     //if (http_header_get(msg, 1, "Expires", 7) == NULL)
     //    http_header_append_date(msg, 1, "Expires", 7, gmtval + 24*3600);
-
+ 
     if (http_header_get(msg, 1, "Cache-Control", 13) == NULL)
         http_header_append(msg, 1, "Cache-Control", 13, "no-cache", 8);
         //http_header_append(msg, 1, "Cache-Control", 13, "max-age=86400", 13);
-
+ 
     ret = http_res_encoding(msg);
     if (ret < 0) return ret;
-
+ 
     msg->issued = 1;
     msg->state = HTTP_MSG_REQUEST_HANDLED;
-
+ 
     chunk_set_end(msg->res_body_chunk);
-
+ 
     /* directly send response to client without probing if the fd is wirte-ready */
     return http_cli_send(msg->pcon);
     //return http_cli_send_probe(msg->pcon);

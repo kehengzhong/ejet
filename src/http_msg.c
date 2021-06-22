@@ -192,10 +192,12 @@ int http_msg_free (void * vmsg)
     msg->res_store_offset = 0;
 
     msg->res_recv_procnotify = NULL;
-    msg->res_recv_procnotify_para = 0;
-
+    msg->res_recv_procnotify_para = NULL;
+    msg->res_recv_procnotify_cbval= 0;
+ 
     msg->req_send_procnotify = NULL;
-    msg->req_send_procnotify_para = 0;
+    msg->req_send_procnotify_para = NULL;
+    msg->req_send_procnotify_cbval = 0;
 
     kfree(msg);
     return 0;
@@ -435,6 +437,7 @@ int http_msg_init (void * vmsg)
 
     msg->pcon = NULL;
     msg->conid = 0;
+    msg->workerid = 0;
 
     msg->redirected = 0;
 
@@ -476,10 +479,12 @@ int http_msg_init (void * vmsg)
     msg->res_store_offset = 0;
  
     msg->res_recv_procnotify = NULL;
-    msg->res_recv_procnotify_para = 0;
+    msg->res_recv_procnotify_para = NULL;
+    msg->res_recv_procnotify_cbval = 0;
 
     msg->req_send_procnotify = NULL;
-    msg->req_send_procnotify_para = 0;
+    msg->req_send_procnotify_para = NULL;
+    msg->req_send_procnotify_cbval = 0;
 
     msg->tear_down_notify = NULL;
     msg->tear_down_para = NULL;
@@ -1011,7 +1016,7 @@ int http_msg_set_teardown_notify (void * vmsg, void * func, void * para)
 
 int http_msg_set_response_notify (void * vmsg, void * func, void * para, void * cbval,
                                   char * storefile, int64 offset,
-                                  void * procnotify, void * notifypara)
+                                  void * procnotify, void * procpara, uint64 proccbval)
 {
     HTTPMsg * msg = (HTTPMsg *) vmsg;
 
@@ -1026,7 +1031,8 @@ int http_msg_set_response_notify (void * vmsg, void * func, void * para, void * 
     msg->res_store_offset = offset;
 
     msg->res_recv_procnotify = procnotify;
-    msg->res_recv_procnotify_para = notifypara;
+    msg->res_recv_procnotify_para = procpara;
+    msg->res_recv_procnotify_cbval = proccbval;
 
     return 0;
 }
@@ -1057,26 +1063,28 @@ int http_msg_set_res_store_file (void * vmsg, char * storefile, int64 offset)
     return 0;
 }
 
-int http_msg_set_res_recvproc_notify (void * vmsg, void * procnotify, void * notifypara)
+int http_msg_set_res_recvproc_notify (void * vmsg, void * procnotify, void * procpara, uint64 proccbval)
 {
     HTTPMsg * msg = (HTTPMsg *) vmsg;
 
     if (!msg) return -1;
 
     msg->res_recv_procnotify = procnotify;
-    msg->res_recv_procnotify_para = notifypara;
+    msg->res_recv_procnotify_para = procpara;
+    msg->res_recv_procnotify_cbval = proccbval;
 
     return 0;
 }
 
-int http_msg_set_req_sendproc_notify (void * vmsg, void * procnotify, void * notifypara)
+int http_msg_set_req_sendproc_notify (void * vmsg, void * procnotify, void * procpara, uint64 proccbval)
 {
     HTTPMsg * msg = (HTTPMsg *) vmsg;
 
     if (!msg) return -1;
 
     msg->req_send_procnotify = procnotify;
-    msg->req_send_procnotify_para = notifypara;
+    msg->req_send_procnotify_para = procpara;
+    msg->req_send_procnotify_cbval = proccbval;
 
     return 0;
 }

@@ -454,6 +454,11 @@ int http_srv_msg_send (void * vmsg)
  
     pcon = http_srv_connect(srv);
     if (pcon) {
+        /* all R/W events of pcon will delivered to given thread.
+           for the Read/Write pipeline of 2 HTTP connections */
+        if (msg->workerid > 0)
+            iodev_workerid_set(pcon->pdev, msg->workerid);
+
         http_con_msg_add(pcon, msg);
  
         http_srv_send(pcon);
@@ -464,8 +469,8 @@ int http_srv_msg_send (void * vmsg)
  
     return 0;
 }
- 
- 
+
+
 int http_srv_msg_dns_cb (void * vmsg, char * name, int len, void * cache, int status)
 {
     HTTPMsg    * msg = (HTTPMsg *)vmsg;
@@ -488,7 +493,7 @@ int http_srv_msg_dns_cb (void * vmsg, char * name, int len, void * cache, int st
         http_msg_close(msg);
         return -200;
     }
- 
+
     return 0;
 }
  
@@ -505,7 +510,7 @@ int http_srv_msg_dns (void * vmsg, void * cb)
     if (!mgmt) return -2;
  
     if (!dnscb) dnscb = http_srv_msg_dns_cb;
- 
+
     if (msg->proxy && msg->proxyport > 0) {
         ret = dns_query(mgmt->pcore, msg->proxy, msg->proxyport, dnscb, msg);
     } else {

@@ -248,7 +248,9 @@ int http_srv_send (void * vcon)
                 bodypos = msg->req_stream_sent - msg->req_header_length;
                 if (bodypos <= 0) bodypos = 0;
 
-                (*msg->req_send_procnotify)(msg, msg->req_send_procnotify_para, bodypos, num);
+                (*msg->req_send_procnotify)(msg, msg->req_send_procnotify_para,
+                                            msg->req_send_procnotify_cbval,
+                                            bodypos, num);
             }
  
             msg->req_stream_sent += num;
@@ -566,7 +568,10 @@ int http_srv_recv_parse (void * vcon)
             }
 
             if (savedbytes > 0 && msg->res_recv_procnotify)
-                (*msg->res_recv_procnotify)(msg, msg->res_recv_procnotify_para, saveoffset, savedbytes);
+                (*msg->res_recv_procnotify)(msg, msg->res_recv_procnotify_para,
+                                            msg->res_recv_procnotify_cbval,
+                                            saveoffset, savedbytes);
+
 
             return ret;
  
@@ -696,7 +701,10 @@ int http_srv_recv_parse (void * vcon)
             }
 
             if (savedbytes > 0 && msg->res_recv_procnotify)
-                (*msg->res_recv_procnotify)(msg, msg->res_recv_procnotify_para, saveoffset, savedbytes);
+                (*msg->res_recv_procnotify)(msg, msg->res_recv_procnotify_para,
+                                            msg->res_recv_procnotify_cbval,
+                                            saveoffset, savedbytes);
+
 
             return ret;
  
