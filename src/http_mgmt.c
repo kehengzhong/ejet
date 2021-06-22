@@ -26,8 +26,8 @@
 #include "http_cache.h"
 #include "http_script.h"
 
-char * g_http_version = "1.2.4";
-char * g_http_build = "eJet/1.2.4 Web Server built "__DATE__" "__TIME__" "
+char * g_http_version = "1.2.6";
+char * g_http_build = "eJet/1.2.6 Web Server built "__DATE__" "__TIME__" "
                       "by kehengzhong@hotmail.com";
 char * g_http_author = "Lao Ke <kehengzhong@hotmail.com>";
 
