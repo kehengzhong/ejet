@@ -18,24 +18,36 @@ int    do_http_request (void * vmsg);
  
 void * do_http_get_msg (void * vmgmt, char * url, int urllen,
                         void * resfunc, void * para, void * cbval,
-                        void * rcvprocfunc, void * funcpara, char * resfile, long resoff);
-void * do_http_get (void * vmgmt, char * url, int urllen, void * resfunc, void * para, void * cbval,
-                    void * rcvprocfunc, void * funcpara, char * resfile, long resoff);
+                        void * rcvprocfunc, void * procpara, uint64 proccbval,
+                        char * resfile, long resoff);
+
+void * do_http_get     (void * vmgmt, char * url, int urllen,
+                        void * resfunc, void * para, void * cbval,
+                        void * rcvprocfunc, void * procpara, uint64 proccbval,
+                        char * resfile, long resoff);
+ 
+void * origin_http_get (void * vmgmt, char * url, int urllen,
+                        void * resfunc, void * para, void * cbval,
+                        void * rcvprocfunc, void * procpara, uint64 proccbval,
+                        char * resfile, long resoff, uint64 start, uint64 size,
+                        char * route, char * opaque);
  
  
 void * do_http_post_msg (void * vmgmt, char * url, int urllen, char * mime,
                          char * body, int bodylen,
                          char * fname, long offset, long length,
                          void * resfunc, void * para, void * cbval,
-                         void * rcvprocfunc, void * rcvpara,
-                         void * sndprocfunc, void * sndpara, char * resfile, long resoff);
+                         void * rcvprocfunc, void * rcvpara, uint64 rcvcbval,
+                         void * sndprocfunc, void * sndpara, uint64 sndcbval,
+                         char * resfile, long resoff);
  
 void * do_http_post (void * vmgmt, char * url, int urllen, char * mime,
                      char * body, int bodylen,
                      char * fname, long offset, long length,
                      void * resfunc, void * para, void * cbval,
-                     void * rcvprocfunc, void * rcvpara,
-                     void * sndprocfunc, void * sndpara, char * resfile, long resoff);
+                     void * rcvprocfunc, void * rcvpara, uint64 rcvcbval,
+                     void * sndprocfunc, void * sndpara, uint64 sndcbval,
+                     char * resfile, long resoff);
  
 #ifdef __cplusplus
 }

@@ -171,9 +171,12 @@ int    AddResFile          (void * vmsg, char * filename, int64 startpos, int64 
 int    AddResAppCBContent  (void * vmsg, void * fetchfunc, void * fetchobj, int64 offset, int64 length,
                             void * movefunc, void * movepara, void * endfetch, void * endobj);
 
-int Reply          (void * vmsg);
-int ReplyFeeding   (void * vmsg);
-int RedirectReply  (void * vmsg, int status, char * url);
+int AsynReply       (void * vmsg, int bodyend, int probewrite);
+int Reply           (void * vmsg);
+int ReplyFeeding    (void * vmsg);
+int ReplyFeedingEnd (void * vmsg);
+ 
+int RedirectReply   (void * vmsg, int status, char * url);
 
 #ifdef __cplusplus
 }

@@ -193,6 +193,7 @@ typedef struct http_msg {
     /* TCP connection instance for the reading/writing of HTTP Request/Response */
     void             * pcon;
     ulong              conid;
+    ulong              workerid;
 
     /* redirect the request to a new URL with status code 302/301 */
     uint8              redirected;
@@ -303,20 +304,22 @@ typedef struct http_msg {
 
     ProcessNotify    * res_recv_procnotify;
     void             * res_recv_procnotify_para;
+    uint64             res_recv_procnotify_cbval;
 
     ProcessNotify    * req_send_procnotify;
     void             * req_send_procnotify_para;
+    uint64             req_send_procnotify_cbval;
 
 
     int    (*SetTearDownNotify)(void * vmsg, void * func, void * para);
     int    (*SetResponseNotify)(void * vmsg, void * func, void * para, void * cbval,
                                 char * storefile, int64 offset,
-                                void * procnotify, void * notifypara);
+                                void * procnotify, void * notifypara, uint64 notifycbval);
     
     int    (*SetResStoreFile)      (void * vmsg, char * storefile, int64 offset);
     int    (*SetResRecvAllNotify)  (void * vmsg, void * func, void * para, void * cbval);
-    int    (*SetResRecvProcNotify) (void * vmsg, void * procnotify, void * notifypara);
-    int    (*SetReqSendProcNotify) (void * vmsg, void * procnotify, void * notifypara);
+    int    (*SetResRecvProcNotify) (void * vmsg, void * procnotify, void * para, uint64 cbval); 
+    int    (*SetReqSendProcNotify) (void * vmsg, void * procnotify, void * para, uint64 cbval); 
 
     char * (*GetMIME)        (void * vmsg, char * extname, uint32 * mimeid);
     void * (*GetMIMEMgmt)    (void * vmsg);
@@ -501,9 +504,12 @@ typedef struct http_msg {
     int    (*AddResTpl)           (void * vmsg, void * pbyte, ssize_t bytelen, void * tplvar);
     int    (*AddResTplFile)       (void * vmsg, char * tplfile, void * tplvar);
 
-    int    (*RedirectReply)  (void * vmsg, int status, char * redurl);
-    int    (*Reply)          (void * vmsg);
-    int    (*ReplyFeeding)   (void * vmsg);
+    int    (*AsynReply)       (void * vmsg, int bodyend, int probewrite);
+    int    (*Reply)           (void * vmsg);
+    int    (*ReplyFeeding)    (void * vmsg);
+    int    (*ReplyFeedingEnd) (void * vmsg);
+ 
+    int    (*RedirectReply)   (void * vmsg, int status, char * redurl);
 
     uint8  extdata[1];
 
@@ -541,13 +547,13 @@ void * http_msg_get_mimemgmt (void * vmsg);
 int    http_msg_set_teardown_notify (void * vmsg, void * func, void * para);
 int    http_msg_set_response_notify (void * vmsg, void * func, void * para, void * cbval,
                                      char * storefile, int64 offset,
-                                     void * procnotify, void * notifypara);
+                                     void * procnotify, void * notifypara, uint64 notifycbval);
 
 int http_msg_set_res_store_file      (void * vmsg, char * storefile, int64 offset);
 int http_msg_set_res_recvall_notify  (void * vmsg, void * func, void * para, void * cbval);
-int http_msg_set_res_recvproc_notify (void * vmsg, void * procnotify, void * notifypara);
+int http_msg_set_res_recvproc_notify (void * vmsg, void * procnotify, void * para, uint64 cbval);
 
-int http_msg_set_req_sendproc_notify (void * vmsg, void * procnotify, void * notifypara);
+int http_msg_set_req_sendproc_notify (void * vmsg, void * procnotify, void * para, uint64 cbval);
 
 
 /* 1 - temporary cache file

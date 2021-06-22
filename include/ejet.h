@@ -214,6 +214,7 @@ typedef struct http_msg {
     /* TCP connection instance for the reading/writing of HTTP Request/Response */
     void             * pcon;
     ulong              conid;
+    ulong              workerid;
  
     /* redirect the request to a new URL with status code 302/301 */
     uint8              redirected;
@@ -324,20 +325,22 @@ typedef struct http_msg {
  
     ProcessNotify    * res_recv_procnotify;
     void             * res_recv_procnotify_para;
+    uint64             res_recv_procnotify_cbval;
  
     ProcessNotify    * req_send_procnotify;
     void             * req_send_procnotify_para;
+    uint64             req_send_procnotify_cbval;
  
- 
+
     int    (*SetTearDownNotify)(void * vmsg, void * func, void * para);
     int    (*SetResponseNotify)(void * vmsg, void * func, void * para, void * cbval,
                                 char * storefile, int64 offset,
-                                void * procnotify, void * notifypara);
+                                void * procnotify, void * procpara, uint64 proccbval);
  
     int    (*SetResStoreFile)      (void * vmsg, char * storefile, int64 offset);
     int    (*SetResRecvAllNotify)  (void * vmsg, void * func, void * para, void * cbval);
-    int    (*SetResRecvProcNotify) (void * vmsg, void * procnotify, void * notifypara);
-    int    (*SetReqSendProcNotify) (void * vmsg, void * procnotify, void * notifypara);
+    int    (*SetResRecvProcNotify) (void * vmsg, void * procnotify, void * para, uint64 cbval);
+    int    (*SetReqSendProcNotify) (void * vmsg, void * procnotify, void * para, uint64 cbval);
 
     char * (*GetMIME)        (void * vmsg, char * extname, uint32 * mimeid);
     void * (*GetMIMEMgmt)    (void * vmsg);
@@ -522,9 +525,12 @@ typedef struct http_msg {
     int    (*AddResTpl)           (void * vmsg, void * pbyte, ssize_t bytelen, void * tplvar);
     int    (*AddResTplFile)       (void * vmsg, char * tplfile, void * tplvar);
  
-    int    (*RedirectReply)  (void * vmsg, int status, char * redurl);
-    int    (*Reply)          (void * vmsg);
-    int    (*ReplyFeeding)   (void * vmsg);
+    int    (*AsynReply)       (void * vmsg, int bodyend, int probewrite);
+    int    (*Reply)           (void * vmsg);
+    int    (*ReplyFeeding)    (void * vmsg);
+    int    (*ReplyFeedingEnd) (void * vmsg);
+ 
+    int    (*RedirectReply)   (void * vmsg, int status, char * redurl);
  
     uint8  extdata[1];
  
@@ -618,23 +624,29 @@ int    do_http_request (void * vmsg);
  
 void * do_http_get_msg (void * vmgmt, char * url, int urllen,
                         void * resfunc, void * para, void * cbval,
-                        void * rcvprocfunc, void * funcpara, char * resfile, long resoff);
-void * do_http_get (void * vmgmt, char * url, int urllen, void * resfunc, void * para, void * cbval,
-                    void * rcvprocfunc, void * funcpara, char * resfile, long resoff);
-
+                        void * rcvprocfunc, void * procpara, uint64 proccbval,
+                        char * resfile, long resoff);
+ 
+void * do_http_get     (void * vmgmt, char * url, int urllen,
+                        void * resfunc, void * para, void * cbval,
+                        void * rcvprocfunc, void * procpara, uint64 proccbval,
+                        char * resfile, long resoff);
+ 
 void * do_http_post_msg (void * vmgmt, char * url, int urllen, char * mime,
                          char * body, int bodylen,
                          char * fname, long offset, long length,
                          void * resfunc, void * para, void * cbval,
-                         void * rcvprocfunc, void * rcvpara,
-                         void * sndprocfunc, void * sndpara, char * resfile, long resoff);
+                         void * rcvprocfunc, void * rcvpara, uint64 rcvcbval,
+                         void * sndprocfunc, void * sndpara, uint64 sndcbval,
+                         char * resfile, long resoff);
  
 void * do_http_post (void * vmgmt, char * url, int urllen, char * mime,
                      char * body, int bodylen,
                      char * fname, long offset, long length,
                      void * resfunc, void * para, void * cbval,
-                     void * rcvprocfunc, void * rcvpara,
-                     void * sndprocfunc, void * sndpara, char * resfile, long resoff);
+                     void * rcvprocfunc, void * rcvpara, uint64 rcvcbval,
+                     void * sndprocfunc, void * sndpara, uint64 sndcbval,
+                     char * resfile, long resoff);
 
 
 typedef struct HTTPForm_ {
