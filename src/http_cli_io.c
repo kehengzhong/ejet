@@ -609,7 +609,7 @@ gotallbody:
 
     } else if (strncasecmp(msg->req_content_type, "application/json", 16) == 0) {
         if (!msg->req_form_json) {
-            msg->req_form_json = json_init(0, 0);
+            msg->req_form_json = json_init(0, 0, 0);
         }
  
         chunk_ptr(msg->req_body_chunk, 0, NULL, (void **)&pbody, &restlen);

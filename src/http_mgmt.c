@@ -240,7 +240,7 @@ void * http_mgmt_alloc (void * pcore, char * confname, int extsize, int msgextsi
 
     mgmt->addrnum = get_selfaddr(6, mgmt->localaddr);
 
-    mgmt->cnfjson = json_init(1, 1);
+    mgmt->cnfjson = json_init(1, 1, 1);
     if (confname) {
         json_decode_file(mgmt->cnfjson, confname, strlen(confname), 0, 0);
     }

@@ -784,7 +784,12 @@ void http_listen_free (void * vhl)
         if (hl->cbclean)
             (*hl->cbclean)(hl->cbobj);
 
+#ifdef UNIX
         dlclose(hl->cbhandle);
+#endif
+#ifdef _WIN32
+        FreeLibrary(hl->cbhandle);
+#endif
         hl->cbhandle = NULL;
     }
 
@@ -846,7 +851,9 @@ void * http_listen_host_get (void * vhl, char * servname)
 int http_listen_cblibfile_set (void * vhl, char * cblibfile)
 {
     HTTPListen * hl = (HTTPListen *)vhl;
+#ifdef UNIX
     char       * err = NULL;
+#endif
     char       * argv[16];
     int          i, plen[16];
 
@@ -860,7 +867,13 @@ int http_listen_cblibfile_set (void * vhl, char * cblibfile)
         if (hl->cbclean)
             (*hl->cbclean)(hl->cbobj);
 
+#ifdef UNIX
         dlclose(hl->cbhandle);
+#endif
+#ifdef _WIN32
+        FreeLibrary(hl->cbhandle);
+#endif
+
         hl->cbhandle = NULL;
     }
 
@@ -879,6 +892,7 @@ int http_listen_cblibfile_set (void * vhl, char * cblibfile)
 
     hl->cblibfile = cblibfile;
 
+#ifdef UNIX
     hl->cbhandle = dlopen(hl->cbargv[0], RTLD_LAZY | RTLD_GLOBAL);
     err = dlerror();
 
@@ -916,6 +930,48 @@ int http_listen_cblibfile_set (void * vhl, char * cblibfile)
               hl->cblibfile, err);
         hl->cbclean = NULL;
     }
+#endif
+
+#ifdef _WIN32
+    hl->cbhandle = LoadLibrary(hl->cbargv[0]);
+    if (!hl->cbhandle) {
+        tolog(1, "eJet - HTTP Listen <%s:%d%s> Loading DynLib <%s> error! errcode=%ld\n",
+              strlen(hl->localip) > 0 ? hl->localip : "*",
+              hl->port, hl->ssl_link ? " SSL" : "",
+              cblibfile, GetLastError());
+        return -100;
+    }
+
+    hl->cbinit = GetProcAddress(hl->cbhandle, "http_handle_init");
+    if (hl->cbinit == NULL) {
+        tolog(1, "eJet - HTTP Listen <%s:%d%s> DynLib <%s> callback 'http_handle_init' "
+                 "load failed! errcode=%ld\n",
+              strlen(hl->localip) > 0 ? hl->localip : "*",
+              hl->port, hl->ssl_link ? " SSL" : "",
+              hl->cblibfile, GetLastError());
+        hl->cbinit = NULL;
+    }
+
+    hl->cbfunc = GetProcAddress(hl->cbhandle, "http_handle");
+    if (hl->cbfunc == NULL) {
+        tolog(1, "eJet - HTTP Listen <%s:%d%s> DynLib <%s> callback 'http_handle' "
+                 "load failed! errcode=%ld\n",
+              strlen(hl->localip) > 0 ? hl->localip : "*",
+              hl->port, hl->ssl_link ? " SSL" : "",
+              hl->cblibfile, GetLastError());
+        hl->cbfunc = NULL;
+    }
+ 
+    hl->cbclean = GetProcAddress(hl->cbhandle, "http_handle_clean");
+    if (hl->cbclean == NULL) {
+        tolog(1, "eJet - HTTP Listen <%s:%d%s> DynLib <%s> callback 'http_handle_clean' "
+                 "load failed! errcode=%ld\n",
+              strlen(hl->localip) > 0 ? hl->localip : "*",
+              hl->port, hl->ssl_link ? " SSL" : "",
+              hl->cblibfile, GetLastError());
+        hl->cbclean = NULL;
+    }
+#endif
 
     if (hl->cbhandle && hl->cbinit) {
         hl->cbobj = (*hl->cbinit)(hl->httpmgmt, hl->cbargc, hl->cbargv);
