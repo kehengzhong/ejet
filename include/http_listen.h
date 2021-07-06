@@ -158,7 +158,13 @@ typedef struct http_listen {
     char              * cblibfile;
     int                 cbargc;
     char              * cbargv[16];
+
+#ifdef UNIX
     void              * cbhandle;
+#endif
+#ifdef _WIN32
+    HMODULE             cbhandle;
+#endif
 
     HTTPCBInit        * cbinit;
     HTTPCBHandler     * cbfunc;
