@@ -8,6 +8,7 @@
 #include "http_msg.h"
 #include "http_mgmt.h"
 
+
 typedef struct comm_strkey_ {
     char   * name;
     int      namelen;
@@ -435,7 +436,7 @@ uint64 http_header_get_uint64 (void * vmsg, int type, char * name, int namelen)
     }
     return 0;
 }
- 
+
 HeaderUnit * http_header_get_index (void * vmsg, int type, int index)
 {
     HTTPMsg    * msg = (HTTPMsg *)vmsg;
@@ -509,7 +510,7 @@ int http_header_append (void * vmsg, int type, char * name, int namelen, char * 
  
     punit->namepos = frameL(frame);
     frame_put_nlast(frame, name, namelen);
-    punit->name = frameP(frame) + punit->namepos;
+    punit->name = (char *)frameP(frame) + punit->namepos;
     punit->namelen = namelen;
 
     frame_append(frame, ": ");
@@ -517,7 +518,7 @@ int http_header_append (void * vmsg, int type, char * name, int namelen, char * 
     if (value && valuelen > 0) {
         punit->valuepos = frameL(frame);
         frame_put_nlast(frame, value, valuelen);
-        punit->value = frameP(frame) + punit->valuepos;
+        punit->value = (char *)frameP(frame) + punit->valuepos;
         punit->valuelen = valuelen;
     } else {
         punit->valuepos = 0;
@@ -661,8 +662,12 @@ int http_header_append_int64 (void * vmsg, int type, char * name, int namelen, i
  
     memset(value, 0, sizeof(value));
  
+#ifdef _WIN32
+    sprintf(value, "%I64d", ival);
+#else
     sprintf(value, "%lld", ival);
- 
+#endif
+
     return http_header_append(msg, type, name, namelen, value, strlen(value));
 }
 
@@ -675,11 +680,15 @@ int http_header_append_uint64 (void * vmsg, int type, char * name, int namelen, 
     if (!name) return -2;
     if (namelen < 0) namelen = strlen(name);
     if (namelen <= 0) return -3;
- 
+
     memset(value, 0, sizeof(value));
- 
+
+#ifdef _WIN32
+    sprintf(value, "%I64u", ival);
+#else
     sprintf(value, "%llu", ival);
- 
+#endif
+
     return http_header_append(msg, type, name, namelen, value, strlen(value));
 }
 

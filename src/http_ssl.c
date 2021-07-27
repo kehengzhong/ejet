@@ -584,7 +584,11 @@ int http_con_sendfile (void * vcon, int filefd, int64 pos, int64 size, int * num
     static int     mmapsize = 8192 * 1024;
     void         * pbyte = NULL;
     void         * pmap = NULL;
-    size_t         maplen = 0;
+    int64          maplen = 0;
+#ifdef _WIN32
+    HANDLE         hmap;
+    int64          mapoff = 0;
+#endif
 
     size_t         onelen = 0;
     int64          wlen = 0;
@@ -598,7 +602,7 @@ int http_con_sendfile (void * vcon, int filefd, int64 pos, int64 size, int * num
     if (err) *err = 0;
  
     if (!pcon) return -1;
-    if (!filefd) return -2;
+    if (filefd < 0) return -2;
  
 #ifdef HAVE_OPENSSL
  
@@ -611,7 +615,11 @@ int http_con_sendfile (void * vcon, int filefd, int64 pos, int64 size, int * num
         onelen = size - wlen;
         if (onelen > mmapsize) onelen = mmapsize;
 
+#ifdef UNIX
         pbyte = file_mmap(NULL, filefd, pos + wlen, onelen, PROT_READ, MAP_PRIVATE, &pmap, &maplen, NULL);
+#elif defined _WIN32
+        pbyte = file_mmap(NULL, (HANDLE)filefd, pos + wlen, onelen, NULL, &hmap, &pmap, &maplen, &mapoff);
+#endif
         if (!pbyte) break;
 
         for (wbytes = 0; wbytes < onelen; ) {

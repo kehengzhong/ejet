@@ -237,7 +237,8 @@ static int read_dir_list (char * path, char * curpath, frame_p frame)
     if (!curpath) return -2;
     if (!frame) return -3;
  
-    if (path[str_len(path)-1] != '/')
+    len = str_len(path);
+    if (path[len - 1] != '/' && path[len - 1] != '\\')
         sprintf(szdir, "%s/*", path);
     else
         sprintf(szdir, "%s*", path);
@@ -333,7 +334,7 @@ int DisplayDirectory (void * vmsg)
         if (path[ret-1] != '/') strcat(path, "/");
         ret = str_len(path);
  
-        for (i = 0; i < ploc->indexnum; i++) {
+        for (i = 0; i < (int)ploc->indexnum; i++) {
              sprintf(path + ret, "%s", ploc->index[i]);
              if (file_is_regular(path)) {
 

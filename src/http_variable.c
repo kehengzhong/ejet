@@ -306,42 +306,42 @@ int http_var_value (void * vmsg, char * vname, char * buf, int len)
 
     switch (var->structtype) {
     case 0:     //HTTPMsg 
-        obj = (void *)msg + var->fieldpos;
+        obj = (uint8 *)msg + var->fieldpos;
         if (var->substruct) {
             subobj = * (void **)obj;
-            obj = subobj + var->subfldpos;
-            objlen = subobj + var->subfldlenpos;
+            obj = (uint8 *)subobj + var->subfldpos;
+            objlen = (uint8 *)subobj + var->subfldlenpos;
         } else if (var->condcheck) {
             if (msg->msgtype == 0) {
-                obj = (void *)msg + var->subfldpos;
+                obj = (uint8 *)msg + var->subfldpos;
             }
         } else {
             if (var->haslen)
-                objlen = (void *)msg + var->fldlenpos;
+                objlen = (uint8 *)msg + var->fldlenpos;
         }
         break;
 
     case 1:     //HTTPMgmt
-        obj = (void *)mgmt + var->fieldpos;
+        obj = (uint8 *)mgmt + var->fieldpos;
         if (var->substruct) {
             subobj = * (void **)obj;
-            obj = subobj + var->subfldpos;
-            objlen = subobj + var->subfldlenpos;
+            obj = (uint8 *)subobj + var->subfldpos;
+            objlen = (uint8 *)subobj + var->subfldlenpos;
         } else {
             if (var->haslen)
-                objlen = (void *)mgmt + var->fldlenpos;
+                objlen = (uint8 *)mgmt + var->fldlenpos;
         }
         break;
 
     case 2:    //HTTPLoc
-        obj = (void *)ploc + var->fieldpos;
+        obj = (uint8 *)ploc + var->fieldpos;
         if (var->substruct) {
             subobj = * (void **)obj;
-            obj = subobj + var->subfldpos;
-            objlen = subobj + var->subfldlenpos;
+            obj = (uint8 *)subobj + var->subfldpos;
+            objlen = (uint8 *)subobj + var->subfldlenpos;
         } else {
             if (var->haslen)
-                objlen = (void *)ploc + var->fldlenpos;
+                objlen = (uint8 *)ploc + var->fldlenpos;
         }
         break;
 
@@ -393,9 +393,17 @@ int http_var_value (void * vmsg, char * vname, char * buf, int len)
 
         case 3:   //int64
             if (var->unsign) {
+#ifdef _WIN32
+                ret = sprintf(sbuf, "%I64u", *(uint64 *) obj );
+#else
                 ret = sprintf(sbuf, "%llu", *(uint64 *) obj );
+#endif
             } else {
+#ifdef _WIN32
+                ret = sprintf(sbuf, "%I64d", *(int64 *) obj );
+#else
                 ret = sprintf(sbuf, "%lld", *(int64 *) obj );
+#endif
             }
 
             if (buf) {

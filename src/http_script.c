@@ -5,7 +5,13 @@
 
 #include "adifall.ext"
 #include "epump.h"
+#ifdef UNIX
 #include <regex.h>
+#endif
+#ifdef _WIN32
+#define PCRE_STATIC 1
+#include "pcre.h"
+#endif
 
 #include "http_listen.h"
 #include "http_msg.h"
@@ -337,7 +343,9 @@ static int script_if_file_parse (void * vhsc, char * pbgn, int len, char ** pter
     char       * pend = NULL;
     char       * poct = NULL;
     char       * pexpend = NULL;
+#ifdef UNIX
     struct stat  fs;
+#endif
 
     if (pterm) *pterm = pbgn;
 
@@ -370,9 +378,11 @@ static int script_if_file_parse (void * vhsc, char * pbgn, int len, char ** pter
             if (file_exist(poct)) return 1;
 
         } else if (pbgn[1] == 'x') {
+#ifdef UNIX
             if (file_stat(poct, &fs) < 0) return 0;
             if (fs.st_mode & (S_IXUSR | S_IXGRP | S_IXOTH))
                 return 1;
+#endif
         }
     }
 
@@ -388,7 +398,9 @@ static int script_if_not_file_parse (void * vhsc, char * pbgn, int len, char ** 
     char       * pend = NULL;
     char       * poct = NULL;
     char       * pexpend = NULL;
+#ifdef UNIX
     struct stat  fs;
+#endif
 
     if (pterm) *pterm = pbgn;
 
@@ -421,9 +433,11 @@ static int script_if_not_file_parse (void * vhsc, char * pbgn, int len, char ** 
             if (!file_exist(poct)) return 1;
 
         } else if (pbgn[2] == 'x') {
+#ifdef UNIX
             if (file_stat(poct, &fs) < 0) return 1;
             if (!(fs.st_mode & (S_IXUSR | S_IXGRP | S_IXOTH)))
                 return 1;
+#endif
         }
     }
 
@@ -474,8 +488,16 @@ static int script_if_objcmp (void * vhsc, char * avar, int avarlen, char * cmpsy
     double       adval = 0;
     double       bdval = 0;
 
+#ifdef UNIX
     regex_t      regobj;
     regmatch_t   pmat[4];
+#endif
+#ifdef _WIN32
+    pcre       * regobj = NULL;
+    char       * errstr = NULL;
+    int          erroff = 0;
+    int          ovec[36];
+#endif
     int          ret = 0;
 
     if (!hsc) return 0;
@@ -594,15 +616,28 @@ static int script_if_objcmp (void * vhsc, char * avar, int avarlen, char * cmpsy
         return (strncasecmp(pa, pb, strlen(pb)) == 0) ? 1 : 0;
  
     } else if (strcasecmp(cmpsym, "~") == 0) {
+#ifdef UNIX
         memset(&regobj, 0, sizeof(regobj));
         regcomp(&regobj, pb, REG_EXTENDED);
         ret = regexec(&regobj, pa, 4, pmat, 0);
         regfree(&regobj);
- 
+
         if (ret == 0) return 1;
         if (ret == REG_NOMATCH) return 0;
+#endif
+#ifdef _WIN32
+        regobj = pcre_compile(pb, 0, &errstr, &erroff, NULL);
+        if (!regobj) return 0;
+
+        ret = pcre_exec(regobj, NULL, pa, strlen(pa), 0, 0, ovec, 36);
+        pcre_free(regobj);
+
+        if (ret > 0) return 1;
+        if (ret <= 0) return 0;
+#endif
  
     } else if (strcasecmp(cmpsym, "~*") == 0) {
+#ifdef UNIX
         memset(&regobj, 0, sizeof(regobj));
         regcomp(&regobj, pb, REG_EXTENDED | REG_ICASE);
  
@@ -611,8 +646,19 @@ static int script_if_objcmp (void * vhsc, char * avar, int avarlen, char * cmpsy
  
         if (ret == 0) return 1;
         if (ret == REG_NOMATCH) return 0;
+#endif
+#ifdef _WIN32
+        regobj = pcre_compile(pb, PCRE_CASELESS, &errstr, &erroff, NULL);
+        if (!regobj) return 0;
+
+        ret = pcre_exec(regobj, NULL, pa, strlen(pa), 0, 0, ovec, 36);
+        pcre_free(regobj);
+
+        if (ret > 0) return 1;
+        if (ret <= 0) return 0;
+#endif
     }
- 
+
     return 0;
 }
 
@@ -1294,14 +1340,22 @@ char * script_rewrite_parse (void * vhsc, char * p, int len)
     char         regstr[512];
     char         replace[2048];
     char         flag[64];
-    char         uri[2048];
     char         dsturi[2048];
-    regex_t      regobj = {0};
-    regmatch_t   pmat[32];
     int          ret, dstlen;
     ckstr_t      pmatstr[32];
     int          i, matnum = 0;
- 
+#ifdef UNIX
+    char         uri[2048];
+    regex_t      regobj = {0};
+    regmatch_t   pmat[32];
+#endif
+#ifdef _WIN32
+    pcre       * regobj = NULL;
+    char       * errstr = NULL;
+    int          erroff = 0;
+    int          ovec[36];
+#endif
+
     if (!hsc) return p;
  
     msg = (HTTPMsg *)hsc->msg;
@@ -1389,6 +1443,7 @@ char * script_rewrite_parse (void * vhsc, char * p, int len)
         }
     }
 
+#ifdef UNIX
     if (regcomp(&regobj, regstr, REG_EXTENDED | REG_ICASE) != 0) {
         regfree(&regobj);
         return pexpend;
@@ -1412,6 +1467,25 @@ char * script_rewrite_parse (void * vhsc, char * p, int len)
         regfree(&regobj);
         return pexpend;
     }
+#endif
+#ifdef _WIN32
+    regobj = pcre_compile(regstr, PCRE_CASELESS, &errstr, &erroff, NULL);
+    if (!regobj) return pexpend;
+
+    ret = pcre_exec(regobj, NULL, msg->req_path, msg->req_pathlen, 0, 0, ovec, 36);
+    if (ret <= 0) {
+        pcre_free(regobj);
+        return pexpend;
+    }
+
+    for (i = 0, matnum = 0; i < ret; i++) {
+        pmatstr[matnum].p = msg->req_path + ovec[2 * i];
+        pmatstr[matnum].len = ovec[2 * i + 1] - ovec[2 * i];
+        matnum++;
+    }
+
+    pcre_free(regobj);
+#endif
 
     dsturi[0] = '\0';
     http_var_copy(msg, replace, strlen(replace), dsturi, sizeof(dsturi)-1,

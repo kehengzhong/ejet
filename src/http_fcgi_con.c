@@ -295,11 +295,13 @@ int http_fcgicon_connect (void * vpcon)
                                    (void *)pcon->conid, &ret,
                                    http_fcgisrv_pump, pcon->srv);
         } else {
+#ifdef UNIX
             /* open unix socket */
             pcon->pdev = epusock_connect(pcon->pcore,
                                    pcon->unixsock, 
                                    (void *)pcon->conid, &ret,
                                    http_fcgisrv_pump, pcon->srv);
+#endif
         }
 
         if (!pcon->pdev) {

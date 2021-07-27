@@ -27,8 +27,13 @@ void send_proxy_free (void * vsndpxy)
         kfree(sndpxy->host);
 
     if (sndpxy->preg) {
+#ifdef UNIX
         regfree(sndpxy->preg);
         kfree(sndpxy->preg);
+#endif
+#ifdef _WIN32
+        pcre_free(sndpxy->preg);
+#endif
     }
 
     if (sndpxy->proxy)
@@ -78,8 +83,13 @@ int http_send_proxy_init (void * vmgmt)
 
         sndpxy->host = str_dup(key, keylen);
 
+#ifdef UNIX
         sndpxy->preg = kzalloc(sizeof(regex_t));
         regcomp(sndpxy->preg, sndpxy->host, REG_EXTENDED | REG_ICASE);
+#endif
+#ifdef _WIN32
+        sndpxy->preg = pcre_compile(sndpxy->host, PCRE_CASELESS, &key, &keylen, NULL);
+#endif
 
         ret = string_tokenize(data, datalen, ":", 1, (void **)plist, plen, 4);
         if (ret <= 0) {
@@ -122,7 +132,12 @@ int http_send_proxy_check (void * vmsg)
     char        buf[256];
     int         i, num;
     int         ret = 0;
+#ifdef UNIX
     regmatch_t  pmat[16];
+#endif
+#ifdef _WIN32
+    int         ovec[36];
+#endif
 
     if (!msg) return -1;
 
@@ -143,8 +158,14 @@ int http_send_proxy_check (void * vmsg)
         sndpxy = arr_value(mgmt->sndpxy_list, i);
         if (!sndpxy) continue;
 
+#ifdef UNIX
         ret = regexec(sndpxy->preg, buf, 16, pmat, 0);
         if (ret == 0) {
+#endif
+#ifdef _WIN32
+        ret = pcre_exec(sndpxy->preg, NULL, buf, strlen(buf), 0, 0, ovec, 36);
+        if (ret > 0) {
+#endif
             msg->proxy = sndpxy->proxy;
 
             if (sndpxy->port == 0) {

@@ -3,8 +3,15 @@
  * All rights reserved. See MIT LICENSE for redistribution.
  */
 
+#ifdef UNIX
 #include <dlfcn.h>
 #include <regex.h>
+#endif
+
+#ifdef _WIN32
+#define PCRE_STATIC 1
+#include "pcre.h"
+#endif
 
 #include "adifall.ext"
 #include "epump.h"
@@ -157,7 +164,14 @@ int http_loc_build (void * vhost, void * jhost)
     HTTPHost   * host = (HTTPHost *)vhost;
     HTTPLoc    * ploc = NULL;
     HTTPLoc    * ptmp = NULL;
+#ifdef UNIX
     regex_t    * preg = NULL;
+#endif
+#ifdef _WIN32
+    char       * errstr = NULL;
+    int          erroff = 0;
+    pcre       * preg = NULL;
+#endif
 
     int          i, locnum;
     int          ret = 0, subret = 0;
@@ -286,6 +300,7 @@ int http_loc_build (void * vhost, void * jhost)
             case MATCH_REGEX_NOCASE:  //regex matching ignoring case
                 arr_push(host->regex_loc_list, ploc);
 
+#ifdef UNIX
                 preg = kzalloc(sizeof(regex_t));
                 if (ploc->matchtype == MATCH_REGEX_CASE) { //case censitive
                     regcomp(preg, ploc->path, REG_EXTENDED);
@@ -293,6 +308,15 @@ int http_loc_build (void * vhost, void * jhost)
                 } else { //ignoring case
                     regcomp(preg, ploc->path, REG_EXTENDED | REG_ICASE);
                 }
+#endif
+#ifdef _WIN32
+                if (ploc->matchtype == MATCH_REGEX_CASE) { //case censitive
+                    preg = pcre_compile(ploc->path, 0, &errstr, &erroff, NULL);
+
+                } else { //ignoring case
+                    preg = pcre_compile(ploc->path, PCRE_CASELESS, &errstr, &erroff, NULL);
+                }
+#endif
 
                 arr_push(host->regex_list, preg);
                 break;
@@ -306,7 +330,7 @@ int http_loc_build (void * vhost, void * jhost)
             ploc->indexnum = ret;
             ploc->index[0] = value;
 
-            for (j = 1; j < ploc->indexnum && j < sizeof(ploc->index)/sizeof(ploc->index[0]); j++) {
+            for (j = 1; j < (int)ploc->indexnum && j < sizeof(ploc->index)/sizeof(ploc->index[0]); j++) {
                 sprintf(key, "index[%d]", j);
                 ret = json_mgetP(jloc, key, -1, (void **)&value, &valuelen);
                 if (ret > 0 && value && valuelen > 0) {
@@ -414,7 +438,12 @@ void http_host_free (void * vhost)
 {
     HTTPHost * host = (HTTPHost *)vhost;
     int        i, num;
+#ifdef UNIX
     regex_t  * preg = NULL;
+#endif
+#ifdef _WIN32
+    pcre     * preg = NULL;
+#endif
 
     if (!host) return;
 
@@ -453,8 +482,13 @@ void http_host_free (void * vhost)
         num = arr_num(host->regex_list);
         for (i = 0; i < num; i++) {
             preg = arr_value(host->regex_list, i);
+#ifdef UNIX
             regfree(preg);
             kfree(preg);
+#endif
+#ifdef _WIN32
+            pcre_free(preg);
+#endif
         }
         arr_free(host->regex_list);
         host->regex_list = NULL;
@@ -942,7 +976,7 @@ int http_listen_cblibfile_set (void * vhl, char * cblibfile)
         return -100;
     }
 
-    hl->cbinit = GetProcAddress(hl->cbhandle, "http_handle_init");
+    hl->cbinit = (HTTPCBInit *)GetProcAddress(hl->cbhandle, "http_handle_init");
     if (hl->cbinit == NULL) {
         tolog(1, "eJet - HTTP Listen <%s:%d%s> DynLib <%s> callback 'http_handle_init' "
                  "load failed! errcode=%ld\n",
@@ -952,7 +986,7 @@ int http_listen_cblibfile_set (void * vhl, char * cblibfile)
         hl->cbinit = NULL;
     }
 
-    hl->cbfunc = GetProcAddress(hl->cbhandle, "http_handle");
+    hl->cbfunc = (HTTPCBHandler *)GetProcAddress(hl->cbhandle, "http_handle");
     if (hl->cbfunc == NULL) {
         tolog(1, "eJet - HTTP Listen <%s:%d%s> DynLib <%s> callback 'http_handle' "
                  "load failed! errcode=%ld\n",
@@ -962,7 +996,7 @@ int http_listen_cblibfile_set (void * vhl, char * cblibfile)
         hl->cbfunc = NULL;
     }
  
-    hl->cbclean = GetProcAddress(hl->cbhandle, "http_handle_clean");
+    hl->cbclean = (HTTPCBClean *)GetProcAddress(hl->cbhandle, "http_handle_clean");
     if (hl->cbclean == NULL) {
         tolog(1, "eJet - HTTP Listen <%s:%d%s> DynLib <%s> callback 'http_handle_clean' "
                  "load failed! errcode=%ld\n",
@@ -1484,7 +1518,12 @@ void * http_loc_instance (void * vmsg)
     char         buf[4096];
     int          ret = 0;
     int          i, j, num;
+#ifdef UNIX
     regmatch_t   pmat[16];
+#endif
+#ifdef _WIN32
+    int          ovec[36];
+#endif
 
     if (!msg) return NULL;
 
@@ -1544,13 +1583,20 @@ void * http_loc_instance (void * vmsg)
     /* regular expression matching check if request path is matched by regex */
     num = arr_num(host->regex_list);
     for (i = 0; i < num; i++) {
+#ifdef UNIX
         ret = regexec(arr_value(host->regex_list, i), buf, 16, pmat, 0);
         if (ret == 0) {
+#endif
+#ifdef _WIN32
+        ret = pcre_exec(arr_value(host->regex_list, i), NULL, buf, strlen(buf), 0, 0, ovec, 36);
+        if (ret > 0) {
+#endif
             ploc = arr_value(host->regex_loc_list, i);
 
             msg->ploc = ploc;
 
             msg->matchnum = 0;
+#ifdef UNIX
             for (j = 0; j < 16; j++) {
                 if (pmat[j].rm_so >= 0) {
                     msg->matchstr[msg->matchnum].p = msg->docuri->path + pmat[j].rm_so;
@@ -1560,6 +1606,14 @@ void * http_loc_instance (void * vmsg)
                 }
                 break;
             }
+#endif
+#ifdef _WIN32
+            for (j = 0; j < ret; j++) {
+                msg->matchstr[msg->matchnum].p = msg->docuri->path + ovec[2 * j];
+                msg->matchstr[msg->matchnum].len = ovec[2 * j + 1] - ovec[2 * j];
+                msg->matchnum++;
+            }
+#endif
 
             goto retloc;
         }
@@ -1711,7 +1765,7 @@ int http_real_file (void * vmsg, char * path, int len)
 
     if (path && file_is_dir(path) && (ploc = msg->ploc)) {
         slen = strlen(path);
-        for (i = 0; i < ploc->indexnum; i++) {
+        for (i = 0; i < (int)ploc->indexnum; i++) {
             snprintf(path + slen, len - slen, "%s", ploc->index[i]);
             if (file_is_regular(path)) {
                 return strlen(path);
@@ -1881,7 +1935,14 @@ void * http_regex_loc (void * vhl, char * hostn, int hostlen, char * matstr, int
     HTTPListen * hl = (HTTPListen *)vhl;
     HTTPHost   * host = NULL;
     HTTPLoc    * ploc = NULL;
+#ifdef UNIX
     regex_t    * preg = NULL;
+#endif
+#ifdef _WIN32
+    pcre       * preg = NULL;
+    char       * errstr = NULL;
+    int          erroff = 0;
+#endif
     char       * ptmp = NULL;
     int          i, num;
 
@@ -1918,6 +1979,7 @@ void * http_regex_loc (void * vhl, char * hostn, int hostlen, char * matstr, int
 
         arr_push(host->regex_loc_list, ploc);
 
+#ifdef UNIX
         preg = kzalloc(sizeof(regex_t));
         if (ploc->matchtype == MATCH_REGEX_CASE) { //case censitive
             regcomp(preg, ploc->path, REG_EXTENDED);
@@ -1925,6 +1987,15 @@ void * http_regex_loc (void * vhl, char * hostn, int hostlen, char * matstr, int
         } else { //ignoring case
             regcomp(preg, ploc->path, REG_EXTENDED | REG_ICASE);
         }
+#endif
+#ifdef _WIN32
+        if (ploc->matchtype == MATCH_REGEX_CASE) { //case censitive
+            preg = pcre_compile(ploc->path, 0, &errstr, &erroff, NULL);
+
+        } else { //ignoring case
+            preg = pcre_compile(ploc->path, PCRE_CASELESS, &errstr, &erroff, NULL);
+        }
+#endif
 
         arr_push(host->regex_list, preg);
 

@@ -137,7 +137,7 @@ static char * cache_info_file (char * cafile, int cafnlen)
     if (cafnlen < 0) cafnlen = strlen(cafile);
     if (cafnlen <= 0) return NULL;
  
-    p = rskipTo(cafile + cafnlen - 1, cafnlen, "/", 1);
+    p = rskipTo(cafile + cafnlen - 1, cafnlen, "/\\", 2);
     if (p < cafile) {
         fname = cafile;
         fnlen = cafnlen;
@@ -153,12 +153,20 @@ static char * cache_info_file (char * cafile, int cafnlen)
     p = kalloc(len);
  
     if (pathlen <= 0) {
+#ifdef _WIN32
+        strcpy(p, ".\\");
+#else
         strcpy(p, "./");
+#endif
     } else {
         str_secpy(p, len-1, cafile, pathlen);
     }
  
+#ifdef _WIN32
+    str_secpy(p + strlen(p), len - 1 - strlen(p), ".cacheinfo\\", 11);
+#else
     str_secpy(p + strlen(p), len - 1 - strlen(p), ".cacheinfo/", 11);
+#endif
     str_secpy(p + strlen(p), len - 1 - strlen(p), fname, fnlen);
 
     str_secpy(p + strlen(p), len - 1 - strlen(p), ".cacinf", 7);
@@ -221,7 +229,7 @@ int cache_info_read (void * vcacinfo)
     if (cacinfo->body_length > 0)
         frag_pack_set_length(cacinfo->frag, cacinfo->body_length);
 
-    frag_pack_read(cacinfo->frag, native_file_fd(cacinfo->hinfo), 96);
+    frag_pack_read(cacinfo->frag, cacinfo->hinfo, 96);
 
     return 0;
 }
@@ -287,7 +295,7 @@ int cache_info_write_frag (void * vcacinfo)
     if (!cacinfo) return -1;
     if (!cacinfo->hinfo) return -2;
  
-    return frag_pack_write(cacinfo->frag, native_file_fd(cacinfo->hinfo), 96);
+    return frag_pack_write(cacinfo->frag, cacinfo->hinfo, 96);
 }
 
 int cache_info_write (void * vcacinfo)
@@ -427,7 +435,7 @@ void * cache_info_open (void * vmgmt, char * cafile)
         return cacinfo;
     }
 
-    /* according to actual filename.ext, generate cacheinfo file: ./.cacheinfo/filename.ext  */
+    /* according to actual filename.ext, generate cacheinfo file: ./.cacheinfo/filename.ext.cacinf  */
  
     fname = cache_info_file(cafile, cafnlen);
     if (!fname) goto nullret;
@@ -465,7 +473,7 @@ void * cache_info_open (void * vmgmt, char * cafile)
  
     if (frag_pack_curlen(cacinfo->frag) > 0 &&
         frag_pack_complete(cacinfo->frag) == 0 &&
-        (stat(cacinfo->cache_tmp, &st) < 0 || st.st_size <= 0))
+        (file_stat(cacinfo->cache_tmp, &st) < 0 || st.st_size <= 0))
     {
         frag_pack_zero(cacinfo->frag);
         cacinfo->body_rcvlen = 0;
@@ -602,12 +610,20 @@ int http_request_cache_init (void * vmsg)
  
     if (msg->req_file_handle) return 0;
  
+#ifdef _WIN32
+    snprintf(path, sizeof(path) - 1, "%s\\ucache", msg->GetRootPath(msg));
+#else
     snprintf(path, sizeof(path) - 1, "%s/ucache", msg->GetRootPath(msg));
- 
+#endif
+
     hash = generic_hash(msg->docuri->path, msg->docuri->pathlen, 0);
     hash = hash % 307;
  
+#ifdef _WIN32
+    sprintf(path+strlen(path), "\\%lu\\", hash);
+#else
     sprintf(path+strlen(path), "/%lu/", hash);
+#endif
     file_dir_create(path, 0);
  
     msg->GetReqContentTypeP(msg, &ctype, NULL);
@@ -681,6 +697,15 @@ int http_response_cache_init (void * vmsg)
     ret = http_var_copy(msg, cachefn, fnlen, buf, sizeof(buf)-1, NULL, 0, "cache file", 4);
     if (ret <= 0) return 0;
  
+    for (ret = 0; ret < (int)strlen(buf); ret++) {
+        if (buf[ret] == ':') { //ignore the colon in drive of path D:\prj\src\disk.txt
+            if (ret > 1) buf[ret] = '_';
+        } else if (buf[ret] == '?') buf[ret] = '_';
+#ifdef _WIN32
+        else if (buf[ret] == '/') buf[ret] = '\\';
+#endif
+    }
+
     msg->res_file_name = str_dup(buf, strlen(buf));
     file_dir_create(msg->res_file_name, 1);
  
@@ -825,6 +850,15 @@ int http_proxy_cache_open (void * vmsg)
         return 0;
     }
  
+    for (ret = 0; ret < (int)strlen(buf); ret++) {
+        if (buf[ret] == ':') { //ignore the colon in drive of path D:\prj\src\disk.txt
+            if (ret > 1) buf[ret] = '_';
+        } else if (buf[ret] == '?') buf[ret] = '_';
+#ifdef _WIN32
+        else if (buf[ret] == '/') buf[ret] = '\\';
+#endif
+    }
+
     msg->res_file_name = str_dup(buf, strlen(buf));
     if (file_is_regular(msg->res_file_name)) {
         msg->res_file_cache = 3;
@@ -1139,7 +1173,11 @@ int http_cache_response_header (void * vmsg, void * vcacinfo)
             climsg->res_body_length = length;
             http_header_append_int64(climsg, 1, "Content-Length", 14, length);
  
+#ifdef _WIN32
+            sprintf(buf, "bytes %I64d-%I64d/%I64d", start, end, cacinfo->body_length);
+#else
             sprintf(buf, "bytes %lld-%lld/%lld", start, end, cacinfo->body_length);
+#endif
             http_header_append(climsg, 1, "Content-Range", 13, buf, strlen(buf));
  
             if (length < cacinfo->body_length) {

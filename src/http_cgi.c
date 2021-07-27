@@ -341,7 +341,7 @@ int GetRealFile (void * vmsg, char * path, int len)
  
     if (path && file_is_dir(path) && (ploc = msg->ploc)) {
         slen = strlen(path);
-        for (i = 0; i < ploc->indexnum; i++) {
+        for (i = 0; i < (int)ploc->indexnum; i++) {
             snprintf(path + slen, len - slen, "%s", ploc->index[i]);
             if (file_is_regular(path)) {
                 return strlen(path);
@@ -427,7 +427,7 @@ int GetLocFile (void * vmsg, char * upath, int upathlen, char * locfile, int loc
         }
         pathlen = frameL(pathfrm);
 
-        for (i = 0; i < ploc->indexnum; i++) {
+        for (i = 0; i < (int)ploc->indexnum; i++) {
             frame_trunc(pathfrm, pathlen);
             frame_append(pathfrm, ploc->index[i]);
 
@@ -1929,7 +1929,11 @@ int AddResFile (void * vmsg, char * filename, int64 startpos, int64 len)
 
             ret = chunk_add_file(msg->res_body_chunk, filename, part->start, part->length, 1);
 
+#ifdef _WIN32
+            sprintf(buf, "bytes %I64d-%I64d/%I64d", part->start, part->end, part->fsize);
+#else
             sprintf(buf, "bytes %lld-%lld/%lld", part->start, part->end, part->fsize);
+#endif
             http_header_append(msg, 1, "Content-Range", -1, buf, strlen(buf));
 
             if (http_header_get(msg, 1, "Content-Type", 12) == NULL) {
@@ -1950,9 +1954,15 @@ int AddResFile (void * vmsg, char * filename, int64 startpos, int64 len)
 
                 AdjustPartial(part, st.st_size);
 
+#ifdef _WIN32
+                sprintf(buf, "--%s\r\nCotent-Type: %s\r\n"
+                             "Content-Range: bytes %I64d-%I64d/%I64d\r\n\r\n",
+                        boundary, mime, part->start, part->end, part->fsize);
+#else
                 sprintf(buf, "--%s\r\nCotent-Type: %s\r\n"
                              "Content-Range: bytes %lld-%lld/%lld\r\n\r\n",
                         boundary, mime, part->start, part->end, part->fsize);
+#endif
                 chunk_add_buffer(msg->res_body_chunk, buf, strlen(buf));
 
                 chunk_add_file(msg->res_body_chunk, filename, part->start, part->length, 1);
@@ -1978,7 +1988,11 @@ addfile:
     if (len < st.st_size) {
         SetStatus(msg, 206, "Partial Content");
 
+#ifdef _WIN32
+        sprintf(buf, "bytes %I64d-%I64d/%ld", startpos, startpos + len - 1, st.st_size);
+#else
         sprintf(buf, "bytes %lld-%lld/%ld", startpos, startpos + len - 1, st.st_size);
+#endif
         http_header_append(msg, 1, "Content-Range", -1, buf, strlen(buf));
     }
 
@@ -2019,7 +2033,7 @@ int SetStatus (void * vmsg, int code, char * reason)
 int Check304Resp (void * vmsg, uint64 mediasize, time_t mtime, uint32 inode)
 {
     HTTPMsg  * msg = (HTTPMsg *)vmsg;
-    int        ret = 0;
+    int        ret = 0, etaglen = 0;
     char       reqetag[64];
     char       etag[64];
     char     * pbgn = NULL;
@@ -2034,18 +2048,23 @@ int Check304Resp (void * vmsg, uint64 mediasize, time_t mtime, uint32 inode)
     }
 
     /* get the value of http-header: If-None-Match */
-    GetReqEtag(msg, reqetag, sizeof(reqetag));
+    memset(reqetag, 0, sizeof(reqetag));
+    etaglen = GetReqEtag(msg, reqetag, sizeof(reqetag)-1);
 
     GetReqHdrP(msg, "If-Modified-Since", -1, &pbgn, &ret);
     if (pbgn && ret > 0) str_gmt2time(pbgn, ret, &reqmtime);
 
-    if (reqmtime > 0 && mtime == reqmtime) {
+    if (etaglen > 0 && reqmtime > 0 && mtime == reqmtime) {
         msg->flag304 = 1;
         SetResEtag(msg, reqetag, -1);
 
-    } else if (mtime > 0 && mediasize > 0 && inode > 0) {
+    } else if (mtime > 0 && mediasize > 0) {
         memset(etag, 0, sizeof(etag));
+#ifdef _WIN32
+        sprintf(etag, "%I64x-%I64x", mediasize, mtime);
+#else
         sprintf(etag, "%x-%llx-%lx", inode, mediasize, mtime);
+#endif
         ret = str_len(etag);
  
         if (ret == str_len(reqetag) && memcmp(etag, reqetag, ret) == 0)

@@ -73,9 +73,11 @@ int http_con_init (void * vcon)
         pcon->pdev = NULL;
     }
 
+#ifdef HAVE_OPENSSL
     if (pcon->sslctx) {
         pcon->sslctx = NULL;
     }
+#endif
 
     if (pcon->tunnelcon) {
         pcon->tunnelcon = NULL;
@@ -146,10 +148,6 @@ int http_con_free (void * vcon)
         pcon->pdev = NULL;
     }
 
-    if (pcon->sslctx) {
-        pcon->sslctx = NULL;
-    }
-
     if (pcon->tunnelcon) {
         pcon->tunnelcon = NULL;
     }
@@ -157,6 +155,10 @@ int http_con_free (void * vcon)
     pcon->read_ignored = 0;
 
 #ifdef HAVE_OPENSSL
+    if (pcon->sslctx) {
+        pcon->sslctx = NULL;
+    }
+
     if (pcon->ssl_link) {
         if (pcon->ssl) {
             http_ssl_free(pcon->ssl);
@@ -253,10 +255,6 @@ int http_con_recycle (void * vcon)
         pcon->pdev = NULL; 
     }
 
-    if (pcon->sslctx) {
-        pcon->sslctx = NULL;
-    }
-
     if (pcon->tunnelcon) {
         pcon->tunnelcon = NULL;
     }
@@ -264,6 +262,10 @@ int http_con_recycle (void * vcon)
     pcon->read_ignored = 0;
 
 #ifdef HAVE_OPENSSL
+    if (pcon->sslctx) {
+        pcon->sslctx = NULL;
+    }
+
     if (pcon->ssl_link) {
         if (pcon->ssl) {
             http_ssl_free(pcon->ssl);

@@ -66,14 +66,20 @@ int http_pagetpl_callback (void * vmsg, void * vtplunit, void * tplvar, frame_p 
 }
 
 
-int http_pagetpl_parse (void * vmsg, char * tplfile, void * vbyte, ssize_t bytelen, void * tplvar, frame_p objfrm)
+int http_pagetpl_parse (void * vmsg, char * tplfile, void * vbyte, int bytelen, void * tplvar, frame_p objfrm)
 {
     HTTPMsg     * msg = (HTTPMsg *)vmsg;
     char        * pbyte = (char *)vbyte;
- 
-    struct stat   st;
-    int           fd = -1;
- 
+
+    void        * hfile = NULL;
+    int64         fsize = 0;
+#ifdef _WIN32
+    HANDLE        hmap;
+    void        * pmap = NULL;
+    int64         maplen = 0;
+    int64         mapoff = 0;
+#endif
+
     char        * pbgn = NULL;
     char        * pend = NULL;
     char        * pval = NULL;
@@ -88,20 +94,22 @@ int http_pagetpl_parse (void * vmsg, char * tplfile, void * vbyte, ssize_t bytel
  
     if (!msg) return -1;
  
-    if (tplfile && file_stat(tplfile, &st) >= 0) {
-        if (st.st_size > 128*1024*1024)
+    if (tplfile && (hfile = native_file_open(tplfile, NF_READ)) != NULL) {
+        fsize = native_file_size(hfile);
+        if (fsize > 128 * 1024 * 1024)
             return -101;
- 
-        fd = open(tplfile, O_RDONLY);
-        if (fd < 0) return -200;
- 
-        pbyte = mmap(NULL, st.st_size, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
+
+#ifdef UNIX
+        pbyte = mmap(NULL, fsize, PROT_READ | PROT_WRITE, MAP_PRIVATE, native_file_fd(hfile), 0);
+#elif defined (_WIN32)
+        pbyte = file_mmap (NULL, native_file_handle(hfile), 0, fsize, NULL, &hmap, &pmap, &maplen, &mapoff);
+#endif
         if (!pbyte) {
-            close(fd);
+            native_file_close(hfile);
             return -300;
         }
- 
-        bytelen = st.st_size;
+
+        bytelen = (int)fsize;
  
     } else {
         tplfile = NULL;
@@ -249,16 +257,20 @@ int http_pagetpl_parse (void * vmsg, char * tplfile, void * vbyte, ssize_t bytel
             chunk_add_buffer(msg->res_body_chunk, pbgn, pend - pbgn);
     }
  
-    if (tplfile && fd >= 0) {
-        munmap(pbyte, st.st_size);
-        close(fd);
+    if (tplfile && hfile != NULL) {
+#ifdef UNIX
+        munmap(pbyte, fsize);
+#elif defined (_WIN32)
+        file_munmap(hmap, pmap);
+#endif
+        native_file_close(hfile);
     }
  
     return 0;
 }
  
  
-int http_pagetpl_add (void * vmsg, void * pbyte, ssize_t bytelen, void * tplvar)
+int http_pagetpl_add (void * vmsg, void * pbyte, int bytelen, void * tplvar)
 {
     HTTPMsg * msg = (HTTPMsg *)vmsg;
     int ret = 0;

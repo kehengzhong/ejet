@@ -419,8 +419,12 @@ void fcgi_predefined_param_encode (frame_p frm, HTTPMsg * httpmsg)
              if (httpmsg->req_body_length == 0) {
                  buf[0] = '\0';
                  valuelen = 0;
-             }else {
+             } else {
+#ifdef _WIN32
+                 sprintf(buf, "%I64d", httpmsg->req_body_length);
+#else
                  sprintf(buf, "%lld", httpmsg->req_body_length);
+#endif
                  valuelen = strlen(buf);
              }
 
@@ -481,7 +485,7 @@ int http_fcgimsg_request_encode (void * vmsg)
     frame_append_nbytes(msg->fcgi_request, 0x00, padding);
 
     /* re-encoded the FCGI_PARAMS header based on the actual PARAMS body length */
-    fcgi_header_encode2(frameP(msg->fcgi_request) + para_pos, FCGI_PARAMS, 1/*msg->msgid*/, paralen);
+    fcgi_header_encode2((uint8 *)frameP(msg->fcgi_request) + para_pos, FCGI_PARAMS, 1/*msg->msgid*/, paralen);
 
     /* encode one 0-body_length FCGI_PARAMS headers */
     fcgi_header_encode(msg->fcgi_request, FCGI_PARAMS, /*msg->msgid*/1, 0);
@@ -566,7 +570,7 @@ int http_fcgimsg_stdin_encode (void * vmsg, void * pbyte, int bytelen, int end)
         fcgi_header_encode2(msg->fcgi_stdin_header[msg->fcgi_stdin_num], FCGI_STDIN, /*msg->msgid*/1, contlen);
 
         msg->fcgi_stdin_body_len[msg->fcgi_stdin_num] = contlen;
-        msg->fcgi_stdin_body[msg->fcgi_stdin_num] = pbyte + pos;
+        msg->fcgi_stdin_body[msg->fcgi_stdin_num] = (uint8 *)pbyte + pos;
 
         padding = contlen % 8;
         if (padding > 0) padding = 8 - padding;
@@ -671,7 +675,7 @@ int http_fcgimsg_stdin_encode_chunk (void * vmsg, void * pbyte, int bytelen, voi
         fcgi_header_encode2(hdrbuf, FCGI_STDIN, /*msg->msgid*/1, contlen);
         chunk_add_buffer(msg->req_body_chunk, hdrbuf, 8);
 
-        chunk_add_bufptr(msg->req_body_chunk, pbyte + pos, contlen, porig);
+        chunk_add_bufptr(msg->req_body_chunk, (uint8 *)pbyte + pos, contlen, porig);
  
         padding = contlen % 8;
         if (padding > 0) padding = 8 - padding;

@@ -227,7 +227,7 @@ printf("####Path: %s\n", path);
 
         } else if (file_is_dir(path)) {
             ret = strlen(path);
-            for (i = 0; i < ploc->indexnum; i++) {
+            for (i = 0; i < (int)ploc->indexnum; i++) {
                 sprintf(path + ret, "%s", ploc->index[i]);
 
                 if (file_is_regular(path)) {

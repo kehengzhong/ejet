@@ -35,12 +35,12 @@ int http_proxy_handle (void * vmsg)
     /* check the request if it's to be proxyed to other origin server */
     if (http_proxy_check(msg, url, sizeof(url)-1) <= 0)
         return -100;
- 
+
     if (http_proxy_cache_open(msg) >= 3) {
         /* cache file exists in local directory */
         return -200;
     }
- 
+
     /* create one proxy HTTPMsg object, with headers X-Forwarded-For and X-Real-IP */
     proxymsg = msg->proxymsg = http_proxy_srvmsg_open(msg, url, strlen(url));
     if (proxymsg == NULL) {
@@ -186,7 +186,7 @@ int http_proxy_srvmsg_dns_cb (void * vproxymsg, char * name, int len, void * cac
     }
  
     return 0;
- 
+
 failed:
     if (climsg) {
         climsg->SetStatus(climsg, 404, NULL);
@@ -240,7 +240,7 @@ void * http_proxy_srvmsg_open (void * vmsg, char * url, int urllen)
             str_secpy(buf, sizeof(buf)-1, HUValue(punit), punit->valuelen);
             snprintf(buf + strlen(buf), sizeof(buf)-1-strlen(buf), " via eJet/%s", g_http_version);
             http_header_append(proxymsg, 0, HUName(punit), punit->namelen, buf, strlen(buf));
- 
+
         } else {
             http_header_append(proxymsg, 0, HUName(punit), punit->namelen,
                                HUValue(punit), punit->valuelen);
@@ -251,10 +251,18 @@ void * http_proxy_srvmsg_open (void * vmsg, char * url, int urllen)
     if (cacinfo) {
         http_header_del(proxymsg, 0, "Range", -1);
 
+#ifdef _WIN32
+        sprintf(buf, "bytes=%I64d-", msg->cache_req_off);
+#else
         sprintf(buf, "bytes=%lld-", msg->cache_req_off);
+#endif
         if (msg->cache_req_len > 0 && 
             msg->cache_req_off + msg->cache_req_len < cacinfo->body_length)
+#ifdef _WIN32
+            sprintf(buf+strlen(buf), "%I64d", msg->cache_req_off + msg->cache_req_len - 1);
+#else
             sprintf(buf+strlen(buf), "%lld", msg->cache_req_off + msg->cache_req_len - 1);
+#endif
 
         http_header_append(proxymsg, 0, "Range", -1, buf, strlen(buf));
     }
@@ -623,7 +631,7 @@ void * http_proxy_connect_tunnel (void * vcon, void * vmsg)
     pcon->tunnelcon = NULL;
 
     msg->dstport = msg->req_port;
- 
+
     /* check if the destinated server of http connect request is itself */
     if (http_listen_check_self(msg->httpmgmt, 
                       msg->req_host,
@@ -935,7 +943,12 @@ int http_proxy_srv_cache_store (void * vsrvcon, void * vsrvmsg)
         if (restlen <= bodylen)
             bodylen = restlen;
 
+#ifdef _WIN32
+        filepos = native_file_offset(climsg->res_file_handle);
+#else
         filepos = lseek(native_file_fd(climsg->res_file_handle), 0, SEEK_CUR);
+#endif
+
         wlen = native_file_write(climsg->res_file_handle, pbody, bodylen);
         if (wlen > 0) {
             frame_del_first(srvcon->rcvstream, wlen);
@@ -979,7 +992,11 @@ int http_proxy_srv_cache_store (void * vsrvcon, void * vsrvmsg)
 
         if (rmlen <= 0) goto clisend;
 
+#ifdef _WIN32
+        filepos = native_file_offset(climsg->res_file_handle);
+#else
         filepos = lseek(native_file_fd(climsg->res_file_handle), 0, SEEK_CUR);
+#endif
 
         /* parsed body content without containing hex-length\r\n will be writen into cache file */
         wlen = restlen = chunk_rest_size(http_chunk_obj(climsg->res_chunk), 0);
@@ -1071,12 +1088,20 @@ void * http_proxy_srv_cache_send (void * vmsg)
     cacinfo = (CacheInfo *)msg->res_cache_info;
     if (cacinfo) {
         http_header_del(srvmsg, 0, "Range", -1);
- 
+
+#ifdef _WIN32
+        sprintf(buf, "bytes=%I64d-", msg->cache_req_off);
+#else
         sprintf(buf, "bytes=%lld-", msg->cache_req_off);
+#endif
         if (msg->cache_req_len > 0 &&
             msg->cache_req_off + msg->cache_req_len < cacinfo->body_length)
+#ifdef _WIN32
+            sprintf(buf+strlen(buf), "%I64d", msg->cache_req_off + msg->cache_req_len - 1);
+#else
             sprintf(buf+strlen(buf), "%lld", msg->cache_req_off + msg->cache_req_len - 1);
- 
+#endif
+
         http_header_append(srvmsg, 0, "Range", -1, buf, strlen(buf));
     }
  
