@@ -49,7 +49,7 @@ PKG_RPATH = -Wl,-rpath,$(libdst):$(INSTALL_LIB_PATH)
 
 PKG_VER_MAJOR = 1
 PKG_VER_MINOR = 2
-PKG_VER_RELEASE = 6
+PKG_VER_RELEASE = 8
 PKG_VER = $(PKG_VER_MAJOR).$(PKG_VER_MINOR).$(PKG_VER_RELEASE)
 
 PKG_VERSO_LIB = $(PKG_SO_LIB).$(PKG_VER)
@@ -88,6 +88,8 @@ endif
 
 ifeq ($(shell test -e /usr/include/sys/epoll.h && echo 1), 1)
   DEFS += -DHAVE_EPOLL
+else ifeq ($(shell test -e /usr/include/sys/event.h && echo 1), 1)
+  DEFS += -DHAVE_KQUEUE
 else
   DEFS += -DHAVE_SELECT
 endif
@@ -129,10 +131,11 @@ endif
 
 ifeq ($(UNAME), FreeBSD)
   DEFS += -DUNIX -D_FREEBSD_
+  LIBS += -liconv
 endif
 
 ifeq ($(UNAME), Darwin)
-  DEFS += -DOSX
+  DEFS += -D_OSX_
 
   PKG_VERSO_LIB = $(PKGLIB).$(PKG_VER).dylib
   PKG_SONAME_LIB = $(PKGLIB).$(PKG_VER_MAJOR).dylib
