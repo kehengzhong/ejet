@@ -43,7 +43,7 @@ static void signal_handler(int sig)
 
 char * sys_version ()
 {
-    static char sysver[] = "Ver: 0.0.40 Built: "__TIME__", " __DATE__;
+    static char sysver[] = "Ver: 1.2.4 Built: "__TIME__", " __DATE__;
     return sysver;
 }
 
