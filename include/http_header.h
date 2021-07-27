@@ -28,7 +28,7 @@ typedef struct HeaderUnit_ {
 
 #define HUName(unit) ((char *)frameP((unit)->frame) + (unit)->namepos)
 #define HUValue(unit) ((char *)frameP((unit)->frame) + (unit)->valuepos)
-#define HUPos(frame, p) ((void *)(p) - frameP(frame))
+#define HUPos(frame, p) ((char *)(p) - (char *)frameP(frame))
 
 
 HeaderUnit * hunit_alloc     ();

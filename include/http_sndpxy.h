@@ -6,7 +6,14 @@
 #ifndef _HTTP_SNDPXY_H_
 #define _HTTP_SNDPXY_H_
 
+#ifdef UNIX
 #include <regex.h>
+#endif
+
+#ifdef _WIN32
+#define PCRE_STATIC 1
+#include "pcre.h"
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -14,7 +21,12 @@ extern "C" {
 
 typedef struct cli_send_proxy_s {
     char      * host;
+#ifdef UNIX
     regex_t   * preg;
+#endif
+#ifdef _WIN32
+    pcre      * preg;
+#endif
 
     char      * proxy;
     int         port;
