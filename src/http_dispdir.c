@@ -20,18 +20,6 @@
 #endif
 
  
-#ifdef UNIX
-typedef struct diritem_ {
-    char     isdir;
-    char     mode[11];
-    char     user[48];
-    char     group[48];
-    time_t   filetm;
-    char     sizestr[16];
-    char     name[280];
-} DirItem;
-
- 
 int url_path_contain_dot_dot (char * path, int len)
 {
     char * pbgn = NULL;
@@ -54,6 +42,18 @@ int url_path_contain_dot_dot (char * path, int len)
     }
     return 0;
 }
+
+#ifdef UNIX
+
+typedef struct diritem_ {
+    char     isdir;
+    char     mode[11];
+    char     user[48];
+    char     group[48];
+    time_t   filetm;
+    char     sizestr[16];
+    char     name[280];
+} DirItem;
 
 static int read_dir_list (char * path, char * curpath, frame_p frame)
 {
@@ -213,7 +213,7 @@ nextfile:
             frame_appendf(frame, "\">%s</A><br>", item->name);
         }
     }
-    frame_appendf(frame, " 目录总数: %d &nbsp;&nbsp;文件总数: %d<br>", dirtotal, filetotal);
+    frame_appendf(frame, " 鐩綍鎬绘暟: %d &nbsp;&nbsp;鏂囦欢鎬绘暟: %d<br>", dirtotal, filetotal);
  
     arr_pop_kfree(itemlist);
     return 0;
@@ -295,7 +295,7 @@ static int read_dir_list (char * path, char * curpath, frame_p frame)
     } while(FindNextFile(hFind, &filest));
  
     FindClose(hFind);
-    frame_appendf(frame, " 目录总数: %d &nbsp;&nbsp;文件总数: %d<br>", dirtotal, filetotal);
+    frame_appendf(frame, " 鐩綍鎬绘暟: %d &nbsp;&nbsp;鏂囦欢鎬绘暟: %d<br>", dirtotal, filetotal);
     return 0;
 }
 #endif
