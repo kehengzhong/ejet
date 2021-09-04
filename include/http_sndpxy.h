@@ -10,7 +10,7 @@
 #include <regex.h>
 #endif
 
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
 #define PCRE_STATIC 1
 #include "pcre.h"
 #endif
@@ -24,7 +24,7 @@ typedef struct cli_send_proxy_s {
 #ifdef UNIX
     regex_t   * preg;
 #endif
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
     pcre      * preg;
 #endif
 

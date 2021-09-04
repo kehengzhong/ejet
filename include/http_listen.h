@@ -162,7 +162,7 @@ typedef struct http_listen {
 #ifdef UNIX
     void              * cbhandle;
 #endif
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
     HMODULE             cbhandle;
 #endif
 
