@@ -49,7 +49,7 @@ PKG_RPATH = -Wl,-rpath,$(libdst):$(INSTALL_LIB_PATH)
 
 PKG_VER_MAJOR = 1
 PKG_VER_MINOR = 2
-PKG_VER_RELEASE = 8
+PKG_VER_RELEASE = 10
 PKG_VER = $(PKG_VER_MAJOR).$(PKG_VER_MINOR).$(PKG_VER_RELEASE)
 
 PKG_VERSO_LIB = $(PKG_SO_LIB).$(PKG_VER)
@@ -205,7 +205,7 @@ show:
 dist: $(ejet_incs) $(ejet_sources)
 	cd $(ROOT)/.. && tar czvf $(PKGNAME)-$(PKG_VER).tar.gz $(PKGPATH)/src \
 	    $(PKGPATH)/include $(PKGPATH)/lib $(PKGPATH)/Makefile $(PKGPATH)/README.md \
-	    $(PKGPATH)/LICENSE $(PKGPATH)/ejetsrv $(PKGPATH)/bin
+	    $(PKGPATH)/LICENSE $(PKGPATH)/ejetsrv $(PKGPATH)/bin $(PKGPATH)/$(PKGNAME).*
 
 install: $(alib) $(solib)
 	mkdir -p $(INSTALL_INC_PATH) $(INSTALL_LIB_PATH)
