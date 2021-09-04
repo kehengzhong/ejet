@@ -73,7 +73,7 @@ int http_pagetpl_parse (void * vmsg, char * tplfile, void * vbyte, int bytelen, 
 
     void        * hfile = NULL;
     int64         fsize = 0;
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
     HANDLE        hmap;
     void        * pmap = NULL;
     int64         maplen = 0;
@@ -101,7 +101,7 @@ int http_pagetpl_parse (void * vmsg, char * tplfile, void * vbyte, int bytelen, 
 
 #ifdef UNIX
         pbyte = mmap(NULL, fsize, PROT_READ | PROT_WRITE, MAP_PRIVATE, native_file_fd(hfile), 0);
-#elif defined (_WIN32)
+#elif defined(_WIN32) || defined(_WIN64)
         pbyte = file_mmap (NULL, native_file_handle(hfile), 0, fsize, NULL, &hmap, &pmap, &maplen, &mapoff);
 #endif
         if (!pbyte) {
@@ -260,7 +260,7 @@ int http_pagetpl_parse (void * vmsg, char * tplfile, void * vbyte, int bytelen, 
     if (tplfile && hfile != NULL) {
 #ifdef UNIX
         munmap(pbyte, fsize);
-#elif defined (_WIN32)
+#elif defined(_WIN32) || defined(_WIN64)
         file_munmap(hmap, pmap);
 #endif
         native_file_close(hfile);

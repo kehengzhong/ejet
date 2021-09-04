@@ -8,7 +8,7 @@
 #include <regex.h>
 #endif
 
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
 #define PCRE_STATIC 1
 #include "pcre.h"
 #endif
@@ -167,7 +167,7 @@ int http_loc_build (void * vhost, void * jhost)
 #ifdef UNIX
     regex_t    * preg = NULL;
 #endif
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
     char       * errstr = NULL;
     int          erroff = 0;
     pcre       * preg = NULL;
@@ -309,7 +309,7 @@ int http_loc_build (void * vhost, void * jhost)
                     regcomp(preg, ploc->path, REG_EXTENDED | REG_ICASE);
                 }
 #endif
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
                 if (ploc->matchtype == MATCH_REGEX_CASE) { //case censitive
                     preg = pcre_compile(ploc->path, 0, &errstr, &erroff, NULL);
 
@@ -441,7 +441,7 @@ void http_host_free (void * vhost)
 #ifdef UNIX
     regex_t  * preg = NULL;
 #endif
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
     pcre     * preg = NULL;
 #endif
 
@@ -486,7 +486,7 @@ void http_host_free (void * vhost)
             regfree(preg);
             kfree(preg);
 #endif
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
             pcre_free(preg);
 #endif
         }
@@ -821,7 +821,7 @@ void http_listen_free (void * vhl)
 #ifdef UNIX
         dlclose(hl->cbhandle);
 #endif
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
         FreeLibrary(hl->cbhandle);
 #endif
         hl->cbhandle = NULL;
@@ -904,7 +904,7 @@ int http_listen_cblibfile_set (void * vhl, char * cblibfile)
 #ifdef UNIX
         dlclose(hl->cbhandle);
 #endif
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
         FreeLibrary(hl->cbhandle);
 #endif
 
@@ -966,7 +966,7 @@ int http_listen_cblibfile_set (void * vhl, char * cblibfile)
     }
 #endif
 
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
     hl->cbhandle = LoadLibrary(hl->cbargv[0]);
     if (!hl->cbhandle) {
         tolog(1, "eJet - HTTP Listen <%s:%d%s> Loading DynLib <%s> error! errcode=%ld\n",
@@ -1521,7 +1521,7 @@ void * http_loc_instance (void * vmsg)
 #ifdef UNIX
     regmatch_t   pmat[16];
 #endif
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
     int          ovec[36];
 #endif
 
@@ -1587,7 +1587,7 @@ void * http_loc_instance (void * vmsg)
         ret = regexec(arr_value(host->regex_list, i), buf, 16, pmat, 0);
         if (ret == 0) {
 #endif
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
         ret = pcre_exec(arr_value(host->regex_list, i), NULL, buf, strlen(buf), 0, 0, ovec, 36);
         if (ret > 0) {
 #endif
@@ -1607,7 +1607,7 @@ void * http_loc_instance (void * vmsg)
                 break;
             }
 #endif
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
             for (j = 0; j < ret; j++) {
                 msg->matchstr[msg->matchnum].p = msg->docuri->path + ovec[2 * j];
                 msg->matchstr[msg->matchnum].len = ovec[2 * j + 1] - ovec[2 * j];
@@ -1938,7 +1938,7 @@ void * http_regex_loc (void * vhl, char * hostn, int hostlen, char * matstr, int
 #ifdef UNIX
     regex_t    * preg = NULL;
 #endif
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
     pcre       * preg = NULL;
     char       * errstr = NULL;
     int          erroff = 0;
@@ -1988,7 +1988,7 @@ void * http_regex_loc (void * vhl, char * hostn, int hostlen, char * matstr, int
             regcomp(preg, ploc->path, REG_EXTENDED | REG_ICASE);
         }
 #endif
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
         if (ploc->matchtype == MATCH_REGEX_CASE) { //case censitive
             preg = pcre_compile(ploc->path, 0, &errstr, &erroff, NULL);
 

@@ -213,14 +213,14 @@ nextfile:
             frame_appendf(frame, "\">%s</A><br>", item->name);
         }
     }
-    frame_appendf(frame, " 鐩綍鎬绘暟: %d &nbsp;&nbsp;鏂囦欢鎬绘暟: %d<br>", dirtotal, filetotal);
+    frame_appendf(frame, " 目录总数: %d &nbsp;&nbsp;文件总数: %d<br>", dirtotal, filetotal);
  
     arr_pop_kfree(itemlist);
     return 0;
 }
 #endif
  
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
 static int read_dir_list (char * path, char * curpath, frame_p frame)
 {
     WIN32_FIND_DATA   filest;
@@ -295,7 +295,7 @@ static int read_dir_list (char * path, char * curpath, frame_p frame)
     } while(FindNextFile(hFind, &filest));
  
     FindClose(hFind);
-    frame_appendf(frame, " 鐩綍鎬绘暟: %d &nbsp;&nbsp;鏂囦欢鎬绘暟: %d<br>", dirtotal, filetotal);
+    frame_appendf(frame, " 目录总数: %d &nbsp;&nbsp;文件总数: %d<br>", dirtotal, filetotal);
     return 0;
 }
 #endif
@@ -361,7 +361,7 @@ int DisplayDirectory (void * vmsg)
         chdir(path);
         getcwd(realpath, sizeof(realpath)-1);
         chdir(curpath);
-#elif defined _WIN32
+#elif defined(_WIN32) || defined(_WIN64)
         GetCurrentDirectory(sizeof(curpath)-1, curpath);
         SetCurrentDirectory(path);
         GetCurrentDirectory(sizeof(realpath)-1, realpath);
@@ -379,7 +379,7 @@ int DisplayDirectory (void * vmsg)
         chdir(path);
         getcwd(realpath, sizeof(realpath)-1);
         chdir(curpath);
-#elif defined _WIN32
+#elif defined(_WIN32) || defined(_WIN64)
         GetCurrentDirectory(sizeof(curpath)-1, curpath);
         SetCurrentDirectory(path);
         GetCurrentDirectory(sizeof(realpath)-1, realpath);

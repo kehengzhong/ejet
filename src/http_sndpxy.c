@@ -31,7 +31,7 @@ void send_proxy_free (void * vsndpxy)
         regfree(sndpxy->preg);
         kfree(sndpxy->preg);
 #endif
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
         pcre_free(sndpxy->preg);
 #endif
     }
@@ -87,7 +87,7 @@ int http_send_proxy_init (void * vmgmt)
         sndpxy->preg = kzalloc(sizeof(regex_t));
         regcomp(sndpxy->preg, sndpxy->host, REG_EXTENDED | REG_ICASE);
 #endif
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
         sndpxy->preg = pcre_compile(sndpxy->host, PCRE_CASELESS, &key, &keylen, NULL);
 #endif
 
@@ -135,7 +135,7 @@ int http_send_proxy_check (void * vmsg)
 #ifdef UNIX
     regmatch_t  pmat[16];
 #endif
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
     int         ovec[36];
 #endif
 
@@ -162,7 +162,7 @@ int http_send_proxy_check (void * vmsg)
         ret = regexec(sndpxy->preg, buf, 16, pmat, 0);
         if (ret == 0) {
 #endif
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
         ret = pcre_exec(sndpxy->preg, NULL, buf, strlen(buf), 0, 0, ovec, 36);
         if (ret > 0) {
 #endif

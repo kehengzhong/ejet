@@ -252,7 +252,7 @@ void * http_mgmt_alloc (void * pcore, char * confname, int extsize, int msgextsi
 
 #ifdef UNIX
     chdir(mgmt->root_path);
-#elif defined (_WIN32)
+#elif defined(_WIN32) || defined(_WIN64)
     SetCurrentDirectory(mgmt->root_path);
 #endif
 

@@ -251,14 +251,14 @@ void * http_proxy_srvmsg_open (void * vmsg, char * url, int urllen)
     if (cacinfo) {
         http_header_del(proxymsg, 0, "Range", -1);
 
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
         sprintf(buf, "bytes=%I64d-", msg->cache_req_off);
 #else
         sprintf(buf, "bytes=%lld-", msg->cache_req_off);
 #endif
         if (msg->cache_req_len > 0 && 
             msg->cache_req_off + msg->cache_req_len < cacinfo->body_length)
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
             sprintf(buf+strlen(buf), "%I64d", msg->cache_req_off + msg->cache_req_len - 1);
 #else
             sprintf(buf+strlen(buf), "%lld", msg->cache_req_off + msg->cache_req_len - 1);
@@ -377,7 +377,7 @@ int http_proxy_srv_send (void * vsrvcon, void * vsrvmsg)
     }
  
     if (isend && num > rcvslen) {
-        frame_put_nlast(clicon->rcvstream, pbgn + rcvslen, num - rcvslen);
+        frame_put_nfirst(clicon->rcvstream, pbgn + rcvslen, num - rcvslen);
     }
  
     if (isend) {
@@ -533,7 +533,7 @@ int http_proxy_cli_send (void * vclicon, void * vclimsg)
     }
  
     if (isend && num > rcvslen) {
-        frame_put_nlast(srvcon->rcvstream, pbgn + rcvslen, num - rcvslen);
+        frame_put_nfirst(srvcon->rcvstream, pbgn + rcvslen, num - rcvslen);
     }
  
     if (isend) {
@@ -943,7 +943,7 @@ int http_proxy_srv_cache_store (void * vsrvcon, void * vsrvmsg)
         if (restlen <= bodylen)
             bodylen = restlen;
 
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
         filepos = native_file_offset(climsg->res_file_handle);
 #else
         filepos = lseek(native_file_fd(climsg->res_file_handle), 0, SEEK_CUR);
@@ -992,7 +992,7 @@ int http_proxy_srv_cache_store (void * vsrvcon, void * vsrvmsg)
 
         if (rmlen <= 0) goto clisend;
 
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
         filepos = native_file_offset(climsg->res_file_handle);
 #else
         filepos = lseek(native_file_fd(climsg->res_file_handle), 0, SEEK_CUR);
@@ -1089,14 +1089,14 @@ void * http_proxy_srv_cache_send (void * vmsg)
     if (cacinfo) {
         http_header_del(srvmsg, 0, "Range", -1);
 
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
         sprintf(buf, "bytes=%I64d-", msg->cache_req_off);
 #else
         sprintf(buf, "bytes=%lld-", msg->cache_req_off);
 #endif
         if (msg->cache_req_len > 0 &&
             msg->cache_req_off + msg->cache_req_len < cacinfo->body_length)
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
             sprintf(buf+strlen(buf), "%I64d", msg->cache_req_off + msg->cache_req_len - 1);
 #else
             sprintf(buf+strlen(buf), "%lld", msg->cache_req_off + msg->cache_req_len - 1);

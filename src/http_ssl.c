@@ -585,7 +585,7 @@ int http_con_sendfile (void * vcon, int filefd, int64 pos, int64 size, int * num
     void         * pbyte = NULL;
     void         * pmap = NULL;
     int64          maplen = 0;
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
     HANDLE         hmap;
     int64          mapoff = 0;
 #endif
@@ -617,7 +617,7 @@ int http_con_sendfile (void * vcon, int filefd, int64 pos, int64 size, int * num
 
 #ifdef UNIX
         pbyte = file_mmap(NULL, filefd, pos + wlen, onelen, PROT_READ, MAP_PRIVATE, &pmap, &maplen, NULL);
-#elif defined _WIN32
+#elif defined(_WIN32) || defined(_WIN64)
         pbyte = file_mmap(NULL, (HANDLE)filefd, pos + wlen, onelen, NULL, &hmap, &pmap, &maplen, &mapoff);
 #endif
         if (!pbyte) break;

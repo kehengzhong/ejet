@@ -1929,7 +1929,7 @@ int AddResFile (void * vmsg, char * filename, int64 startpos, int64 len)
 
             ret = chunk_add_file(msg->res_body_chunk, filename, part->start, part->length, 1);
 
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
             sprintf(buf, "bytes %I64d-%I64d/%I64d", part->start, part->end, part->fsize);
 #else
             sprintf(buf, "bytes %lld-%lld/%lld", part->start, part->end, part->fsize);
@@ -1954,7 +1954,7 @@ int AddResFile (void * vmsg, char * filename, int64 startpos, int64 len)
 
                 AdjustPartial(part, st.st_size);
 
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
                 sprintf(buf, "--%s\r\nCotent-Type: %s\r\n"
                              "Content-Range: bytes %I64d-%I64d/%I64d\r\n\r\n",
                         boundary, mime, part->start, part->end, part->fsize);
@@ -1988,7 +1988,7 @@ addfile:
     if (len < st.st_size) {
         SetStatus(msg, 206, "Partial Content");
 
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
         sprintf(buf, "bytes %I64d-%I64d/%ld", startpos, startpos + len - 1, st.st_size);
 #else
         sprintf(buf, "bytes %lld-%lld/%ld", startpos, startpos + len - 1, st.st_size);
@@ -2060,7 +2060,7 @@ int Check304Resp (void * vmsg, uint64 mediasize, time_t mtime, uint32 inode)
 
     } else if (mtime > 0 && mediasize > 0) {
         memset(etag, 0, sizeof(etag));
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
         sprintf(etag, "%I64x-%I64x", mediasize, mtime);
 #else
         sprintf(etag, "%x-%llx-%lx", inode, mediasize, mtime);

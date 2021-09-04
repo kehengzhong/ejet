@@ -8,7 +8,7 @@
 #ifdef UNIX
 #include <regex.h>
 #endif
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
 #define PCRE_STATIC 1
 #include "pcre.h"
 #endif
@@ -492,7 +492,7 @@ static int script_if_objcmp (void * vhsc, char * avar, int avarlen, char * cmpsy
     regex_t      regobj;
     regmatch_t   pmat[4];
 #endif
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
     pcre       * regobj = NULL;
     char       * errstr = NULL;
     int          erroff = 0;
@@ -625,7 +625,7 @@ static int script_if_objcmp (void * vhsc, char * avar, int avarlen, char * cmpsy
         if (ret == 0) return 1;
         if (ret == REG_NOMATCH) return 0;
 #endif
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
         regobj = pcre_compile(pb, 0, &errstr, &erroff, NULL);
         if (!regobj) return 0;
 
@@ -647,7 +647,7 @@ static int script_if_objcmp (void * vhsc, char * avar, int avarlen, char * cmpsy
         if (ret == 0) return 1;
         if (ret == REG_NOMATCH) return 0;
 #endif
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
         regobj = pcre_compile(pb, PCRE_CASELESS, &errstr, &erroff, NULL);
         if (!regobj) return 0;
 
@@ -1349,7 +1349,7 @@ char * script_rewrite_parse (void * vhsc, char * p, int len)
     regex_t      regobj = {0};
     regmatch_t   pmat[32];
 #endif
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
     pcre       * regobj = NULL;
     char       * errstr = NULL;
     int          erroff = 0;
@@ -1468,7 +1468,7 @@ char * script_rewrite_parse (void * vhsc, char * p, int len)
         return pexpend;
     }
 #endif
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
     regobj = pcre_compile(regstr, PCRE_CASELESS, &errstr, &erroff, NULL);
     if (!regobj) return pexpend;
 

@@ -393,13 +393,13 @@ int http_var_value (void * vmsg, char * vname, char * buf, int len)
 
         case 3:   //int64
             if (var->unsign) {
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
                 ret = sprintf(sbuf, "%I64u", *(uint64 *) obj );
 #else
                 ret = sprintf(sbuf, "%llu", *(uint64 *) obj );
 #endif
             } else {
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
                 ret = sprintf(sbuf, "%I64d", *(int64 *) obj );
 #else
                 ret = sprintf(sbuf, "%lld", *(int64 *) obj );

@@ -662,7 +662,7 @@ int http_header_append_int64 (void * vmsg, int type, char * name, int namelen, i
  
     memset(value, 0, sizeof(value));
  
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
     sprintf(value, "%I64d", ival);
 #else
     sprintf(value, "%lld", ival);
@@ -683,7 +683,7 @@ int http_header_append_uint64 (void * vmsg, int type, char * name, int namelen, 
 
     memset(value, 0, sizeof(value));
 
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
     sprintf(value, "%I64u", ival);
 #else
     sprintf(value, "%llu", ival);

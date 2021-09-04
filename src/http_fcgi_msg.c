@@ -420,7 +420,7 @@ void fcgi_predefined_param_encode (frame_p frm, HTTPMsg * httpmsg)
                  buf[0] = '\0';
                  valuelen = 0;
              } else {
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
                  sprintf(buf, "%I64d", httpmsg->req_body_length);
 #else
                  sprintf(buf, "%lld", httpmsg->req_body_length);

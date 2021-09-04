@@ -265,7 +265,7 @@ int http_srv_send (void * vcon)
 
 #ifdef UNIX
             if (err == EINTR || err == EAGAIN || err == EWOULDBLOCK) { //EAGAIN
-#elif defined _WIN32
+#elif defined(_WIN32) || defined(_WIN64)
             if (err == WSAEWOULDBLOCK) {
 #else
             if (num == 0) {

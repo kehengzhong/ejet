@@ -754,7 +754,7 @@ int http_cli_send (void * vcon)
 
             err = 0;
             if (iovec.vectype == 2) { //sendfile
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
                 ret = http_con_sendfile(pcon, (int)iovec.filefd, iovec.fpos, iovec.size , &num, &err);
 #else
                 ret = http_con_sendfile(pcon, iovec.filefd, iovec.fpos, iovec.size , &num, &err);
@@ -786,7 +786,7 @@ int http_cli_send (void * vcon)
 
 #ifdef UNIX
             if (err == EINTR || err == EAGAIN || err == EWOULDBLOCK) { //EAGAIN
-#elif defined _WIN32
+#elif defined(_WIN32) || defined(_WIN64)
             if (err == WSAEWOULDBLOCK) {
 #else
             if (num == 0) {

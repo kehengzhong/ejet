@@ -153,7 +153,7 @@ static char * cache_info_file (char * cafile, int cafnlen)
     p = kalloc(len);
  
     if (pathlen <= 0) {
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
         strcpy(p, ".\\");
 #else
         strcpy(p, "./");
@@ -162,7 +162,7 @@ static char * cache_info_file (char * cafile, int cafnlen)
         str_secpy(p, len-1, cafile, pathlen);
     }
  
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
     str_secpy(p + strlen(p), len - 1 - strlen(p), ".cacheinfo\\", 11);
 #else
     str_secpy(p + strlen(p), len - 1 - strlen(p), ".cacheinfo/", 11);
@@ -226,10 +226,10 @@ int cache_info_read (void * vcacinfo)
 
     memcpy(cacinfo->etag, buf+iter, 32);  iter += 32;
 
-    if (cacinfo->body_length > 0)
-        frag_pack_set_length(cacinfo->frag, cacinfo->body_length);
-
     frag_pack_read(cacinfo->frag, cacinfo->hinfo, 96);
+
+    if (cacinfo->body_length > 0 && frag_pack_length(cacinfo->frag) <= 0)
+        frag_pack_set_length(cacinfo->frag, cacinfo->body_length);
 
     return 0;
 }
@@ -610,7 +610,7 @@ int http_request_cache_init (void * vmsg)
  
     if (msg->req_file_handle) return 0;
  
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
     snprintf(path, sizeof(path) - 1, "%s\\ucache", msg->GetRootPath(msg));
 #else
     snprintf(path, sizeof(path) - 1, "%s/ucache", msg->GetRootPath(msg));
@@ -619,7 +619,7 @@ int http_request_cache_init (void * vmsg)
     hash = generic_hash(msg->docuri->path, msg->docuri->pathlen, 0);
     hash = hash % 307;
  
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
     sprintf(path+strlen(path), "\\%lu\\", hash);
 #else
     sprintf(path+strlen(path), "/%lu/", hash);
@@ -701,7 +701,7 @@ int http_response_cache_init (void * vmsg)
         if (buf[ret] == ':') { //ignore the colon in drive of path D:\prj\src\disk.txt
             if (ret > 1) buf[ret] = '_';
         } else if (buf[ret] == '?') buf[ret] = '_';
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
         else if (buf[ret] == '/') buf[ret] = '\\';
 #endif
     }
@@ -854,7 +854,7 @@ int http_proxy_cache_open (void * vmsg)
         if (buf[ret] == ':') { //ignore the colon in drive of path D:\prj\src\disk.txt
             if (ret > 1) buf[ret] = '_';
         } else if (buf[ret] == '?') buf[ret] = '_';
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
         else if (buf[ret] == '/') buf[ret] = '\\';
 #endif
     }
@@ -1173,7 +1173,7 @@ int http_cache_response_header (void * vmsg, void * vcacinfo)
             climsg->res_body_length = length;
             http_header_append_int64(climsg, 1, "Content-Length", 14, length);
  
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
             sprintf(buf, "bytes %I64d-%I64d/%I64d", start, end, cacinfo->body_length);
 #else
             sprintf(buf, "bytes %lld-%lld/%lld", start, end, cacinfo->body_length);
