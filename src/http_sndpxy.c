@@ -73,7 +73,7 @@ int http_send_proxy_init (void * vmgmt)
 
     num = json_num(jsndpxy);
     for (i = 0; i < num; i++) {
-        ret = json_iter(jsndpxy, i, (void **)&key, &keylen, (void **)&data, &datalen, NULL);
+        ret = json_iter(jsndpxy, i, 0, (void **)&key, &keylen, (void **)&data, &datalen, NULL);
         if (ret <= 0) continue;
         if (!key || keylen <= 0) continue;
         if (!data || datalen <= 0) continue;

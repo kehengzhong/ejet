@@ -1290,7 +1290,7 @@ int AddReqContentPtr (void * vmsg, void * body, int64 bodylen)
     if (bodylen < 0) bodylen = str_len(body);
     if (bodylen <= 0) return -3;
  
-    chunk_add_bufptr(msg->req_body_chunk, body, bodylen, NULL);
+    chunk_add_bufptr(msg->req_body_chunk, body, bodylen, NULL, NULL);
     return 0;
 }
  
@@ -1856,7 +1856,7 @@ int AddResContentPtr (void * vmsg, void * body, int64 bodylen)
     if (bodylen < 0) bodylen = str_len(body);
     if (bodylen <= 0) return -3;
  
-    chunk_add_bufptr(msg->res_body_chunk, body, bodylen, NULL);
+    chunk_add_bufptr(msg->res_body_chunk, body, bodylen, NULL, NULL);
     return 0;
 }
 

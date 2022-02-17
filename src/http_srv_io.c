@@ -854,7 +854,7 @@ gotallbody:
     } else {
         chunk_add_bufptr(msg->res_body_chunk,
                          frameP(msg->res_body_stream),
-                         frameL(msg->res_body_stream), NULL);
+                         frameL(msg->res_body_stream), NULL, NULL);
     }
 
     return 1;

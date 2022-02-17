@@ -656,7 +656,8 @@ go_on_execute:
 
     msg->res_header_length = frameL(msg->res_stream);
 
-    chunk_prepend_bufptr(msg->res_body_chunk, frameP(msg->res_stream), frameL(msg->res_stream), 1);
+    chunk_prepend_bufptr(msg->res_body_chunk, frameP(msg->res_stream),
+                         frameL(msg->res_stream), NULL, NULL, 1);
 
 #if defined _DEBUG
 print_response(msg, stderr);

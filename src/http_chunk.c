@@ -312,7 +312,7 @@ int http_chunk_add_bufptr (void * vchk, void * vbgn, int len, int * rmlen)
             chk->recvsize += restlen;
             chk->recvlen += restlen - 2;
 
-            chunk_add_bufptr(chk->chunk, poct, restlen - 2, NULL);
+            chunk_add_bufptr(chk->chunk, poct, restlen - 2, NULL, NULL);
 
             arr_push(chk->item_list, item);
             chk->curitem = NULL;
@@ -328,7 +328,7 @@ int http_chunk_add_bufptr (void * vchk, void * vbgn, int len, int * rmlen)
             item->recvlen += min(restnum, restlen);
             chk->recvlen += min(restnum, restlen);
 
-            chunk_add_bufptr(chk->chunk, poct, min(restnum, restlen), NULL);
+            chunk_add_bufptr(chk->chunk, poct, min(restnum, restlen), NULL, NULL);
  
             if (rmlen) *rmlen = len;
 

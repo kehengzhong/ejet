@@ -812,7 +812,7 @@ int http_conf_mime_init (void * vmgmt)
 
     num = json_num(mimeobj);
     for (i = 0; i < num; i++) {
-        json_iter(mimeobj, i, (void **)&mime, &mimelen, (void **)&ext, &extlen, NULL);
+        json_iter(mimeobj, i, 0, (void **)&mime, &mimelen, (void **)&ext, &extlen, NULL);
         if (!mime || mimelen <= 0 || !ext || extlen <= 0)
             continue;
 

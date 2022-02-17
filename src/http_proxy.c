@@ -222,6 +222,10 @@ void * http_proxy_srvmsg_open (void * vmsg, char * url, int urllen)
     proxymsg->SetURL(proxymsg, url, urllen, 1);
     proxymsg->req_url_type = msg->req_url_type;
 
+    str_cpy(proxymsg->req_ver, msg->req_ver);
+    proxymsg->req_ver_major = msg->req_ver_major;
+    proxymsg->req_ver_minor = msg->req_ver_minor;
+
     proxymsg->dstport = proxymsg->req_port; 
 
     str_cpy(proxymsg->srcip, msg->srcip);
@@ -355,7 +359,7 @@ int http_proxy_srv_send (void * vsrvcon, void * vsrvmsg)
         isend = srvmsg->req_body_iolen >= climsg->req_body_length;
  
         if (rcvslen > 0) {
-            chunk_add_bufptr(srvmsg->req_body_chunk, pbgn, rcvslen, frm);
+            chunk_add_bufptr(srvmsg->req_body_chunk, pbgn, rcvslen, frm, NULL);
         }
  
     } else if (climsg->req_body_flag == BC_TE && num > 0) {
@@ -365,7 +369,7 @@ int http_proxy_srv_send (void * vsrvcon, void * vsrvmsg)
         isend = chunk->gotall;
  
         if (ret >= 0 && rcvslen > 0) {
-            chunk_add_bufptr(srvmsg->req_body_chunk, pbgn, rcvslen, frm);
+            chunk_add_bufptr(srvmsg->req_body_chunk, pbgn, rcvslen, frm, NULL);
         }
  
         climsg->req_body_iolen += rcvslen;
@@ -511,7 +515,7 @@ int http_proxy_cli_send (void * vclicon, void * vclimsg)
         isend = climsg->res_body_iolen >= srvmsg->res_body_length ? 1 : 0;
  
         if (rcvslen > 0) {
-            chunk_add_bufptr(climsg->res_body_chunk, pbgn, rcvslen, frm);
+            chunk_add_bufptr(climsg->res_body_chunk, pbgn, rcvslen, frm, NULL);
         }
  
     } else if (srvmsg->res_body_flag == BC_TE && num > 0) {
@@ -521,7 +525,7 @@ int http_proxy_cli_send (void * vclicon, void * vclimsg)
         isend = chunk->gotall;
  
         if (ret >= 0 && rcvslen > 0) {
-            chunk_add_bufptr(climsg->res_body_chunk, pbgn, rcvslen, frm);
+            chunk_add_bufptr(climsg->res_body_chunk, pbgn, rcvslen, frm, NULL);
         }
  
         srvmsg->res_body_iolen += rcvslen;
@@ -1060,6 +1064,10 @@ void * http_proxy_srv_cache_send (void * vmsg)
     srvmsg->SetURL(srvmsg, msg->fwdurl, msg->fwdurllen, 1);
     srvmsg->req_url_type = msg->req_url_type;
  
+    str_cpy(srvmsg->req_ver, msg->req_ver);
+    srvmsg->req_ver_major = msg->req_ver_major;
+    srvmsg->req_ver_minor = msg->req_ver_minor;
+
     srvmsg->dstport = srvmsg->req_port;
  
     str_cpy(srvmsg->srcip, msg->srcip);

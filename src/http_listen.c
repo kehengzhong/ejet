@@ -713,7 +713,7 @@ int http_host_build (void * vhl, void * jhl)
 
             num = json_num(jerrpage);
             for (j = 0; j < num; j++) {
-                ret = json_iter(jerrpage, j, (void **)&hname, &keylen,
+                ret = json_iter(jerrpage, j, 0, (void **)&hname, &keylen,
                                  (void **)&value, &valuelen, NULL);
                 if (ret > 0 && hname && keylen > 0) {
                     code = strtol(hname, NULL, 10);

@@ -345,20 +345,20 @@ void * http_srv_open (void * vmgmt, char * ip, int port, int ssl_link, int maxco
 
         strncpy(srv->ip, ip, sizeof(srv->ip)-1);
         srv->port = port;
+    }
 
-        srv->ssl_link = ssl_link;
-        if (srv->ssl_link) {
+    srv->ssl_link = ssl_link;
+    if (srv->ssl_link) {
 #ifdef HAVE_OPENSSL
-            if (mgmt->srv_sslctx) {
-                srv->sslctx = mgmt->srv_sslctx;
-                srv->sslctx_alloc = 0;
-            } else {
-                srv->sslctx = http_ssl_client_ctx_init(mgmt->srv_con_cert,
-                                    mgmt->srv_con_prikey, mgmt->srv_con_cacert);
-                srv->sslctx_alloc = 1;
-            }
-#endif
+        if (mgmt->srv_sslctx) {
+            srv->sslctx = mgmt->srv_sslctx;
+            srv->sslctx_alloc = 0;
+        } else {
+            srv->sslctx = http_ssl_client_ctx_init(mgmt->srv_con_cert,
+                                mgmt->srv_con_prikey, mgmt->srv_con_cacert);
+            srv->sslctx_alloc = 1;
         }
+#endif
     }
 
     srv->maxcon = maxcon;
@@ -512,7 +512,7 @@ int http_srv_msg_dns (void * vmsg, void * cb)
     if (!dnscb) dnscb = http_srv_msg_dns_cb;
 
     if (msg->proxy && msg->proxyport > 0) {
-        ret = dns_query(mgmt->pcore, msg->proxy, msg->proxyport, dnscb, msg);
+        ret = dns_query(mgmt->pcore, msg->proxy, -1, dnscb, msg);
     } else {
         ret = dns_query(mgmt->pcore, msg->req_host, msg->req_hostlen, dnscb, msg);
     }

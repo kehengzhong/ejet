@@ -164,6 +164,10 @@ void * do_http_get_msg (void * vmgmt, char * url, int urllen,
     msg->SetMethod(msg, "GET", 3);
     msg->SetURL(msg, url, urllen, 1);
  
+    str_secpy(msg->req_ver, sizeof(msg->req_ver)-1, "HTTP/1.1", 8);
+    msg->req_ver_major = 1;
+    msg->req_ver_minor = 1;
+
     msg->req_body_flag = BC_NONE;
  
     msg->dstport = msg->req_port;
@@ -234,6 +238,10 @@ void * do_http_post_msg (void * vmgmt, char * url, int urllen, char * mime,
     msg->SetMethod(msg, "POST", 4);
     msg->SetURL(msg, url, urllen, 1);
  
+    str_secpy(msg->req_ver, sizeof(msg->req_ver)-1, "HTTP/1.1", 8);
+    msg->req_ver_major = 1;
+    msg->req_ver_minor = 1;
+
     msg->req_body_flag = BC_CONTENT_LENGTH;
  
     msg->dstport = msg->req_port;

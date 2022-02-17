@@ -257,7 +257,8 @@ void * http_fcgimsg_open  (void * vsrv, void * vhttpmsg)
     http_fcgimsg_request_encode(msg);
     http_fcgimsg_abort_encode(msg);
 
-    chunk_prepend_bufptr(msg->req_body_chunk, frameP(msg->fcgi_request), frameL(msg->fcgi_request), 1);
+    chunk_prepend_bufptr(msg->req_body_chunk, frameP(msg->fcgi_request),
+                         frameL(msg->fcgi_request), NULL, NULL, 1);
 
     return msg;
 }
@@ -410,7 +411,7 @@ void fcgi_predefined_param_encode (frame_p frm, HTTPMsg * httpmsg)
 
     num = json_num(jpara);
     for (i = 0; i < num; i++) {
-         ret = json_iter(jpara, i, (void **)&name, &namelen, (void **)&value, &valuelen, NULL);
+         ret = json_iter(jpara, i, 0, (void **)&name, &namelen, (void **)&value, &valuelen, NULL);
          if (ret < 0) continue;
 
          if (!name || namelen <= 0) continue;
@@ -675,7 +676,7 @@ int http_fcgimsg_stdin_encode_chunk (void * vmsg, void * pbyte, int bytelen, voi
         fcgi_header_encode2(hdrbuf, FCGI_STDIN, /*msg->msgid*/1, contlen);
         chunk_add_buffer(msg->req_body_chunk, hdrbuf, 8);
 
-        chunk_add_bufptr(msg->req_body_chunk, (uint8 *)pbyte + pos, contlen, porig);
+        chunk_add_bufptr(msg->req_body_chunk, (uint8 *)pbyte + pos, contlen, porig, NULL);
  
         padding = contlen % 8;
         if (padding > 0) padding = 8 - padding;

@@ -161,7 +161,7 @@ int http_uri_parse (void * vuri)
         uri->scheme = pbgn;
         uri->schemelen = p - 1 - pbgn;
  
-        if (uri->schemelen == 5 && strncasecmp(uri->scheme, "https", 8) == 0)
+        if (uri->schemelen == 5 && strncasecmp(uri->scheme, "https", 5) == 0)
             uri->ssl_link = 1;
         else
             uri->ssl_link = 0;

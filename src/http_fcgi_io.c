@@ -519,7 +519,7 @@ int http_fcgi_recv_forward (void * vcon)
 
                     if (pbyte + 4 <= ppar[0] + arlen[0]) {
                         /* add all STDOUT body into httpmsg->res_body_chunk */
-                        chunk_add_bufptr(httpmsg->res_body_chunk, pbody, bodylen, frm);
+                        chunk_add_bufptr(httpmsg->res_body_chunk, pbody, bodylen, frm, NULL);
 
                     } else {
                         /* header trailer \r\n\r\n across the 2 buffer, move them 
@@ -528,7 +528,7 @@ int http_fcgi_recv_forward (void * vcon)
                         frame_put_nlast(httpmsg->res_header_stream, pbody, len);
 
                         /* add STDOUT body into httpmsg->res_body_chunk */
-                        chunk_add_bufptr(httpmsg->res_body_chunk, pbody + len, bodylen - len, frm);
+                        chunk_add_bufptr(httpmsg->res_body_chunk, pbody + len, bodylen - len, frm, NULL);
                     }
 
                     /* move the pointer to the end of first FastCGI pdu */
@@ -540,7 +540,7 @@ int http_fcgi_recv_forward (void * vcon)
 
                     if (bodylen > len) {
                         /* add STDOUT body into httpmsg->res_body_chunk */
-                        chunk_add_bufptr(httpmsg->res_body_chunk, pbody + len, bodylen - len, frm);
+                        chunk_add_bufptr(httpmsg->res_body_chunk, pbody + len, bodylen - len, frm, NULL);
                     }
 
                     /* move the pointer to the end of first FastCGI pdu */
@@ -584,7 +584,7 @@ int http_fcgi_recv_forward (void * vcon)
 
             } else {  //STDOUT header has been got before
                 /* add all STDOUT body into httpmsg->res_body_chunk */
-                chunk_add_bufptr(httpmsg->res_body_chunk, pbody, bodylen, frm);
+                chunk_add_bufptr(httpmsg->res_body_chunk, pbody, bodylen, frm, NULL);
 
                 /* move the pointer to the end of first FastCGI pdu */
                 iter = (pend - pbgn);
@@ -655,16 +655,16 @@ int http_fcgi_handle (void * vmsg)
     HTTPMgmt * mgmt = NULL;
     FcgiSrv  * cgisrv = NULL;
     char       url[512];
- 
+
     if (!msg) return -1;
- 
+
     mgmt = (HTTPMgmt *)msg->httpmgmt;
     if (!mgmt) return -2;
- 
+
     /* check the request if it's to be transformed to FCGI server */
     if (http_fcgi_check(msg, url, sizeof(url)-1) <= 0)
         return -100;
- 
+
     msg->fastcgi = 1;
  
     cgisrv = http_fcgisrv_open(mgmt, url, 100);

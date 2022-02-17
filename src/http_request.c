@@ -898,7 +898,8 @@ int http_req_encoding (void * vmsg, int encode)
     msg->reqsent = 0;
     msg->req_stream_sent = 0;
 
-    chunk_prepend_bufptr(msg->req_body_chunk, frameP(msg->req_stream), frameL(msg->req_stream), 1);
+    chunk_prepend_bufptr(msg->req_body_chunk, frameP(msg->req_stream),
+                         frameL(msg->req_stream), NULL, NULL, 1);
 
     return 0;
 }

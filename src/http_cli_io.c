@@ -594,13 +594,13 @@ gotallbody:
     } else {
         chunk_add_bufptr(msg->req_body_chunk,
                          frameP(msg->req_body_stream),
-                         frameL(msg->req_body_stream), NULL);
+                         frameL(msg->req_body_stream), NULL, NULL);
     }
 
     http_form_multipart_parse(msg, NULL);
 
     if (msg->req_content_type && msg->req_contype_len > 0) {
-        if (strncasecmp(msg->req_content_type, "application/x-www-form-urlencoded", 33) == 0) {
+        if (str_ncasecmp(msg->req_content_type, "application/x-www-form-urlencoded", 33) == 0) {
             if (!msg->req_form_kvobj) {
                 msg->req_form_kvobj = kvpair_init(37, "&", "=");
             }
@@ -608,7 +608,7 @@ gotallbody:
             chunk_ptr(msg->req_body_chunk, 0, NULL, (void **)&pbody, &restlen);
             kvpair_decode(msg->req_form_kvobj, pbody, restlen);
     
-        } else if (strncasecmp(msg->req_content_type, "application/json", 16) == 0) {
+        } else if (str_ncasecmp(msg->req_content_type, "application/json", 16) == 0) {
             if (!msg->req_form_json) {
                 msg->req_form_json = json_init(0, 0, 0);
             }
