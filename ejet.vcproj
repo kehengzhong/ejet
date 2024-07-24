@@ -214,10 +214,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\include\http_listen.h"
-				>
-			</File>
-			<File
 				RelativePath=".\include\http_log.h"
 				>
 			</File>
@@ -243,6 +239,10 @@
 			</File>
 			<File
 				RelativePath=".\include\http_request.h"
+				>
+			</File>
+			<File
+				RelativePath=".\include\http_resloc.h"
 				>
 			</File>
 			<File
@@ -358,10 +358,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\src\http_listen.c"
-				>
-			</File>
-			<File
 				RelativePath=".\src\http_log.c"
 				>
 			</File>
@@ -387,6 +383,10 @@
 			</File>
 			<File
 				RelativePath=".\src\http_request.c"
+				>
+			</File>
+			<File
+				RelativePath=".\src\http_resloc.c"
 				>
 			</File>
 			<File

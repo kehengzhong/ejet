@@ -48,8 +48,8 @@ PKG_RPATH = -Wl,-rpath,$(libdst):$(INSTALL_LIB_PATH)
 #  Customization of shared object library (SO)
 
 PKG_VER_MAJOR = 1
-PKG_VER_MINOR = 2
-PKG_VER_RELEASE = 12
+PKG_VER_MINOR = 6
+PKG_VER_RELEASE = 8
 PKG_VER = $(PKG_VER_MAJOR).$(PKG_VER_MINOR).$(PKG_VER_RELEASE)
 
 PKG_VERSO_LIB = $(PKG_SO_LIB).$(PKG_VER)
@@ -65,17 +65,20 @@ CC = gcc
 IFLAGS = -I$(adif_inc) -I$(epump_inc) -I$(ejet_inc)
 
 #CFLAGS = -Wall -O3 -fPIC -std=c99
-CFLAGS = -Wall -O3 -fPIC
+CFLAGS = -Wall -fPIC
 LFLAGS = -L/usr/lib -L/usr/local/lib -L$(libdst)
 LIBS = -lm -lz -lpthread
 SOFLAGS = $(LD_SONAME)
 
 APPLIBS = -ladif -lepump -l$(PKGNAME) $(PKG_RPATH)
 
+DEFS += -DPKG_VER=$(PKG_VER)
 
 ifeq ($(MAKECMDGOALS), debug)
   DEFS += -D_DEBUG
   CFLAGS += -g
+else
+  CFLAGS += -O3
 endif
 
 ifeq ($(MAKECMDGOALS), so)
