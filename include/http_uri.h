@@ -1,6 +1,30 @@
 /*
- * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2024 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
+ *
+ * #####################################################
+ * #                       _oo0oo_                     #
+ * #                      o8888888o                    #
+ * #                      88" . "88                    #
+ * #                      (| -_- |)                    #
+ * #                      0\  =  /0                    #
+ * #                    ___/`---'\___                  #
+ * #                  .' \\|     |// '.                #
+ * #                 / \\|||  :  |||// \               #
+ * #                / _||||| -:- |||||- \              #
+ * #               |   | \\\  -  /// |   |             #
+ * #               | \_|  ''\---/''  |_/ |             #
+ * #               \  .-\__  '-'  ___/-. /             #
+ * #             ___'. .'  /--.--\  `. .'___           #
+ * #          ."" '<  `.___\_<|>_/___.'  >' "" .       #
+ * #         | | :  `- \`.;`\ _ /`;.`/ -`  : | |       #
+ * #         \  \ `_.   \_ __\ /__ _/   .-` /  /       #
+ * #     =====`-.____`.___ \_____/___.-`___.-'=====    #
+ * #                       `=---='                     #
+ * #     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   #
+ * #               佛力加持      佛光普照              #
+ * #  Buddha's power blessing, Buddha's light shining  #
+ * #####################################################
  */
 
 #ifndef _HTTP_URI_H_
@@ -14,7 +38,11 @@ typedef struct http_uri_s {
 
     frame_t   * uri;
     uint8       type;      //0-relative 1-absolute  2-connect uri
-    uint8       ssl_link;  //0-regular  1-ssl
+    uint8       needfree  : 1;  //0-regular  1-ssl
+    uint8       ssl_link  : 5;  //0-regular  1-ssl
+    uint8       alloctype : 2;  //0-default kalloc/kfree 1-os-specific malloc/free 2-kmempool alloc/free 3-kmemblk alloc/free
+
+    void      * mpool;
 
     char      * reluri;
     int         relurilen;
@@ -52,15 +80,15 @@ typedef struct http_uri_s {
 
 } HTTPUri, http_uri_t;
 
-void * http_uri_alloc();
+void * http_uri_alloc(int alloctype, void * mpool);
 void   http_uri_free (void * vuri);
 
 void   http_uri_init (void * vuri);
 
 int    http_uri_set (void * vuri, char * p, int len, int decode);
 
-int    http_uri_parse (void * vuri);
-int    http_uri_path_parse (void * vuri);
+int    http_uri_parse (void * vuri, char * paddr, int addrlen);
+int    http_uri_path_parse (void * vuri, char * paddr, int addrlen);
 
 char * http_uri_string (void * vuri);
 

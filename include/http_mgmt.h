@@ -1,12 +1,36 @@
 /*
- * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2024 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
+ *
+ * #####################################################
+ * #                       _oo0oo_                     #
+ * #                      o8888888o                    #
+ * #                      88" . "88                    #
+ * #                      (| -_- |)                    #
+ * #                      0\  =  /0                    #
+ * #                    ___/`---'\___                  #
+ * #                  .' \\|     |// '.                #
+ * #                 / \\|||  :  |||// \               #
+ * #                / _||||| -:- |||||- \              #
+ * #               |   | \\\  -  /// |   |             #
+ * #               | \_|  ''\---/''  |_/ |             #
+ * #               \  .-\__  '-'  ___/-. /             #
+ * #             ___'. .'  /--.--\  `. .'___           #
+ * #          ."" '<  `.___\_<|>_/___.'  >' "" .       #
+ * #         | | :  `- \`.;`\ _ /`;.`/ -`  : | |       #
+ * #         \  \ `_.   \_ __\ /__ _/   .-` /  /       #
+ * #     =====`-.____`.___ \_____/___.-`___.-'=====    #
+ * #                       `=---='                     #
+ * #     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   #
+ * #               佛力加持      佛光普照              #
+ * #  Buddha's power blessing, Buddha's light shining  #
+ * #####################################################
  */
 
 #ifndef _HTTP_MGMT_H_
 #define _HTTP_MGMT_H_
 
-#include "http_listen.h"
+#include "http_resloc.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -25,6 +49,9 @@ extern char * g_http_version;
 extern char * g_http_build;
 extern char * g_http_author;
 
+#define COUNT_INTERVAL   180
+#define CNTNUM           480
+#define t_http_count     2131
 
 typedef struct http_mgmt_ {
 
@@ -48,14 +75,6 @@ typedef struct http_mgmt_ {
     int          srv_keepalive_time;      /* keep the connection alive waiting for the new httpmsg */
     int          srv_conn_idle_time;      /* max time handling HTTPMsg, in sending or waiting resp */ 
 
-    char       * srv_con_cert;            /* cert needed when issuing HTTP request to origin over SSL con */
-    char       * srv_con_prikey;          /* private key needed when issuing HTTP request over SSL con */
-    char       * srv_con_cacert;          /* CA cert when client authentication needed */
-
-    char       * srv_resp_root;
-    uint8        srv_resp_cache;
-    char       * srv_resp_cache_file;
-
     uint8        proxy_tunnel;            /* when acting as proxy, CONNECT method is suported or not */
     int          tunnel_keepalive_time;   /* max idle time there is no sending/receiving on the connection */
     uint8        auto_redirect;           /* 301/302 from origin is redirected or not by web server */
@@ -68,6 +87,8 @@ typedef struct http_mgmt_ {
     int          fcgi_buffer_size;        /* max size of data piled up in sending buffer to client */
 
 
+    time_t             startup_time;
+    char               uptimestr[32];
     void             * cnfjson;
     char               root_path[256];
 
@@ -80,13 +101,6 @@ typedef struct http_mgmt_ {
 
     int                addrnum;
     AddrItem           localaddr[6];
-
-    char               uploadso[33];
-    char               uploadvar[33];
-    char               shellcmdso[33];
-    char               shellcmdvar[33];
-    time_t             inlaststamp;
-    char               inipaddr[41];
 
     void             * variable;
     int                varnum;
@@ -102,11 +116,16 @@ typedef struct http_mgmt_ {
     CRITICAL_SECTION   conCS;
     hashtab_t        * con_table;
 
+    CRITICAL_SECTION   acceptconCS;
+    ulong              accept_con_num;
+
+    CRITICAL_SECTION   issuedconCS;
+    ulong              issued_con_num;
+
     ulong              srvid;
     CRITICAL_SECTION   srvCS;
     rbtree_t         * srv_tree;
-
-    void             * srv_sslctx;
+    hashtab_t        * srv_table;
 
     ulong              msgid;
     CRITICAL_SECTION   msgidCS;
@@ -118,17 +137,22 @@ typedef struct http_mgmt_ {
     CRITICAL_SECTION   fcgisrvCS;
     hashtab_t        * fcgisrv_table;
 
-    void             * cachemgmt; 
     void             * cookiemgmt;
 
     CRITICAL_SECTION   cacinfoCS;
     hashtab_t        * cacinfo_table;
 
-    bpool_t          * con_pool;
-    bpool_t          * srv_pool;
-    bpool_t          * msg_pool;
-    bpool_t          * header_unit_pool;
-    bpool_t          * frame_pool;
+    mpool_t          * msgmem_pool;
+    void             * msg_kmem_pool;
+
+    mpool_t          * conmem_pool;
+    void             * con_kmem_pool;
+
+    mpool_t          * con_pool;
+    mpool_t          * srv_pool;
+    mpool_t          * msg_pool;
+    mpool_t          * header_unit_pool;
+    mpool_t          * frame_pool;
 
     mpool_t          * fcgisrv_pool;
     mpool_t          * fcgicon_pool;
@@ -136,10 +160,16 @@ typedef struct http_mgmt_ {
 
     hashtab_t        * status_table;
 
+    /* HTTP Cookie and CacheInfo memory pool */
+    void             * fragmem_kempool;
+
     /* HTTPListen instances list */
     CRITICAL_SECTION   listenlistCS;
     arr_t            * listen_list;
 
+    /* HTTPConnect instances for sending request to origin server */
+    void             * connectcfg;
+    
     /* matching next proxy host and port when sending request */
     arr_t            * sndpxy_list;
 
@@ -164,7 +194,16 @@ typedef struct http_mgmt_ {
     struct timeval     count_tick;
     uint64             total_recv;
     uint64             total_sent;
-	
+
+    uint32             countind;
+    ulong              recv_byte[CNTNUM];
+    ulong              sent_byte[CNTNUM];
+    int                accept_con[CNTNUM];
+    int                issued_con[CNTNUM];
+    long               count_time[CNTNUM];
+    long               count_interval[CNTNUM];
+
+    void             * count_timer;
 
     /* reserved extra object for application */
     HTTPObjInit      * objinit;
@@ -190,7 +229,10 @@ void   http_overhead       (void * vmgmt, uint64 * recv, uint64 * sent,
 void   http_overhead_sent  (void * vmgmt, long sent);
 void   http_overhead_recv  (void * vmgmt, long recv);
 
-int    http_listen_check (void * vmgmt, void * vobj, int event, int fdtype);
+void   http_connection_accepted (void * vmgmt, int num);
+void   http_connection_issued   (void * vmgmt, int num);
+
+void   http_count_timeout (void * vmgmt);
 
 void   http_uri_escape_init (void * vmgmt);
 
@@ -203,6 +245,12 @@ int    http_mgmt_con_add (void * vmgmt, void * vcon);
 void * http_mgmt_con_get (void * vmgmt, ulong conid);
 void * http_mgmt_con_del (void * vmgmt, ulong conid);
 int    http_mgmt_con_num (void * vmgmt);
+
+int    http_mgmt_acceptcon_add (void * vmgmt, void * vcon);
+void * http_mgmt_acceptcon_del (void * vmgmt, ulong conid);
+
+int    http_mgmt_issuedcon_add (void * vmgmt, void * vcon);
+void * http_mgmt_issuedcon_del (void * vmgmt, ulong conid);
 
 void * http_msg_fetch (void * vmgmt);
 int    http_msg_num   (void * vmgmt);
@@ -218,6 +266,8 @@ char * http_get_mime (void * vmgmt, char * file, uint32 * mimeid);
 
 int    http_conf_mime_init (void * vmgmt);
 int    http_conf_mime_clean (void * vmgmt);
+
+int    http_print (void * vmgmt, frame_p frm, FILE * fp);
 
 #ifdef __cplusplus
 }

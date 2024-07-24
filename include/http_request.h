@@ -1,6 +1,30 @@
 /*
- * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2024 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
+ *
+ * #####################################################
+ * #                       _oo0oo_                     #
+ * #                      o8888888o                    #
+ * #                      88" . "88                    #
+ * #                      (| -_- |)                    #
+ * #                      0\  =  /0                    #
+ * #                    ___/`---'\___                  #
+ * #                  .' \\|     |// '.                #
+ * #                 / \\|||  :  |||// \               #
+ * #                / _||||| -:- |||||- \              #
+ * #               |   | \\\  -  /// |   |             #
+ * #               | \_|  ''\---/''  |_/ |             #
+ * #               \  .-\__  '-'  ___/-. /             #
+ * #             ___'. .'  /--.--\  `. .'___           #
+ * #          ."" '<  `.___\_<|>_/___.'  >' "" .       #
+ * #         | | :  `- \`.;`\ _ /`;.`/ -`  : | |       #
+ * #         \  \ `_.   \_ __\ /__ _/   .-` /  /       #
+ * #     =====`-.____`.___ \_____/___.-`___.-'=====    #
+ * #                       `=---='                     #
+ * #     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   #
+ * #               佛力加持      佛光普照              #
+ * #  Buddha's power blessing, Buddha's light shining  #
+ * #####################################################
  */
 
 #ifndef _HTTP_REQUEST_H_
@@ -15,6 +39,7 @@ extern "C" {
 /* cookie management */
 int          http_req_addcookie    (void * vmsg, char * name, int namelen, 
                                      char * value, int valuelen);
+int          http_req_delcookie    (void * vmsg, char * name, int namelen);
 int          http_req_delallcookie (void * vmsg);
 HeaderUnit * http_req_getcookie    (void * vmsg, char * name, int namelen);
 int          http_req_parse_cookie (void * vmsg);
@@ -39,6 +64,8 @@ int http_req_verify (void * vmsg);
 
 int http_req_encoding (void * vmsg, int encode);
 
+int http_req_build (void * vmsg, int encode);
+
 int print_request (void * vmsg, FILE * fp);
 
 
@@ -47,4 +74,5 @@ int print_request (void * vmsg, FILE * fp);
 #endif
 
 #endif
+
 

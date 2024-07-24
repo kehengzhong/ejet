@@ -1,6 +1,30 @@
 /*
- * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2024 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
+ *
+ * #####################################################
+ * #                       _oo0oo_                     #
+ * #                      o8888888o                    #
+ * #                      88" . "88                    #
+ * #                      (| -_- |)                    #
+ * #                      0\  =  /0                    #
+ * #                    ___/`---'\___                  #
+ * #                  .' \\|     |// '.                #
+ * #                 / \\|||  :  |||// \               #
+ * #                / _||||| -:- |||||- \              #
+ * #               |   | \\\  -  /// |   |             #
+ * #               | \_|  ''\---/''  |_/ |             #
+ * #               \  .-\__  '-'  ___/-. /             #
+ * #             ___'. .'  /--.--\  `. .'___           #
+ * #          ."" '<  `.___\_<|>_/___.'  >' "" .       #
+ * #         | | :  `- \`.;`\ _ /`;.`/ -`  : | |       #
+ * #         \  \ `_.   \_ __\ /__ _/   .-` /  /       #
+ * #     =====`-.____`.___ \_____/___.-`___.-'=====    #
+ * #                       `=---='                     #
+ * #     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   #
+ * #               佛力加持      佛光普照              #
+ * #  Buddha's power blessing, Buddha's light shining  #
+ * #####################################################
  */
 
 #ifndef _HTTP_CHUNK_H_
@@ -19,7 +43,9 @@ typedef struct http_buf {
     uint8         * body_bgn;
     int             body_len;
 
-    uint8           alloc;
+    uint8           alloc : 6;
+    uint8           alloctype : 2;
+    void          * mpool;
 } HTTPBuf;
 
 typedef struct http_chunk_item {
@@ -33,12 +59,16 @@ typedef struct http_chunk_item {
 
     arr_t         * buf_list;
     
+    void          * chk;
 } HTTPChunkItem;
 
 typedef struct http_chunk {
 
     uint8           gotall;
-    uint8           gotallbody;
+    uint8           gotallbody : 6;
+    uint8           alloctype  : 2;
+
+    void          * mpool;
 
     int64           chksize;  //byte num including chunk size line, chunk body, chunk header, trailer
     int64           chklen;   //actual, available content
@@ -59,7 +89,7 @@ typedef struct http_chunk {
 } HTTPChunk;
 
 
-void * http_chunk_alloc ();
+void * http_chunk_alloc (int alloctype, void * mpool);
 void   http_chunk_free (void * vchk);
 
 int    http_chunk_zero (void * vchk);

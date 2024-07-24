@@ -1,6 +1,30 @@
 /*
- * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2024 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
+ *
+ * #####################################################
+ * #                       _oo0oo_                     #
+ * #                      o8888888o                    #
+ * #                      88" . "88                    #
+ * #                      (| -_- |)                    #
+ * #                      0\  =  /0                    #
+ * #                    ___/`---'\___                  #
+ * #                  .' \\|     |// '.                #
+ * #                 / \\|||  :  |||// \               #
+ * #                / _||||| -:- |||||- \              #
+ * #               |   | \\\  -  /// |   |             #
+ * #               | \_|  ''\---/''  |_/ |             #
+ * #               \  .-\__  '-'  ___/-. /             #
+ * #             ___'. .'  /--.--\  `. .'___           #
+ * #          ."" '<  `.___\_<|>_/___.'  >' "" .       #
+ * #         | | :  `- \`.;`\ _ /`;.`/ -`  : | |       #
+ * #         \  \ `_.   \_ __\ /__ _/   .-` /  /       #
+ * #     =====`-.____`.___ \_____/___.-`___.-'=====    #
+ * #                       `=---='                     #
+ * #     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   #
+ * #               佛力加持      佛光普照              #
+ * #  Buddha's power blessing, Buddha's light shining  #
+ * #####################################################
  */
 
 #ifndef _HTTP_FCGI_SRV_H_
@@ -36,9 +60,16 @@ typedef struct http_fcgi_srv {
     CRITICAL_SECTION   conCS;
     ulong              conid;
     rbtree_t         * con_tree;
+    rbtree_t           mem_con_tree;
  
+    CRITICAL_SECTION   timesCS;
+    int                trytimes;
+    int                failtimes;
+    int                succtimes;
+
     time_t             stamp;
     void             * life_timer;
+    int                life_times;
 
     void             * mgmt;
     void             * pcore;
@@ -59,7 +90,7 @@ int    http_fcgisrv_close(void * vsrv);
 uint16 http_fcgisrv_get_msgid (void * vsrv);
 ulong  http_fcgisrv_get_conid (void * vsrv);
 
-void * http_fcgisrv_connect (void * vsrv);
+void * http_fcgisrv_connect (void * vsrv, ulong workerid);
 
 int    http_fcgisrv_msg_add (void * vsrv, void * vmsg);
 void * http_fcgisrv_msg_get (void * vsrv, uint16 msgid);
@@ -74,6 +105,9 @@ void * http_fcgisrv_con_get (void * vsrv, ulong conid);
 void * http_fcgisrv_con_del (void * vsrv, ulong conid);
 int    http_fcgisrv_con_num (void * vsrv);
  
+int    http_fcgisrv_confail_times (void * vsrv, int times);
+int    http_fcgisrv_consucc_times (void * vsrv, int times);
+
 int    http_fcgisrv_lifecheck (void * vsrv);
  
 int    http_fcgisrv_pump (void * vsrv, void * vobj, int event, int fdtype);

@@ -1,6 +1,30 @@
 /*
- * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2024 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
+ *
+ * #####################################################
+ * #                       _oo0oo_                     #
+ * #                      o8888888o                    #
+ * #                      88" . "88                    #
+ * #                      (| -_- |)                    #
+ * #                      0\  =  /0                    #
+ * #                    ___/`---'\___                  #
+ * #                  .' \\|     |// '.                #
+ * #                 / \\|||  :  |||// \               #
+ * #                / _||||| -:- |||||- \              #
+ * #               |   | \\\  -  /// |   |             #
+ * #               | \_|  ''\---/''  |_/ |             #
+ * #               \  .-\__  '-'  ___/-. /             #
+ * #             ___'. .'  /--.--\  `. .'___           #
+ * #          ."" '<  `.___\_<|>_/___.'  >' "" .       #
+ * #         | | :  `- \`.;`\ _ /`;.`/ -`  : | |       #
+ * #         \  \ `_.   \_ __\ /__ _/   .-` /  /       #
+ * #     =====`-.____`.___ \_____/___.-`___.-'=====    #
+ * #                       `=---='                     #
+ * #     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   #
+ * #               佛力加持      佛光普照              #
+ * #  Buddha's power blessing, Buddha's light shining  #
+ * #####################################################
  */
 
 #ifndef _HTTP_MSG_H_
@@ -17,6 +41,20 @@ typedef int TearDownNotify (void * vmsg, void * para);
 
 
 #define REUSE_BUF_THRESHOLD  64*1024
+
+/* HTTP Method Constants Definition */
+#define HTTP_METHOD_NONE       0
+#define HTTP_METHOD_CONNECT    1
+#define HTTP_METHOD_DELETE     2
+#define HTTP_METHOD_GET        3
+#define HTTP_METHOD_HEAD       4
+#define HTTP_METHOD_VERSION_10 5
+#define HTTP_METHOD_VERSION_11 6
+#define HTTP_METHOD_OPTIONS    7
+#define HTTP_METHOD_POST       8
+#define HTTP_METHOD_PUT        9
+#define HTTP_METHOD_TRACE      10
+
 
 /* how to count or recognize the Request/Response Body Content
  * define several cases to identify the body */
@@ -69,11 +107,16 @@ typedef struct http_partial_s {
 typedef struct http_msg {
     void             * res[2];
 
+    void             * kmemblk;
+
     /* global unique identifier for HTTPMsg */
     ulong              msgid;
-    uint8              msgtype;  /* 0-sending request  1-receiving request */
+    uint8              msgtype  : 3;  /* 0-sending request  1-receiving request */
+    uint8              recycled : 3;  /* 0-in use  1-recycled */
+    uint8              alloctype: 2;  //0-default kalloc/kfree 1-os-specific malloc/free 2-kmempool alloc/free 3-kmemblk alloc/free 
 
     void             * hl;
+    void             * hc;
     void             * phost;
     void             * ploc;
     int                locinst_times;
@@ -90,10 +133,10 @@ typedef struct http_msg {
 
     /* current message handling state */
     int                state;
-    time_t             createtime;
+    btime_t            createtime;
     time_t             stamp;
 
-    /* client request and server response ip address of wap proxy system */
+    /* source address and destination address, IP:Port quadruple */
     char               srcip[41];
     int                srcport;
     char               dstip[41];
@@ -101,25 +144,34 @@ typedef struct http_msg {
 
     uint8              ssl_link;
 
-    /* the Flag used for determining if Request sent to server or not */
-    uint8              reqsent;
+    /* The flag used to determine whether the current HTTP message is sent to the server. */
+    uint8              reqsent : 4;
+
+    /* eJet serves as web server, the flag indicates whether all data including the request
+       header and body are received or not. */
+    uint8              req_gotall_body: 4;
+
     uint8              redirecttimes;
 
     uint8              req_url_type;  //0-relative 1-absolute
     http_uri_t       * uri;
     http_uri_t       * absuri;
     http_uri_t       * docuri;
+    uint64             pathhash;
+    uint64             urihash;
 
-    /* the elements following form the request line. they are 
-     * assigned value by invoker that would like to send request.
-     * these elements are origin data constructing request. */
+    /* following variables hold information of HTTP request line. When serving as server,
+       the values of these variables come from the decoding of the HTTP request line.
+       When serving as a client, the caller assigns values to these variables and
+       builds a request line based on them. */
     int                req_methind;
     char               req_meth[16];
     char               req_ver[16];
     int                req_ver_major;
     int                req_ver_minor;
 
-    /* following 7 elements are parsed to pointer to the location of msg->uri */
+    /* The following pointer and length variables are extracted from a certain position
+       in the uri, and are used to quickly access various information contained in the URI. */
     char             * req_scheme;
     int                req_schemelen;
     char             * req_host;
@@ -139,36 +191,38 @@ typedef struct http_msg {
     char             * req_cookie;
     int                req_cookie_len;
 
-    /* variables for http-request receiving management */
+    /* The following variables are used to track the transfer and receive status of
+       the HTTP request header and body */
     int64              req_header_length;
     int64              req_body_length;
     int64              req_body_iolen;
 
-    uint8              req_chunk_state;
-    int64              req_chunk_iolen;
-    int64              req_chunk_size;
-
-    /* request body is too large, memory is not enough to hold them. 
-     * we store the body content into a temperory file */
+    /* The HTTP request message sent by the client consumes a certain amount of
+       memory, no matter how big the message body is. When a certain threshold is
+       exceeded, eJet uses a temporary cache file to store message body data. */
     uint8              req_multipart;
     uint8              req_file_cache;
     char             * req_file_name;
     void             * req_file_handle;
 
-    /* 0-no body 1-Content-Length body 2-Transfer-Encoding body 3-unknown body */
+    /* 0-no body 1-Content-Length body 2-Transfer-Encoding body 3-Invalid Transfer-Encoding body
+       4-Unknown format body 5-HTTP Tunnel*/
     uint8              req_body_flag;  
 
     uint8              req_conn_keepalive;
 
-    /* the headers are made up of many HeaderUnits. these unit are
-     * generated by invoker that would like to send request.
-     * they are the origin data constructing request */
+    /* When decoding HTTP request messages, HeaderUnit based on key-value structure
+      is used to manage and store each request header and Cookie. Multiple request
+      headers are organized and managed by hash table and dynamic array. */
     hashtab_t        * req_header_table;
     arr_t            * req_header_list;
     hashtab_t        * req_cookie_table;
 
-    /* the following member are data buffer that above elements(reqline, headers) 
-     * have their pointers to the location of buffer. */
+    /* HTTP request is decoded into two parts: request header and request body. 
+       The octet stream of request header is stored in req_header_stream, while
+       the octet stream of request body is stored in req_body_stream. When the
+       HTTP request is output, the request header and the request body are encoded
+       and stored in the req_stream. */
     frame_p            req_header_stream;
     frame_p            req_body_stream;
     frame_p            req_stream;
@@ -178,19 +232,24 @@ typedef struct http_msg {
     int64              req_stream_sent;
     int64              req_stream_recv;
 
-    /* by adopting zero-copy for higher performance, frame buffers of HTTPCon, which stores
-       octets from sockets,  will be moved to following list, for further parsing or handling,
-       when receiving octest from client connection and forwarding to origin server.
-       the overhead of memory copy will be lessened significantly. */
+    /* When eJet serves as a proxy or FastCGI gateway, the client may continuously send the
+       request data in the form of stream, which needs to be forwarded to the origin server
+       in real time. Zero copy technology for high performance is adopted to reduce the number
+       of copies of data in memory. All the data sent by the client over the HTTP connection
+       is stored in the rcvstream in HTTPCon object. When forwarded to the origin server, the
+       rcvstream as a data buffer is moved away and stored in the req_rcvs_list list. It is
+       not removed and released from the req_rcvs_list until the forwarding is successful. */
     arr_t            * req_rcvs_list;
 
-    /* if content type of POST request is multipart form, every part is stored in list */
+    /* When the content type of HTTP Post message body is multi-part format, all parts of
+       the content are parsed and stored in the following objects */
     arr_t            * req_formlist;
     void             * req_form_json;
     void             * req_form_kvobj;
     void             * req_query_kvobj;
 
-    /* TCP connection instance for the reading/writing of HTTP Request/Response */
+    /* HTTPCon object instance used by HTTP read-write requests and responses, and worker
+       threadid handling the read-write event. */
     void             * pcon;
     ulong              conid;
     ulong              workerid;
@@ -202,6 +261,7 @@ typedef struct http_msg {
     uint8              proxied : 4;  //0-no proxy 1-original request  2-proxing request
     uint8              cacheon : 4;
     struct http_msg  * proxymsg;
+    ulong              proxymsgid;
 
     /* indicate the msg is Fast-CGI to Fast-CGI Processor Manager server */
     uint8              fastcgi;  //0-no fastcgi 1-send to FastCGI server
@@ -211,7 +271,7 @@ typedef struct http_msg {
     char             * fwdurl;
     int                fwdurllen;
 
-    /* determine if the requested host is reached via proxy */
+    /* Determines whether the proxy is adopted when the current HTTPMsg is sent to the Origin server */
     char             * proxy;
     int                proxyport;
 
@@ -219,33 +279,29 @@ typedef struct http_msg {
     uint8              partial_flag;
     void             * partial_list;
 
-    uint8              flag304;   //not modified content, just return 304
-
-
-    /* the Flag indicated if application has issued the response to client 
-       or the request to server */
-    int                issued;
+    /* The value 1 of res_encoded flag means that both the response header and the response body of
+       the HTTP request message have been collected and encoded into the output stream -> res_body_chunk. */
+    uint8              flag304     : 4;   //not modified content, just return 304
+    uint8              req_encoded : 2;
+    uint8              res_encoded : 2;
 
     /* the first line of response contains following information. */
     char               res_ver[16];
     int                res_status;
+    char               res_reason[36];
 
-    uint32             res_verloc;
-    int                res_verlen;
-    uint32             res_statusloc;
-    int                res_statuslen;
-    uint32             res_reasonloc;
-    int                res_reasonlen;
-    frame_p            res_line;
+    char             * res_mime;
+    uint32             res_mimeid;
 
     /* the number of header/body octets received from server or high layer */
     int64              res_header_length;
     int64              res_body_length;
     int64              res_body_iolen;
 
-    /* based on caching configure and cache policy in origin server response,
-       response body is cached into res_file_name, caching information is stored
-       in res_cache_name. */
+    /* In the proxy mode, the content returned from the origin server may be cached
+       to serve the same subsequent HTTP request. Cache policy is decided by configuration
+       file, which determines the location of content storage, cache file name, cache
+       expiration, etc. */
     char             * res_file_name;
     void             * res_file_handle;
 
@@ -256,41 +312,57 @@ typedef struct http_msg {
 
     void             * res_cache_info;
 
-    /* 0-no body 1-Content-Length body 2-Transfer-Encoding body 3-unknown body */
+    /* 0-no body 1-Content-Length body 2-Transfer-Encoding body 3-Invalid Transfer-Encoding body
+       4-Unknown format body 5-HTTP Tunnel*/
     uint8              res_body_flag;  
 
-    uint8              res_conn_keepalive;
+    /* eJet serves as web client, the flag indicates whether all data including the response
+       header and body are received or not. */
+    uint8              res_gotall_body: 4;
 
-    /* by parsing from raw octets, response headers are stored into HeaderUnits, 
-       which organized by following hashtab and list. */
+    uint8              res_conn_keepalive : 4;
+
+    /* Decoding the octet stream in res_header_stream generates all HTTP response headers
+       encapsulated in HeaderUnits, which are managed by hash table and dynamic array. */
     hashtab_t        * res_header_table;
     arr_t            * res_header_list;
 
-    /* following frame buffers store headers or body data from origin server,
-       or higher layer module. access to header/body is just referenced to frame buffers.
-     * res_stream stores encoded headers to be delivered to client. */
+    /* frame_p is a dynamic memory management data structure. The upper layer callback
+       module or origin server generates HTTP response header and body after completing
+       handling. All HTTP response headers are managed by HeaderUnits which point to the
+       actual data in res_header_stream. As a temporary cache, res_body_stream stores part
+       response data. The HTTP response data stream returned to the client comes from
+       res body chunk, whose first entity buffer, that is res_stream, contains all the
+       encoded response headers and part or all of the response bodies. */
     frame_p            res_header_stream;
     frame_p            res_body_stream;
     frame_p            res_stream;
 
-    /* response bodies with various formats are handled and store in chunk facilities. */
+    /* The response bodies with various formats including memory buffers and files are decoded
+       and stored in res_body_chunk. res_chunk is used to decode http chunk block. */
     void             * res_chunk;
     chunk_t          * res_body_chunk;
     int64              res_stream_sent;
     int64              res_stream_recv;
 
-    /* by adopting zero-copy for higher performance, frame buffers of HTTPCon, which stores 
-       octets from sockets,  will be moved to following list, for further parsing or handling,
-       when receiving octest from origin server connection and forwarding to client.
-       the overhead of memory copy will be lessened significantly. */
+    /* The function of res_rcvs_list is the same as that of req_rcvs_list, except that the
+       data flow is reversed.
+       When eJet serves as a proxy or FastCGI gateway, the origin server may continuously reply
+       response data in the form of stream, which needs to be forwarded to the client in real 
+       time. Zero copy technology for high performance is adopted to reduce the number of copies
+       of data in memory. All the data received from the origin over HTTP/FastCGI connection
+       is stored in the rcvstream in HTTPCon/FcgiCon object. When forwarded to the client, the
+       rcvstream as a data buffer is moved away and stored in the res_rcvs_list list. It is
+       not removed and released from the res_rcvs_list until the forwarding is successful. */
     arr_t            * res_rcvs_list;
 
 
     /* system management instance */
+    void             * httpsrv;
     void             * pcore;
     void             * httpmgmt;
 
-    /* notify upper-layer application while TCP connection tear-down */
+    /* notify upper-layer application that TCP connection tears down */
     TearDownNotify   * tear_down_notify;
     void             * tear_down_para;
 
@@ -521,11 +593,14 @@ ulong  http_msg_hash_msgid  (void * key);
 
 
 /* http message instance release/initialize/recycle routines */
+int    http_mgmt_msg_free (void * vmsg);
 int    http_msg_free    (void * vmsg);
 int    http_msg_init    (void * vmsg);
 int    http_msg_recycle (void * vmsg);
 
-int    http_msg_close   (void * vmsg);
+int http_msg_closeit (void * vmsg);
+#define http_msg_close(msg) http_msg_close_dbg((msg), __FILE__, __LINE__)
+int    http_msg_close_dbg (void * vmsg, char * file, int line);
 
 int    http_msg_init_method (void * vmsg);
 int    http_msg_init_req (void * vmsg);

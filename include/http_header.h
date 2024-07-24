@@ -1,6 +1,30 @@
 /*
- * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2024 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
+ *
+ * #####################################################
+ * #                       _oo0oo_                     #
+ * #                      o8888888o                    #
+ * #                      88" . "88                    #
+ * #                      (| -_- |)                    #
+ * #                      0\  =  /0                    #
+ * #                    ___/`---'\___                  #
+ * #                  .' \\|     |// '.                #
+ * #                 / \\|||  :  |||// \               #
+ * #                / _||||| -:- |||||- \              #
+ * #               |   | \\\  -  /// |   |             #
+ * #               | \_|  ''\---/''  |_/ |             #
+ * #               \  .-\__  '-'  ___/-. /             #
+ * #             ___'. .'  /--.--\  `. .'___           #
+ * #          ."" '<  `.___\_<|>_/___.'  >' "" .       #
+ * #         | | :  `- \`.;`\ _ /`;.`/ -`  : | |       #
+ * #         \  \ `_.   \_ __\ /__ _/   .-` /  /       #
+ * #     =====`-.____`.___ \_____/___.-`___.-'=====    #
+ * #                       `=---='                     #
+ * #     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   #
+ * #               佛力加持      佛光普照              #
+ * #  Buddha's power blessing, Buddha's light shining  #
+ * #####################################################
  */
 
 #ifndef _HTTP_HEADER_H_
@@ -18,25 +42,25 @@ typedef struct HeaderUnit_ {
     char       * value;
     int          valuelen;
 
-    uint32       namepos;
-    uint32       valuepos;
+    int          namepos;
+    int          valuepos;
     frame_p      frame;
 
     void       * next;
 
 } HeaderUnit;
 
-#define HUName(unit) ((char *)frameP((unit)->frame) + (unit)->namepos)
-#define HUValue(unit) ((char *)frameP((unit)->frame) + (unit)->valuepos)
+#define HUName(unit) (((unit)->frame && (unit)->namepos <= (unit)->frame->len) ? (char *)frameP((unit)->frame) + (unit)->namepos : (unit->name))
+#define HUValue(unit) (((unit)->frame && (unit)->valuepos <= (unit)->frame->len) ? (char *)frameP((unit)->frame) + (unit)->valuepos : (unit->value))
 #define HUPos(frame, p) ((char *)(p) - (char *)frameP(frame))
 
 
 HeaderUnit * hunit_alloc     ();
+int          hunit_init      (void * vhunit);
 int          hunit_free      (void * vhunit);
 void         hunit_void_free (void * vhunit);
 
 int     hunit_cmp_hunit_by_name(void * a, void * b);
-ulong   hunit_hash_func (void * key);
 int     hunit_cmp_key (void * a, void * b);
 
 int     hunit_set_hashfunc (hashtab_t * htab);

@@ -1,6 +1,30 @@
 /*
- * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2024 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
+ *
+ * #####################################################
+ * #                       _oo0oo_                     #
+ * #                      o8888888o                    #
+ * #                      88" . "88                    #
+ * #                      (| -_- |)                    #
+ * #                      0\  =  /0                    #
+ * #                    ___/`---'\___                  #
+ * #                  .' \\|     |// '.                #
+ * #                 / \\|||  :  |||// \               #
+ * #                / _||||| -:- |||||- \              #
+ * #               |   | \\\  -  /// |   |             #
+ * #               | \_|  ''\---/''  |_/ |             #
+ * #               \  .-\__  '-'  ___/-. /             #
+ * #             ___'. .'  /--.--\  `. .'___           #
+ * #          ."" '<  `.___\_<|>_/___.'  >' "" .       #
+ * #         | | :  `- \`.;`\ _ /`;.`/ -`  : | |       #
+ * #         \  \ `_.   \_ __\ /__ _/   .-` /  /       #
+ * #     =====`-.____`.___ \_____/___.-`___.-'=====    #
+ * #                       `=---='                     #
+ * #     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   #
+ * #               佛力加持      佛光普照              #
+ * #  Buddha's power blessing, Buddha's light shining  #
+ * #####################################################
  */
 
 #ifndef _HTTP_FCGI_CON_H_
@@ -32,13 +56,17 @@ extern "C" {
 
 
 typedef struct http_fcgi_con {
-    void             * res[2];
+    void             * res[4];
 
     ulong              conid;
+    ulong              workerid;
     int                rcv_state;
     int                snd_state;
 
-    uint8              socktype;   //0-TCP 1-Unix Socket
+    uint8              socktype : 6; //0-TCP 1-Unix Socket
+    uint8              alloctype: 2; //0-default kalloc/kfree 1-os-specific malloc/free 2-kmempool alloc/free 3-kmemblk alloc/free 
+
+    void             * kmemblk;
  
     char               unixsock[256];
     char               dstip[41];
@@ -46,7 +74,9 @@ typedef struct http_fcgi_con {
 
     /* following members used for accept-client probe-device management */
     CRITICAL_SECTION   rcvCS;
+    CRITICAL_SECTION   excCS;
     void             * pdev;
+    ulong              devid;
     int                read_ignored;
 
     frame_p            rcvstream;
@@ -86,15 +116,19 @@ ulong http_fcgicon_hash_func (void * key);
 
 /* http connection instance release/initialize/recycle routines */
 int    http_fcgicon_init (void * vcon);
+int    http_mgmt_fcgicon_free (void * vcon);
 int    http_fcgicon_free (void * vcon);
 
-int    http_fcgicon_recycle (void * vcon);
+#define http_fcgicon_recycle(vcon) http_fcgicon_recycle_dbg(vcon, __FILE__, __LINE__)
+int    http_fcgicon_recycle_dbg (void * vcon, char * file, int line);
 void * http_fcgicon_fetch   (void * vmgmt);
 
-void * http_fcgicon_open    (void * vsrv);
-int    http_fcgicon_close   (void * vcon);
+void * http_fcgicon_open (void * vsrv, ulong workerid);
 
-int    http_fcgicon_connect   (void * vpcon);
+#define http_fcgicon_close(srv, conid) http_fcgicon_close_dbg(srv, conid, __FILE__, __LINE__)
+int    http_fcgicon_close_dbg (void * vsrv, ulong conid, char * file, int line);
+
+int    http_fcgicon_connect   (void * vsrv, ulong conid);
 int    http_fcgicon_connected (void * vpcon);
 
 int    http_fcgicon_reqnum  (void * vcon);
@@ -106,6 +140,7 @@ int    http_fcgicon_msg_add   (void * vcon, void * vmsg);
 int    http_fcgicon_msg_del   (void * vcon, void * vmsg);
 void * http_fcgicon_msg_first (void * vcon);
 void * http_fcgicon_msg_last  (void * vcon);
+int    http_fcgicon_msg_exist (void * vcon, void * vmsg);
 
 
 #ifdef __cplusplus

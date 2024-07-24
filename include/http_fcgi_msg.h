@@ -1,6 +1,30 @@
 /*
- * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2024 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
+ *
+ * #####################################################
+ * #                       _oo0oo_                     #
+ * #                      o8888888o                    #
+ * #                      88" . "88                    #
+ * #                      (| -_- |)                    #
+ * #                      0\  =  /0                    #
+ * #                    ___/`---'\___                  #
+ * #                  .' \\|     |// '.                #
+ * #                 / \\|||  :  |||// \               #
+ * #                / _||||| -:- |||||- \              #
+ * #               |   | \\\  -  /// |   |             #
+ * #               | \_|  ''\---/''  |_/ |             #
+ * #               \  .-\__  '-'  ___/-. /             #
+ * #             ___'. .'  /--.--\  `. .'___           #
+ * #          ."" '<  `.___\_<|>_/___.'  >' "" .       #
+ * #         | | :  `- \`.;`\ _ /`;.`/ -`  : | |       #
+ * #         \  \ `_.   \_ __\ /__ _/   .-` /  /       #
+ * #     =====`-.____`.___ \_____/___.-`___.-'=====    #
+ * #                       `=---='                     #
+ * #     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   #
+ * #               佛力加持      佛光普照              #
+ * #  Buddha's power blessing, Buddha's light shining  #
+ * #####################################################
  */
 
 #ifndef _HTTP_FASTCGI_MSG_H_
@@ -70,6 +94,11 @@ typedef struct fastcgi_header {
 
 typedef struct fastcgi_msg_s {
 
+    void            * kmemblk;
+
+    uint8             reqsent  : 6;  //0-not sent or in sending  1-already sent
+    uint8             alloctype: 2;  //0-default kalloc/kfree 1-os-specific malloc/free 2-kmempool alloc/free 3-kmemblk alloc/free 
+
     uint16            msgid;
 
     HTTPMsg         * httpmsg;
@@ -77,15 +106,14 @@ typedef struct fastcgi_msg_s {
     int               req_body_flag;   //BC_CONTENT_LENGTH or BC_TE
     int64             req_body_length;
     int64             req_body_iolen;
- 
+
     int64             req_stream_sent; //total sent length including header and body
-    uint8             reqsent;         //0-not sent or in sending  1-already sent
- 
+
     /* by adopting zero-copy for higher performance, frame buffers of HTTPCon, which stores
        octets from sockets,  will be moved to following list, for further parsing or handling.
        the overhead of memory copy will be lessened significantly. */
     arr_t           * req_rcvs_list;
- 
+
     /* the fragmented data blocks to be sent to CGI-Server are stored in chunk_t */
     chunk_t         * req_body_chunk;
 
@@ -144,7 +172,7 @@ typedef struct fastcgi_msg_s {
     ulong             conid;
     void            * pcon;
 
-    time_t            createtime;
+    btime_t           createtime;
     time_t            stamp;
 
     FcgiSrv         * srv;
@@ -160,6 +188,7 @@ int    http_fcgimsg_cmp_msgid   (void * a, void *b);
 ulong  http_fcgimsg_hash_msgid  (void * key);
 
 int    http_fcgimsg_init    (void * vmsg);
+int    http_mgmt_fcgimsg_free (void * vmsg);
 int    http_fcgimsg_free    (void * vmsg);
 
 void * http_fcgimsg_fetch   (void * vsrv);
@@ -182,6 +211,10 @@ int http_fcgimsg_pre_crash (void * vmsg, int status);
 
 int http_fcgimsg_stdin_encode_chunk     (void * vmsg, void * pbyte, int bytelen, void * porig, int end);
 int http_fcgimsg_stdin_end_encode_chunk (void * vmsg);
+
+int fcgimsg_stdin_encode (void * pbyte, int bytelen, void * porig, int end,
+                          frame_t * frm, void * hfile, void * chunk);
+
 
 #ifdef __cplusplus
 }

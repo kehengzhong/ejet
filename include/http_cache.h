@@ -1,6 +1,30 @@
 /*
- * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2024 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
+ *
+ * #####################################################
+ * #                       _oo0oo_                     #
+ * #                      o8888888o                    #
+ * #                      88" . "88                    #
+ * #                      (| -_- |)                    #
+ * #                      0\  =  /0                    #
+ * #                    ___/`---'\___                  #
+ * #                  .' \\|     |// '.                #
+ * #                 / \\|||  :  |||// \               #
+ * #                / _||||| -:- |||||- \              #
+ * #               |   | \\\  -  /// |   |             #
+ * #               | \_|  ''\---/''  |_/ |             #
+ * #               \  .-\__  '-'  ___/-. /             #
+ * #             ___'. .'  /--.--\  `. .'___           #
+ * #          ."" '<  `.___\_<|>_/___.'  >' "" .       #
+ * #         | | :  `- \`.;`\ _ /`;.`/ -`  : | |       #
+ * #         \  \ `_.   \_ __\ /__ _/   .-` /  /       #
+ * #     =====`-.____`.___ \_____/___.-`___.-'=====    #
+ * #                       `=---='                     #
+ * #     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   #
+ * #               佛力加持      佛光普照              #
+ * #  Buddha's power blessing, Buddha's light shining  #
+ * #####################################################
  */
 
 #ifndef _HTTP_CACHE_H_
@@ -31,6 +55,8 @@ extern "C" {
 /* 96 bytes header of cache information file */
 
 typedef struct cache_info_s {
+    uint8          alloctype;//0-default kalloc/kfree 1-os-specific malloc/free 2-kmempool alloc/free 3-kmemblk alloc/free
+    void         * mpool;
 
     CRITICAL_SECTION cacheCS;
 
@@ -51,7 +77,8 @@ typedef struct cache_info_s {
        Cache-Control: no-cache */
     uint8          directive;     //0-max-age  1-no cache  2-no store
     uint8          revalidate;    //0-none  1-must-revalidate
-    uint8          pubattr;       //0-unknonw  1-public  2-private(only browser cache)
+    uint8          pubattr : 7;   //0-unknonw  1-public  2-private(only browser cache)
+    uint8          cache_control_hdr : 1;
 
     time_t         ctime;
     time_t         expire;
@@ -66,7 +93,7 @@ typedef struct cache_info_s {
     void         * httpmgmt;
 } CacheInfo;
 
-void * cache_info_alloc ();
+void * cache_info_alloc (int alloctype, void * mpool);
 void   cache_info_free (void * vcacinfo);
 
 int    cache_info_zero (void * vcacinfo);
@@ -100,6 +127,7 @@ int    http_cache_info_clean (void * vmgmt);
 void * cache_info_open   (void * vmgmt, char * cacfile);
 void * cache_info_create (void * vmgmt, char * cacfile, int64 fsize);
 void   cache_info_close  (void * vcacinfo);
+void   cache_info_remove (void * vcacinfo);
 
 
 #ifdef __cplusplus

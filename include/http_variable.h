@@ -1,6 +1,30 @@
 /*
- * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2024 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
+ *
+ * #####################################################
+ * #                       _oo0oo_                     #
+ * #                      o8888888o                    #
+ * #                      88" . "88                    #
+ * #                      (| -_- |)                    #
+ * #                      0\  =  /0                    #
+ * #                    ___/`---'\___                  #
+ * #                  .' \\|     |// '.                #
+ * #                 / \\|||  :  |||// \               #
+ * #                / _||||| -:- |||||- \              #
+ * #               |   | \\\  -  /// |   |             #
+ * #               | \_|  ''\---/''  |_/ |             #
+ * #               \  .-\__  '-'  ___/-. /             #
+ * #             ___'. .'  /--.--\  `. .'___           #
+ * #          ."" '<  `.___\_<|>_/___.'  >' "" .       #
+ * #         | | :  `- \`.;`\ _ /`;.`/ -`  : | |       #
+ * #         \  \ `_.   \_ __\ /__ _/   .-` /  /       #
+ * #     =====`-.____`.___ \_____/___.-`___.-'=====    #
+ * #                       `=---='                     #
+ * #     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   #
+ * #               佛力加持      佛光普照              #
+ * #  Buddha's power blessing, Buddha's light shining  #
+ * #####################################################
  */
 
 #ifndef _HTTP_VARIABLE_H_
@@ -15,6 +39,7 @@ extern "C" {
 #define http_var_set(var, stname, field, vtype, uns, sttype)             \
                   (var)->fieldpos = offsetof(stname, field);             \
                   (var)->fldlenpos = 0;                                  \
+                  if(vtype<=4) (var)->fieldsize = fldsizeof(stname, field); \
                   (var)->haslen = 0;                                     \
                   (var)->valtype = vtype;                                \
                   (var)->unsign = uns;                                   \
@@ -41,6 +66,7 @@ extern "C" {
                   (var)->subfldpos = offsetof(subst, subfld);            \
                   (var)->substruct= 1;                                   \
                   (var)->haslen = 0;                                     \
+                  if(vtype<=4) (var)->fieldsize = fldsizeof(subst, subfld); \
                   (var)->valtype = vtype;                                \
                   (var)->unsign = uns;                                   \
                   (var)->structtype = sttype
@@ -78,6 +104,7 @@ typedef struct http_variable_s {
 
     size_t         fieldpos;         //relative to HTTPMsg instance
     size_t         fldlenpos;        //relative to HTTPMsg instance
+    int            fieldsize;
 
     size_t         subfldpos;
     size_t         subfldlenpos;
@@ -102,18 +129,25 @@ typedef struct http_variable_s {
 int http_var_init (void * vmgmt);
 int http_var_free (void * vmgmt);
 
-int http_var_value (void * vmsg, char * vname, char * buf, int len);
+int http_var_value     (void * vmsg, char * vname, char * buf, int len);
+int http_var_value_set (void * vmsg, char * vname, char * value, int vallen);
 
 int http_var_copy (void * vmsg, char * vstr, int vlen, char * buf, int buflen,
                    ckstr_t * pmat, int matnum, char * lastvname, int lastvtype);
 
 void http_var_print (void * vmsg, char * varn, int len);
 
-int http_var_header_value (void * vmsg, int type, char * name, int namelen, char * buf, int len);
-int http_var_cookie_value (void * vmsg, char * name, int namelen, char * buf, int len);
-int http_var_query_value (void * vmsg, char * name, int namelen, char * buf, int len);
+int http_var_header_value     (void * vmsg, int type, char * name, int namelen, char * buf, int len);
+int http_var_header_value_set (void * vmsg, int type, char * name, int namelen, char * buf, int len);
 
-int http_var_datetime_value(void * vmsg, char * name, int namelen, char * buf, int len, int type);
+int http_var_cookie_value     (void * vmsg, char * name, int namelen, char * buf, int len);
+int http_var_cookie_value_set (void * vmsg, char * name, int namelen, char * buf, int len);
+
+int http_var_query_value     (void * vmsg, char * name, int namelen, char * buf, int len);
+int http_var_query_value_set (void * vmsg, char * name, int namelen, char * buf, int len);
+
+int http_var_datetime_value (void * vmsg, char * name, int namelen, char * buf, int len, int type);
+int http_var_fileattr_value (void * vmsg, char * name, int namelen, char * buf, int len, int type);
 
 
 typedef struct var_obj_s {
@@ -121,10 +155,12 @@ typedef struct var_obj_s {
     int          namelen;
     char       * value;
     int          valuelen;
-    uint8        valtype;
+    uint8        valtype   : 6;
+    uint8        alloctype : 2; //0-default kalloc/kfree 1-os-specific malloc/free 2-kmempool alloc/free 3-kmemblk alloc/free
+    void       * mpool;
 } var_obj_t;
 
-void * var_obj_alloc();
+void * var_obj_alloc(int alloctype, void * mpool);
 void   var_obj_free (void * vobj);
 
 int var_obj_cmp_name (void * a, void * b);

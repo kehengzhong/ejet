@@ -1,6 +1,30 @@
 /*
- * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2024 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
+ *
+ * #####################################################
+ * #                       _oo0oo_                     #
+ * #                      o8888888o                    #
+ * #                      88" . "88                    #
+ * #                      (| -_- |)                    #
+ * #                      0\  =  /0                    #
+ * #                    ___/`---'\___                  #
+ * #                  .' \\|     |// '.                #
+ * #                 / \\|||  :  |||// \               #
+ * #                / _||||| -:- |||||- \              #
+ * #               |   | \\\  -  /// |   |             #
+ * #               | \_|  ''\---/''  |_/ |             #
+ * #               \  .-\__  '-'  ___/-. /             #
+ * #             ___'. .'  /--.--\  `. .'___           #
+ * #          ."" '<  `.___\_<|>_/___.'  >' "" .       #
+ * #         | | :  `- \`.;`\ _ /`;.`/ -`  : | |       #
+ * #         \  \ `_.   \_ __\ /__ _/   .-` /  /       #
+ * #     =====`-.____`.___ \_____/___.-`___.-'=====    #
+ * #                       `=---='                     #
+ * #     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   #
+ * #               浣涘姏鍔犳寔      浣涘厜鏅収              #
+ * #  Buddha's power blessing, Buddha's light shining  #
+ * #####################################################
  */
 
 #ifndef _HTTP_PAGETPL_H_
@@ -13,8 +37,8 @@ extern "C" {
 typedef int PageTplCB (void * cbobj, void * vmsg, void * tplvar, void * tplunit, frame_p cfrm);
 
 /* <?ejetpl TEXT $CURROOT PARA=abcd ?>                                                  */
-/* <?ejetpl LINK $LINKNAME URL=/csc/disponlist.so SHOW=第一页 PARA=listfile?>           */
-/* <?ejetpl IMG $IMGNAME URL=/csc/drawimg.so?randval=234 SHOW=实时走势 PARA="a=1"?>     */
+/* <?ejetpl LINK $LINKNAME URL="/csc/disponlist.so" SHOW=鏄剧ず姹夊瓧 PARA=listfile?>       */
+/* <?ejetpl IMG $IMGNAME URL=/csc/drawimg.so?randval=234 SHOW=瀹炴椂璧板娍 PARA="a=1"?>     */
 /* <?ejetpl LIST $ACCESSLOG PARA=1?>                                                    */
 /* <?ejetpl INCLUDE /home/hzke/dxcang/httpdoc/foot.html ?>                        */
 
@@ -64,4 +88,3 @@ int    http_pagetpl_list_cb (void * vhl, char * hostn, int hostlen,
 #endif
 
 #endif
-
