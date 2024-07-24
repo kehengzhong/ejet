@@ -1,6 +1,30 @@
 /*
- * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2024 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
+ *
+ * #####################################################
+ * #                       _oo0oo_                     #
+ * #                      o8888888o                    #
+ * #                      88" . "88                    #
+ * #                      (| -_- |)                    #
+ * #                      0\  =  /0                    #
+ * #                    ___/`---'\___                  #
+ * #                  .' \\|     |// '.                #
+ * #                 / \\|||  :  |||// \               #
+ * #                / _||||| -:- |||||- \              #
+ * #               |   | \\\  -  /// |   |             #
+ * #               | \_|  ''\---/''  |_/ |             #
+ * #               \  .-\__  '-'  ___/-. /             #
+ * #             ___'. .'  /--.--\  `. .'___           #
+ * #          ."" '<  `.___\_<|>_/___.'  >' "" .       #
+ * #         | | :  `- \`.;`\ _ /`;.`/ -`  : | |       #
+ * #         \  \ `_.   \_ __\ /__ _/   .-` /  /       #
+ * #     =====`-.____`.___ \_____/___.-`___.-'=====    #
+ * #                       `=---='                     #
+ * #     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   #
+ * #               佛力加持      佛光普照              #
+ * #  Buddha's power blessing, Buddha's light shining  #
+ * #####################################################
  */
 
 #include "adifall.ext"
@@ -14,6 +38,7 @@
 #include "http_fcgi_io.h"
 
 
+int    http_mgmt_fcgisrv_free (void * vsrv);
 int    http_fcgisrv_init    (void * vsrv);
 int    http_fcgisrv_free    (void * vsrv);
 int    http_fcgisrv_recycle (void * vsrv);
@@ -29,7 +54,7 @@ int http_fcgisrv_cmp_cgisrv (void * a, void * b)
 
     return strcasecmp(psrv->cgisrv, cgisrv);
 }    
-
+         
 
 int http_mgmt_fcgisrv_init (void * vmgmt)
 {
@@ -80,7 +105,7 @@ int http_mgmt_fcgisrv_clean (void * vmgmt)
         num = ht_num(mgmt->fcgisrv_table);
         for (i = 0; i < num; i++) {
             srv = ht_value(mgmt->fcgisrv_table, i);
-            http_fcgisrv_free(srv);
+            http_mgmt_fcgisrv_free(srv);
         }
         ht_free(mgmt->fcgisrv_table);
         mgmt->fcgisrv_table = NULL;
@@ -106,6 +131,8 @@ int http_mgmt_fcgisrv_clean (void * vmgmt)
     tolog(1, "eJet - FastCGI module (Unix Socket/TCP) cleaned.\n");
     return 0;
 }
+
+
 
 int http_mgmt_fcgisrv_add (void * vmgmt, void * vsrv)
 {
@@ -178,19 +205,39 @@ int http_fcgisrv_init (void * vsrv)
     InitializeCriticalSection(&srv->conCS);
     srv->conid = 1;
 
-    if (!srv->con_tree) {
-        srv->con_tree = rbtree_new(http_fcgicon_cmp_conid, 1);
-    }
-    rbtree_zero(srv->con_tree);
+    rbtree_init(&srv->mem_con_tree, http_fcgicon_cmp_conid, 0/*alloc_node*/, 0, NULL, NULL);
+    srv->con_tree = &srv->mem_con_tree;
 
+    InitializeCriticalSection(&srv->timesCS);
+    srv->trytimes = 0;
+    srv->failtimes = 0;
+    srv->succtimes = 0;
+
+    srv->life_times = 0;
     if (srv->life_timer) {
-        iotimer_stop(srv->life_timer);
+        iotimer_stop(srv->pcore, srv->life_timer);
         srv->life_timer = NULL;
     }
 
     return 0;
 }
 
+
+int http_mgmt_fcgisrv_free (void * vsrv)
+{
+    FcgiSrv   * srv = (FcgiSrv *)vsrv;
+    HTTPMgmt  * mgmt = NULL;
+
+    if (!srv) return -1;
+
+    mgmt = (HTTPMgmt *)srv->mgmt;
+    if (!mgmt) return -2;
+
+    if (http_fcgisrv_free(srv) == 0)
+        mpool_recycle(mgmt->fcgisrv_pool, srv);
+
+    return 0;
+}
 
 int http_fcgisrv_free (void * vsrv)
 {
@@ -203,38 +250,50 @@ int http_fcgisrv_free (void * vsrv)
     if (!srv) return -1;
 
     if (srv->life_timer) {
-        iotimer_stop(srv->life_timer);
+        iotimer_stop(srv->pcore, srv->life_timer);
         srv->life_timer = NULL;
     }
 
     DeleteCriticalSection(&srv->conCS);
 
-    num = rbtree_num(srv->con_tree);
-    rbtn = rbtree_min_node(srv->con_tree);
+    if (srv->con_tree) {
+        num = rbtree_num(srv->con_tree);
+        rbtn = rbtree_min_node(srv->con_tree);
 
-    for (i = 0; i < num && rbtn; i++) {
-        pcon = RBTObj(rbtn);
-        rbtn = rbtnode_next(rbtn);
+        for (i = 0; i < num && rbtn; i++) {
+            pcon = RBTObj(rbtn);
+            rbtn = rbtnode_next(rbtn);
 
-        if (!pcon) continue;
-        http_fcgicon_close(pcon);
+            if (!pcon) continue;
+
+            http_mgmt_fcgicon_free(pcon);
+        }
+
+        rbtree_free(srv->con_tree);
+        srv->con_tree = NULL;
     }
-
-    rbtree_free(srv->con_tree);
 
     /* note: http_fcgicon_close should recycle the FcgiMsg instance to srv->msg_fifo */
 
-    num = ht_num(srv->msg_table);
-    for (i = 0; i < num; i++) {
-        msg = ht_value(srv->msg_table, i);
-        if (!msg) continue;
+    if (srv->msg_table) {
+        num = ht_num(srv->msg_table);
+        for (i = 0; i < num; i++) {
+            msg = ht_value(srv->msg_table, i);
+            if (!msg) continue;
 
-        http_fcgimsg_close(msg);
+            http_mgmt_fcgimsg_free(msg);
+        }
+        ht_free(srv->msg_table);
+        srv->msg_table = NULL;
     }
-    ht_free(srv->msg_table);
 
     DeleteCriticalSection(&srv->msgCS);
-    ar_fifo_free(srv->msg_fifo);
+    if (srv->msg_fifo) {
+        ar_fifo_free(srv->msg_fifo);
+        srv->msg_fifo = NULL;
+    }
+
+    DeleteCriticalSection(&srv->timesCS);
 
     return 0;
 }
@@ -254,7 +313,7 @@ int http_fcgisrv_recycle (void * vsrv)
         return http_fcgisrv_free(srv);
 
     if (srv->life_timer) {
-        iotimer_stop(srv->life_timer);
+        iotimer_stop(mgmt->pcore, srv->life_timer);
         srv->life_timer = NULL;
     }
 
@@ -264,13 +323,11 @@ int http_fcgisrv_recycle (void * vsrv)
     for (i = 0; i < num && rbtn; i++) {
         pcon = RBTObj(rbtn);
         rbtn = rbtnode_next(rbtn);
-        http_fcgicon_close(pcon);
+        http_fcgicon_close(srv, pcon->conid);
     }
 
     rbtree_zero(srv->con_tree);
  
-    /* note: http_fcgicon_close should recycle the FcgiMsg instance to srv->msg_fifo */
-
     while (ar_fifo_num(srv->msg_fifo) > 0)
         http_msg_close(ar_fifo_out(srv->msg_fifo));
     ar_fifo_zero(srv->msg_fifo);
@@ -288,10 +345,6 @@ void * http_fcgisrv_fetch (void * vmgmt)
     if (!mgmt) return NULL;
 
     srv = mpool_fetch(mgmt->fcgisrv_pool);
-    if (!srv) {
-        srv = kzalloc(sizeof(*srv));
-        http_fcgisrv_init(srv);
-    }
     if (!srv) return NULL;
 
     srv->mgmt = mgmt;
@@ -367,7 +420,7 @@ void * http_fcgisrv_open (void * vmgmt, char * cgisrv, int maxcon)
                                         mgmt->srv_check_interval * 1000,
                                         t_fcgi_srv_life,
                                         (void *)srv,
-                                        http_fcgisrv_pump, srv);
+                                        http_fcgisrv_pump, srv, 0);
 
     return srv;
 }
@@ -419,7 +472,7 @@ ulong http_fcgisrv_get_conid (void * vsrv)
 }
 
 
-void * http_fcgisrv_connect (void * vsrv)
+void * http_fcgisrv_connect (void * vsrv, ulong workerid)
 {
     FcgiSrv    * srv = (FcgiSrv *)vsrv;
     FcgiCon    * pcon = NULL;
@@ -445,12 +498,15 @@ void * http_fcgisrv_connect (void * vsrv)
  
         LeaveCriticalSection(&srv->conCS);
 
+        pcon->workerid = workerid > 0 ? workerid : 1;
+        iodev_workerid_set(pcon->pdev, pcon->workerid);
+
         return pcon;
     }
 
     LeaveCriticalSection(&srv->conCS);
  
-    return http_fcgicon_open(srv);
+    return http_fcgicon_open(srv, workerid);
 }
 
 
@@ -496,6 +552,7 @@ void * http_fcgisrv_msg_del (void * vsrv, uint16 msgid)
      
     return msg;
 }    
+
 
 int http_fcgisrv_msg_push (void * vsrv, void * vmsg)
 {
@@ -550,7 +607,7 @@ int http_fcgisrv_con_add (void * vsrv, void * vpcon)
     if (!pcon) return -2;
 
     EnterCriticalSection(&srv->conCS);
-    rbtree_insert(srv->con_tree, &pcon->conid, pcon, NULL);
+    rbtree_insert(srv->con_tree, (void *)pcon->conid, pcon, NULL);
     LeaveCriticalSection(&srv->conCS);
 
     return 0;
@@ -564,7 +621,7 @@ void * http_fcgisrv_con_get (void * vsrv, ulong conid)
     if (!srv) return NULL;
      
     EnterCriticalSection(&srv->conCS);
-    pcon = rbtree_get(srv->con_tree, &conid);
+    pcon = rbtree_get(srv->con_tree, (void *)conid);
     LeaveCriticalSection(&srv->conCS);
  
     return pcon;
@@ -578,7 +635,7 @@ void * http_fcgisrv_con_del (void * vsrv, ulong conid)
     if (!srv) return NULL;
      
     EnterCriticalSection(&srv->conCS);
-    pcon = rbtree_delete(srv->con_tree, &conid);
+    pcon = rbtree_delete(srv->con_tree, (void *)conid);
     LeaveCriticalSection(&srv->conCS);
  
     return pcon;
@@ -598,6 +655,35 @@ int http_fcgisrv_con_num (void * vsrv)
     return num;
 }
 
+int http_fcgisrv_confail_times (void * vsrv, int times)
+{
+    FcgiSrv  * srv = (FcgiSrv *)vsrv;
+
+    if (!srv) return 0;
+
+    EnterCriticalSection(&srv->timesCS);
+    srv->trytimes += times;
+    srv->failtimes += times;
+    LeaveCriticalSection(&srv->timesCS);
+
+    return 1;
+}
+
+int http_fcgisrv_consucc_times (void * vsrv, int times)
+{
+    FcgiSrv  * srv = (FcgiSrv *)vsrv;
+
+    if (!srv) return 0;
+
+    EnterCriticalSection(&srv->timesCS);
+    srv->trytimes += times;
+    srv->failtimes += times - 1;
+    srv->succtimes++;
+    LeaveCriticalSection(&srv->timesCS);
+
+    return 1;
+}
+
 
 int http_fcgisrv_lifecheck (void * vsrv)
 {
@@ -614,6 +700,16 @@ int http_fcgisrv_lifecheck (void * vsrv)
 
     mgmt = (HTTPMgmt *)srv->mgmt;
     if (!mgmt) return -2;
+
+    srv->life_times++;
+
+    if (srv->life_times * mgmt->srv_check_interval % 60 < mgmt->srv_check_interval) {
+        EnterCriticalSection(&srv->timesCS);
+        srv->trytimes = 0;
+        srv->failtimes = 0;
+        srv->succtimes = 0;
+        LeaveCriticalSection(&srv->timesCS);
+    }
 
     /* srv->stamp should be set timestamp when net-IO occurs, 
      * if Net does not connected, srv->stamp will retain the original value  */
@@ -636,7 +732,7 @@ int http_fcgisrv_lifecheck (void * vsrv)
     for (i = 0; i < num; i++) {
 
         iter = ar_fifo_value(srv->msg_fifo, i);
-        if (iter && curt - iter->createtime > 30) {
+        if (iter && curt - iter->createtime.s > 30) {
 
             if (explist == NULL)
                 explist = arr_new(4);
@@ -668,7 +764,7 @@ int http_fcgisrv_lifecheck (void * vsrv)
         }
 
         for (i = connum; i <= num && i <= srv->maxcon; i++) {
-            http_fcgisrv_connect(srv);
+            http_fcgisrv_connect(srv, 0);
         }
     }
 
@@ -676,7 +772,7 @@ int http_fcgisrv_lifecheck (void * vsrv)
                                     mgmt->srv_check_interval * 1000,
                                     t_fcgi_srv_life,
                                     (void *)srv,
-                                    http_fcgisrv_pump, srv);
+                                    http_fcgisrv_pump, srv, 0);
 
     return 0;
 }
@@ -696,7 +792,7 @@ int http_fcgisrv_pump (void * vsrv, void * vobj, int event, int fdtype)
         pcon = http_fcgisrv_con_get(srv, conid);
  
         if (pcon && pcon->pdev == vobj) {
-            return http_fcgicon_close(pcon);
+            return http_fcgicon_close(srv, conid);
         }
         break;
 
@@ -706,7 +802,7 @@ int http_fcgisrv_pump (void * vsrv, void * vobj, int event, int fdtype)
  
         if (pcon && pcon->pdev == vobj) {
             if (fdtype == FDT_CONNECTED || fdtype == FDT_USOCK_CONNECTED) {
-                return http_fcgi_recv(pcon);
+                return http_fcgi_recv(srv, conid);
  
             } else
                 return -1;
@@ -722,7 +818,7 @@ int http_fcgisrv_pump (void * vsrv, void * vobj, int event, int fdtype)
  
         if (pcon && pcon->pdev == vobj) {
             if (fdtype == FDT_CONNECTED || fdtype == FDT_USOCK_CONNECTED) {
-                return http_fcgi_send(pcon);
+                return http_fcgi_send(srv, conid);
  
             } else
                 return -1;
@@ -744,7 +840,6 @@ int http_fcgisrv_pump (void * vsrv, void * vobj, int event, int fdtype)
  
         } else {
             LeaveCriticalSection(&pcon->rcvCS);
- 
             return -20;
         }
         break;
@@ -755,12 +850,21 @@ int http_fcgisrv_pump (void * vsrv, void * vobj, int event, int fdtype)
         if (cmd == t_fcgi_srv_life) {
             return http_fcgisrv_lifecheck(srv);
 
+        } else if (cmd == t_fcgi_srv_con_build) {
+            conid = (ulong)iotimer_para(vobj);
+            pcon = http_fcgisrv_con_get(srv, conid);
+
+            if (pcon && (ulong)pcon->ready_timer == iotimer_id(vobj)) {
+                pcon->ready_timer = NULL;
+                return http_fcgicon_connect(srv, conid);
+            }
+
         } else if (cmd == t_fcgi_srv_con_life) {
             conid = (ulong)iotimer_para(vobj);
             pcon = http_fcgisrv_con_get(srv, conid);
 
-            if (pcon && pcon->life_timer == vobj) {
-                return http_fcgi_con_lifecheck(pcon);
+            if (pcon && (ulong)pcon->life_timer == iotimer_id(vobj)) {
+                return http_fcgi_con_lifecheck(srv, conid);
             }
         }
         break;

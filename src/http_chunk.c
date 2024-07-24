@@ -1,16 +1,47 @@
 /*
- * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2024 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
+ *
+ * #####################################################
+ * #                       _oo0oo_                     #
+ * #                      o8888888o                    #
+ * #                      88" . "88                    #
+ * #                      (| -_- |)                    #
+ * #                      0\  =  /0                    #
+ * #                    ___/`---'\___                  #
+ * #                  .' \\|     |// '.                #
+ * #                 / \\|||  :  |||// \               #
+ * #                / _||||| -:- |||||- \              #
+ * #               |   | \\\  -  /// |   |             #
+ * #               | \_|  ''\---/''  |_/ |             #
+ * #               \  .-\__  '-'  ___/-. /             #
+ * #             ___'. .'  /--.--\  `. .'___           #
+ * #          ."" '<  `.___\_<|>_/___.'  >' "" .       #
+ * #         | | :  `- \`.;`\ _ /`;.`/ -`  : | |       #
+ * #         \  \ `_.   \_ __\ /__ _/   .-` /  /       #
+ * #     =====`-.____`.___ \_____/___.-`___.-'=====    #
+ * #                       `=---='                     #
+ * #     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   #
+ * #               佛力加持      佛光普照              #
+ * #  Buddha's power blessing, Buddha's light shining  #
+ * #####################################################
  */
 
 #include "adifall.ext"
 #include "http_chunk.h"
 
-void * http_buf_alloc ()
+
+void * http_buf_alloc (int alloctype, void * mpool)
 {
     HTTPBuf  * pbuf = NULL;
 
-    pbuf = kzalloc(sizeof(*pbuf));
+    pbuf = k_mem_zalloc(sizeof(*pbuf), alloctype, mpool);
+    if (!pbuf) {
+        return NULL;
+    }
+
+    pbuf->alloctype = alloctype;
+    pbuf->mpool = mpool;
 
     return pbuf;
 }
@@ -22,10 +53,10 @@ void http_buf_free (void * vbuf)
     if (!pbuf) return;
 
     if (pbuf->alloc) {
-        kfree(pbuf->pbgn);
+        k_mem_free(pbuf->pbgn, pbuf->alloctype, pbuf->mpool);
     }
 
-    kfree(pbuf);
+    k_mem_free(pbuf, pbuf->alloctype, pbuf->mpool);
 }
 
 void * http_buf_dup (void * vbuf)
@@ -33,9 +64,9 @@ void * http_buf_dup (void * vbuf)
     HTTPBuf  * pbuf = (HTTPBuf *)vbuf;
     HTTPBuf  * dup = NULL;
 
-    dup = http_buf_alloc();
+    if (!pbuf) return NULL;
 
-    if (!pbuf) return dup;
+    dup = http_buf_alloc(pbuf->alloctype, pbuf->mpool);
 
     dup->pbgn = pbuf->pbgn;
     dup->len = pbuf->len;
@@ -45,15 +76,24 @@ void * http_buf_dup (void * vbuf)
 
     dup->alloc = 0;
 
+    dup->alloctype = pbuf->alloctype;
+    dup->mpool = pbuf->mpool;
+
     return dup;
 }
 
-void * http_chunk_item_alloc ()
+
+void * http_chunk_item_alloc (void * vchk)
 {
+    HTTPChunk     * chk = (HTTPChunk *)vchk;
     HTTPChunkItem * item = NULL;
 
-    item = kzalloc(sizeof(*item));
+    if (!chk) return NULL;
+
+    item = k_mem_zalloc(sizeof(*item), chk->alloctype, chk->mpool);
     if (!item) return NULL;
+
+    item->chk = chk;
 
     return item;
 }
@@ -61,10 +101,14 @@ void * http_chunk_item_alloc ()
 void http_chunk_item_free (void * vitem)
 {
     HTTPChunkItem * item = (HTTPChunkItem *)vitem;
+    HTTPChunk     * chk = NULL;
 
     if (!item) return;
 
-    kfree(item);
+    chk = (HTTPChunk *)item->chk;
+    if (!chk) return;
+
+    k_mem_free(item, chk->alloctype, chk->mpool);
 }
 
 void * http_chunk_item_dup (void * vitem)
@@ -72,9 +116,9 @@ void * http_chunk_item_dup (void * vitem)
     HTTPChunkItem * item = (HTTPChunkItem *)vitem;
     HTTPChunkItem * dup = NULL;
 
-    dup = http_chunk_item_alloc();
+    if (!item) return NULL;
 
-    if (!item) return dup;
+    dup = http_chunk_item_alloc(item->chk);
 
     dup->chksize = item->chksize;
     dup->chklen = item->chklen;
@@ -84,20 +128,26 @@ void * http_chunk_item_dup (void * vitem)
 
     dup->gotall = item->gotall;
 
+    dup->chk = item->chk;
+
     return dup;
 }
 
 
-void * http_chunk_alloc ()
+
+void * http_chunk_alloc (int alloctype, void * mpool)
 {
     HTTPChunk  * chk = NULL;
 
-    chk = kzalloc(sizeof(*chk));
+    chk = k_mem_zalloc(sizeof(*chk), alloctype, mpool);
     if (!chk) return NULL;
 
-    chk->item_list = arr_new(4);
+    chk->alloctype = alloctype;
+    chk->mpool = mpool;
 
-    chk->chunk = chunk_new(16384);
+    chk->item_list = arr_alloc(4, alloctype, mpool);
+
+    chk->chunk = chunk_alloc(16384, alloctype, mpool);
 
     return chk;
 }
@@ -148,8 +198,10 @@ void http_chunk_free (void * vchk)
 
     if (!chk) return;
 
-    if (chk->curitem)
+    if (chk->curitem) {
         http_chunk_item_free(chk->curitem);
+        chk->curitem = NULL;
+    }
 
     num = arr_num(chk->item_list);
 
@@ -164,7 +216,7 @@ void http_chunk_free (void * vchk)
 
     chunk_free(chk->chunk);
 
-    kfree(chk);
+    k_mem_free(chk, chk->alloctype, chk->mpool);
 }
  
 chunk_t * http_chunk_obj (void * vchk)
@@ -175,6 +227,7 @@ chunk_t * http_chunk_obj (void * vchk)
 
     return chk->chunk;
 }
+
 
 int http_chunk_gotall (void * vchk)
 {
@@ -192,7 +245,7 @@ void * http_chunk_dup (void * vchk)
     HTTPChunkItem * item = NULL;
     int             i, num;
 
-    dup = http_chunk_alloc();
+    dup = http_chunk_alloc(chk->alloctype, chk->mpool);
 
     if (!chk) return dup;
 
@@ -222,6 +275,8 @@ void * http_chunk_dup (void * vchk)
 
     return dup;
 }
+
+
 
 /* return value:
         < 0, error
@@ -266,7 +321,7 @@ int http_chunk_add_bufptr (void * vchk, void * vbgn, int len, int * rmlen)
             poct = pcrlf + 2;
             chksizelen = poct - pbgn;
     
-            item = chk->curitem = http_chunk_item_alloc();
+            item = chk->curitem = http_chunk_item_alloc(chk);
             if (!item) return -10;
     
             if (chkbodylen > 0)
@@ -357,7 +412,7 @@ int http_chunk_add_bufptr (void * vchk, void * vbgn, int len, int * rmlen)
 
         chk->enthdrsize = poct - pbgn;
 
-        chk->enthdr = pbuf = http_buf_alloc();
+        chk->enthdr = pbuf = http_buf_alloc(chk->alloctype, chk->mpool);
         
         pbuf->pbgn = pbgn;
         pbuf->len = poct - pbgn;
@@ -378,4 +433,5 @@ int http_chunk_add_bufptr (void * vchk, void * vbgn, int len, int * rmlen)
     /* why reached here? */
     return 1;
 }
+
 

@@ -1,28 +1,56 @@
 /*
- * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2024 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
+ *
+ * #####################################################
+ * #                       _oo0oo_                     #
+ * #                      o8888888o                    #
+ * #                      88" . "88                    #
+ * #                      (| -_- |)                    #
+ * #                      0\  =  /0                    #
+ * #                    ___/`---'\___                  #
+ * #                  .' \\|     |// '.                #
+ * #                 / \\|||  :  |||// \               #
+ * #                / _||||| -:- |||||- \              #
+ * #               |   | \\\  -  /// |   |             #
+ * #               | \_|  ''\---/''  |_/ |             #
+ * #               \  .-\__  '-'  ___/-. /             #
+ * #             ___'. .'  /--.--\  `. .'___           #
+ * #          ."" '<  `.___\_<|>_/___.'  >' "" .       #
+ * #         | | :  `- \`.;`\ _ /`;.`/ -`  : | |       #
+ * #         \  \ `_.   \_ __\ /__ _/   .-` /  /       #
+ * #     =====`-.____`.___ \_____/___.-`___.-'=====    #
+ * #                       `=---='                     #
+ * #     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   #
+ * #               佛力加持      佛光普照              #
+ * #  Buddha's power blessing, Buddha's light shining  #
+ * #####################################################
  */
 
 #include "adifall.ext"
 #include "http_msg.h"
 #include "http_mgmt.h"
 #include "http_header.h"
-#include "http_listen.h"
+#include "http_resloc.h"
 #include "http_variable.h"
+#include "http_script.h"
 #include "http_cache.h"
 
 extern HTTPMgmt * gp_httpmgmt;
 
-void * cache_info_alloc ()
+void * cache_info_alloc (int alloctype, void * mpool)
 {
     CacheInfo * cacinfo = NULL;
 
-    cacinfo = kzalloc(sizeof(*cacinfo));
+    cacinfo = k_mem_zalloc(sizeof(*cacinfo), alloctype, mpool);
     if (!cacinfo) return NULL;
+
+    cacinfo->alloctype = alloctype;
+    cacinfo->mpool = mpool;
 
     InitializeCriticalSection(&cacinfo->cacheCS);
 
-    cacinfo->frag = frag_pack_alloc();
+    cacinfo->frag = frag_pack_alloc(alloctype, mpool);
 
     return cacinfo;
 }
@@ -39,17 +67,17 @@ void cache_info_free (void * vcacinfo)
     }
 
     if (cacinfo->cache_file) {
-        kfree(cacinfo->cache_file);
+        k_mem_free(cacinfo->cache_file, cacinfo->alloctype, cacinfo->mpool);
         cacinfo->cache_file = NULL;
     }
 
     if (cacinfo->cache_tmp) {
-        kfree(cacinfo->cache_tmp);
+        k_mem_free(cacinfo->cache_tmp, cacinfo->alloctype, cacinfo->mpool);
         cacinfo->cache_tmp = NULL;
     }
  
     if (cacinfo->info_file) {
-        kfree(cacinfo->info_file);
+        k_mem_free(cacinfo->info_file, cacinfo->alloctype, cacinfo->mpool);
         cacinfo->info_file = NULL;
     }
 
@@ -65,7 +93,7 @@ void cache_info_free (void * vcacinfo)
 
     DeleteCriticalSection(&cacinfo->cacheCS);
 
-    kfree(cacinfo);
+    k_mem_free(cacinfo, cacinfo->alloctype, cacinfo->mpool);
 }
 
 int cache_info_zero (void * vcacinfo)
@@ -75,17 +103,17 @@ int cache_info_zero (void * vcacinfo)
     if (!cacinfo) return -1;
  
     if (cacinfo->cache_file) {
-        kfree(cacinfo->cache_file);
+        k_mem_free(cacinfo->cache_file, cacinfo->alloctype, cacinfo->mpool);
         cacinfo->cache_file = NULL;
     }
  
     if (cacinfo->cache_tmp) {
-        kfree(cacinfo->cache_tmp);
+        k_mem_free(cacinfo->cache_tmp, cacinfo->alloctype, cacinfo->mpool);
         cacinfo->cache_tmp = NULL;
     }
  
     if (cacinfo->info_file) {
-        kfree(cacinfo->info_file);
+        k_mem_free(cacinfo->info_file, cacinfo->alloctype, cacinfo->mpool);
         cacinfo->info_file = NULL;
     }
  
@@ -125,7 +153,8 @@ int64 cache_info_body_length (void * vcacinfo)
     return cacinfo->body_length;
 }
 
-static char * cache_info_file (char * cafile, int cafnlen)
+
+static char * cache_info_file (char * cafile, int cafnlen, int alloctype, void * mpool)
 {
     int         pathlen = 0;
     char      * fname = NULL;
@@ -134,7 +163,7 @@ static char * cache_info_file (char * cafile, int cafnlen)
     int         len = 0;
 
     if (!cafile) return NULL;
-    if (cafnlen < 0) cafnlen = strlen(cafile);
+    if (cafnlen < 0) cafnlen = str_len(cafile);
     if (cafnlen <= 0) return NULL;
  
     p = rskipTo(cafile + cafnlen - 1, cafnlen, "/\\", 2);
@@ -150,7 +179,7 @@ static char * cache_info_file (char * cafile, int cafnlen)
  
     /* path/.cacheinfo/fname.ext.cacinf, or ./.cacheinfo/fname.ext */
     len = cafnlen + 2 + 11 + 7 + 1;
-    p = kalloc(len);
+    p = k_mem_alloc(len, alloctype, mpool);
  
     if (pathlen <= 0) {
 #if defined(_WIN32) || defined(_WIN64)
@@ -163,13 +192,13 @@ static char * cache_info_file (char * cafile, int cafnlen)
     }
  
 #if defined(_WIN32) || defined(_WIN64)
-    str_secpy(p + strlen(p), len - 1 - strlen(p), ".cacheinfo\\", 11);
+    str_secpy(p + str_len(p), len - 1 - str_len(p), ".cacheinfo\\", 11);
 #else
-    str_secpy(p + strlen(p), len - 1 - strlen(p), ".cacheinfo/", 11);
+    str_secpy(p + str_len(p), len - 1 - str_len(p), ".cacheinfo/", 11);
 #endif
-    str_secpy(p + strlen(p), len - 1 - strlen(p), fname, fnlen);
+    str_secpy(p + str_len(p), len - 1 - str_len(p), fname, fnlen);
 
-    str_secpy(p + strlen(p), len - 1 - strlen(p), ".cacinf", 7);
+    str_secpy(p + str_len(p), len - 1 - str_len(p), ".cacinf", 7);
 
     return p;
 }
@@ -422,7 +451,7 @@ void * cache_info_open (void * vmgmt, char * cafile)
 
     if (!mgmt) return NULL;
 
-    if (!cafile || (cafnlen = strlen(cafile)) <= 0)
+    if (!cafile || (cafnlen = str_len(cafile)) <= 0)
         return NULL;
 
     EnterCriticalSection(&mgmt->cacinfoCS);
@@ -435,25 +464,26 @@ void * cache_info_open (void * vmgmt, char * cafile)
         return cacinfo;
     }
 
-    /* according to actual filename.ext, generate cacheinfo file: ./.cacheinfo/filename.ext.cacinf  */
+    /* according to actual filename.ext, generate cacheinfo file:
+         ./.cacheinfo/filename.ext.cacinf  */
  
-    fname = cache_info_file(cafile, cafnlen);
+    fname = cache_info_file(cafile, cafnlen, 2, mgmt->fragmem_kempool);
     if (!fname) goto nullret;
  
-    if (file_stat(fname, &st) < 0) {//Cache Info file not exist
-        kfree(fname);
+    if (file_stat(fname, &st) < 0) { //Cache Info file not exist
+        k_mem_free(fname, 2, mgmt->fragmem_kempool);
         goto nullret;
     }
  
     hinfo = native_file_open(fname, NF_READ | NF_WRITE);
     if (!hinfo) {
-        kfree(fname);
+        k_mem_free(fname, 2, mgmt->fragmem_kempool);
         goto nullret;
     }
  
-    cacinfo = cache_info_alloc();
+    cacinfo = cache_info_alloc(2, mgmt->fragmem_kempool);
     if (!cacinfo) {
-        kfree(fname);
+        k_mem_free(fname, 2, mgmt->fragmem_kempool);
         native_file_close(hinfo);
         goto nullret;
     }
@@ -468,7 +498,7 @@ void * cache_info_open (void * vmgmt, char * cafile)
     }
  
     cacinfo->cache_file = str_dup(cafile, cafnlen);
-    cacinfo->cache_tmp = kzalloc(cafnlen + 4 + 1);
+    cacinfo->cache_tmp = k_mem_zalloc(cafnlen + 4 + 1, cacinfo->alloctype, cacinfo->mpool);
     sprintf(cacinfo->cache_tmp, "%s.tmp", cafile);
  
     if (frag_pack_curlen(cacinfo->frag) > 0 &&
@@ -521,6 +551,40 @@ void cache_info_close (void * vcacinfo)
     LeaveCriticalSection(&mgmt->cacinfoCS);
 }
 
+void cache_info_remove (void * vcacinfo)
+{
+    CacheInfo * cacinfo = (CacheInfo *)vcacinfo;
+    HTTPMgmt  * mgmt = NULL;
+
+    if (!cacinfo) return;
+
+    mgmt = gp_httpmgmt;
+    if (!mgmt) mgmt = cacinfo->httpmgmt;
+    if (!mgmt) return;
+
+    EnterCriticalSection(&mgmt->cacinfoCS);
+
+    cacinfo = ht_get(mgmt->cacinfo_table, cacinfo->cache_file);
+    if (!cacinfo) {
+        LeaveCriticalSection(&mgmt->cacinfoCS);
+        return;
+    }
+
+    if (--cacinfo->count <= 0) {
+        ht_delete(mgmt->cacinfo_table, cacinfo->cache_file);
+
+        unlink(cacinfo->cache_file);
+        unlink(cacinfo->cache_tmp);
+        unlink(cacinfo->info_file);
+
+        cache_info_free(cacinfo);
+        LeaveCriticalSection(&mgmt->cacinfoCS);
+        return;
+    }
+
+    LeaveCriticalSection(&mgmt->cacinfoCS);
+}
+
 
 void * cache_info_create (void * vmgmt, char * cafile, int64 fsize)
 {
@@ -532,7 +596,7 @@ void * cache_info_create (void * vmgmt, char * cafile, int64 fsize)
 
     if (!mgmt) return NULL;
 
-    if (!cafile || (cafnlen = strlen(cafile)) <= 0)
+    if (!cafile || (cafnlen = str_len(cafile)) <= 0)
         return NULL;
 
     EnterCriticalSection(&mgmt->cacinfoCS);
@@ -550,20 +614,20 @@ void * cache_info_create (void * vmgmt, char * cafile, int64 fsize)
         return cacinfo;
     }
 
-    fname = cache_info_file(cafile, cafnlen);
+    fname = cache_info_file(cafile, cafnlen, 2, mgmt->fragmem_kempool);
     if (!fname) goto nullret;
  
     file_dir_create(fname, 1);
  
     hinfo = native_file_open(fname, NF_READ | NF_WRITE);
     if (!hinfo) {
-        kfree(fname);
+        k_mem_free(fname, 2, mgmt->fragmem_kempool);
         goto nullret;
     }
  
-    cacinfo = cache_info_alloc();
+    cacinfo = cache_info_alloc(2, mgmt->fragmem_kempool);
     if (!cacinfo) {
-        kfree(fname);
+        k_mem_free(fname, 2, mgmt->fragmem_kempool);
         native_file_close(hinfo);
         goto nullret;
     }
@@ -573,7 +637,7 @@ void * cache_info_create (void * vmgmt, char * cafile, int64 fsize)
     cacinfo->hinfo = hinfo;
 
     cacinfo->cache_file = str_dup(cafile, cafnlen);
-    cacinfo->cache_tmp = kzalloc(cafnlen + 4 + 1);
+    cacinfo->cache_tmp = k_mem_zalloc(cafnlen + 4 + 1, cacinfo->alloctype, cacinfo->mpool);
     sprintf(cacinfo->cache_tmp, "%s.tmp", cafile);
  
     if (fsize > 0) {
@@ -620,19 +684,19 @@ int http_request_cache_init (void * vmsg)
     hash = hash % 307;
  
 #if defined(_WIN32) || defined(_WIN64)
-    sprintf(path+strlen(path), "\\%lu\\", hash);
+    sprintf(path+str_len(path), "\\%lu\\", hash);
 #else
-    sprintf(path+strlen(path), "/%lu/", hash);
+    sprintf(path+str_len(path), "/%lu/", hash);
 #endif
     file_dir_create(path, 0);
  
     msg->GetReqContentTypeP(msg, &ctype, NULL);
     mime_type_get_by_mime(mgmt->mimemgmt, ctype, &extname, NULL, NULL);
  
-    sprintf(path+strlen(path), "%s-%ld%s",
+    sprintf(path+str_len(path), "%s-%ld%s",
             msg->srcip, msg->msgid, extname);
  
-    msg->req_file_name = str_dup(path, strlen(path));
+    msg->req_file_name = k_mem_str_dup(path, str_len(path), msg->alloctype, msg->kmemblk);
  
     msg->req_file_handle = native_file_open(path, NF_WRITEPLUS);
  
@@ -649,10 +713,13 @@ int http_response_cache_init (void * vmsg)
 {
     HTTPMsg        * msg = (HTTPMsg *)vmsg;
     HTTPMgmt       * mgmt = NULL;
-    HTTPLoc        * ploc = NULL;
+    uint8            cached = 0;
+    char           * root = NULL;
+    int              rootlen = 0;
     char           * cachefn = NULL;
     int              fnlen = 0;
     char             buf[2048];
+    int              buflen = 0;
     int              ret = 0;
     http_partial_t * part = NULL;
  
@@ -665,6 +732,7 @@ int http_response_cache_init (void * vmsg)
         return 0;
  
     if (msg->res_store_file) {
+        if (msg->res_file_handle) native_file_close(msg->res_file_handle);
         msg->res_file_handle = native_file_open(msg->res_store_file, NF_WRITEPLUS);
         msg->res_file_cache = 2;
  
@@ -678,26 +746,15 @@ int http_response_cache_init (void * vmsg)
         goto end;
     }
  
-    ploc = (HTTPLoc *)msg->ploc;
-    if (ploc) {
-        if (ploc->cache == 0 || str_len(ploc->cachefile) <= 0)
-            return 0;
- 
-        cachefn = ploc->cachefile;
-        fnlen = strlen(cachefn);
- 
-    } else {
-        if (mgmt->srv_resp_cache == 0 || strlen(mgmt->srv_resp_cache_file) <= 0)
-            return 0;
- 
-        cachefn = mgmt->srv_resp_cache_file;
-        fnlen = strlen(cachefn);
-    }
- 
+    ret = http_loc_cache_get(msg, &cached, &cachefn, &fnlen, &root, &rootlen);
+    if (ret < 0) return 0;
+    if (cached == 0 || !cachefn || fnlen <= 0) return 0;
+
     ret = http_var_copy(msg, cachefn, fnlen, buf, sizeof(buf)-1, NULL, 0, "cache file", 4);
     if (ret <= 0) return 0;
  
-    for (ret = 0; ret < (int)strlen(buf); ret++) {
+    buflen = str_len(buf);
+    for (ret = 0; ret < buflen; ret++) {
         if (buf[ret] == ':') { //ignore the colon in drive of path D:\prj\src\disk.txt
             if (ret > 1) buf[ret] = '_';
         } else if (buf[ret] == '?') buf[ret] = '_';
@@ -706,9 +763,22 @@ int http_response_cache_init (void * vmsg)
 #endif
     }
 
-    msg->res_file_name = str_dup(buf, strlen(buf));
+    if (msg->res_file_name) k_mem_free(msg->res_file_name, msg->alloctype, msg->kmemblk);
+
+    /* If the prefix of the cache file is different from the root path defined in the
+       configuration, the root path needs to be added to the complete cache file name. */
+
+    if (root && rootlen > 0 && str_ncmp(buf, root, rootlen) != 0) {
+        msg->res_file_name = k_mem_zalloc(buflen + rootlen + 1, msg->alloctype, msg->kmemblk);
+        memcpy(msg->res_file_name, root, rootlen);
+        memcpy(msg->res_file_name + rootlen, buf, buflen);
+    } else {
+        msg->res_file_name = k_mem_str_dup(buf, buflen, msg->alloctype, msg->kmemblk);
+    }
+
     file_dir_create(msg->res_file_name, 1);
  
+    if (msg->res_file_handle) native_file_close(msg->res_file_handle);
     msg->res_file_handle = native_file_open(msg->res_file_name, NF_WRITEPLUS);
  
     msg->res_file_cache = 1;
@@ -719,10 +789,6 @@ int http_response_cache_init (void * vmsg)
         if (part && part->start > 0)
             native_file_seek(msg->res_file_handle, part->start);
     }
- 
-    /*if (native_file_size(msg->res_file_handle) > 0) {
-        native_file_resize(msg->res_file_handle, 0);
-    }*/
  
 end:
     return msg->res_file_cache;
@@ -810,10 +876,13 @@ int http_proxy_cache_open (void * vmsg)
 {
     HTTPMsg        * msg = (HTTPMsg *)vmsg;
     HTTPMgmt       * mgmt = NULL;
-    HTTPLoc        * ploc = NULL;
+    char           * root = NULL;
+    int              rootlen = 0;
+    uint8            cached = 0;
     char           * cachefn = NULL;
     int              fnlen = 0;
-    char             buf[1024];
+    char             buf[2048];
+    int              buflen = 0;
     int              ret = 0;
     CacheInfo      * cacinfo = NULL;
     int              incache = 0;
@@ -823,25 +892,12 @@ int http_proxy_cache_open (void * vmsg)
     mgmt = (HTTPMgmt *)msg->httpmgmt;
     if (!mgmt) return -2;
  
-    ploc = (HTTPLoc *)msg->ploc;
-    if (ploc) {
-        if (ploc->cache == 0 || str_len(ploc->cachefile) <= 0) {
-            msg->cacheon = 0;
-            return 0;
-        }
- 
-        cachefn = ploc->cachefile;
-        fnlen = strlen(cachefn);
- 
-    } else {
-        if (mgmt->srv_resp_cache == 0 || strlen(mgmt->srv_resp_cache_file) <= 0) {
-            msg->cacheon = 0;
-            return 0;
-        }
- 
-        cachefn = mgmt->srv_resp_cache_file;
-        fnlen = strlen(cachefn);
+    ret = http_loc_cache_get(msg, &cached, &cachefn, &fnlen, &root, &rootlen);
+    if (ret < 0 || cached == 0 || !cachefn || fnlen <= 0) {
+        msg->cacheon = 0;
+        return 0;
     }
+
     msg->cacheon = 1;
  
     ret = http_var_copy(msg, cachefn, fnlen, buf, sizeof(buf)-1, NULL, 0, "cache file", 4);
@@ -850,7 +906,8 @@ int http_proxy_cache_open (void * vmsg)
         return 0;
     }
  
-    for (ret = 0; ret < (int)strlen(buf); ret++) {
+    buflen = str_len(buf);
+    for (ret = 0; ret < buflen; ret++) {
         if (buf[ret] == ':') { //ignore the colon in drive of path D:\prj\src\disk.txt
             if (ret > 1) buf[ret] = '_';
         } else if (buf[ret] == '?') buf[ret] = '_';
@@ -859,19 +916,54 @@ int http_proxy_cache_open (void * vmsg)
 #endif
     }
 
-    msg->res_file_name = str_dup(buf, strlen(buf));
+    if (msg->res_file_name) k_mem_free(msg->res_file_name, msg->alloctype, msg->kmemblk);
+
+    /* If the prefix of the cache file is different from the root path defined in the
+       configuration, the root path needs to be added to the complete cache file name. */
+
+    if (root && rootlen > 0 && str_ncmp(buf, root, rootlen) != 0) {
+        msg->res_file_name = k_mem_zalloc(buflen + rootlen + 1, msg->alloctype, msg->kmemblk);
+        memcpy(msg->res_file_name, root, rootlen);
+        memcpy(msg->res_file_name + rootlen, buf, buflen);
+    } else {
+        msg->res_file_name = k_mem_str_dup(buf, buflen, msg->alloctype, msg->kmemblk);
+    }
+
     if (file_is_regular(msg->res_file_name)) {
         msg->res_file_cache = 3;
         incache = 2;
     }
 
-    cacinfo = msg->res_cache_info = cache_info_open(mgmt, buf);
-    if (!cacinfo) {
+    cacinfo = msg->res_cache_info = cache_info_open(mgmt, msg->res_file_name);
+    if (!cacinfo && incache <= 0) {
         msg->res_file_cache = 0;
         return msg->res_file_cache;
     }
 
-    if (incache <= 0) {
+    if (cacinfo) {
+        msg->res_mimeid = cacinfo->mimeid;
+        mime_type_get_by_mimeid(mgmt->mimemgmt, cacinfo->mimeid, &msg->res_mime, NULL, NULL);
+        if (msg->res_mime == NULL) msg->res_mime = "application/octet-stream";
+    } else if (incache == 2) {
+        msg->res_mime = http_get_mime(mgmt, msg->res_file_name, &msg->res_mimeid);
+    }
+
+    /* execute cache_check_script for config-defined command */
+    http_cache_check_script_exec(msg);
+
+    /* the cache file may be closed by check-script */
+    if (!(cacinfo = msg->res_cache_info)) {
+        msg->res_file_cache = 0;
+        return msg->res_file_cache;
+    }
+
+    /* verify cache file if it is to be revalidated or expired */
+    if (cache_info_verify(cacinfo) <= 0) {
+        msg->res_file_cache = 0;
+        return msg->res_file_cache;
+    }
+
+    if (incache <= 0 && cacinfo) {
         /* check the client request data is in local cache completely.
            if client request contains Range header, then we should seek to given pos */
         incache = http_request_in_cache(msg);
@@ -887,20 +979,6 @@ int http_proxy_cache_open (void * vmsg)
     return msg->res_file_cache;
 }
 
-static char * str2int64 (char * pbgn, int len, int64 * pval)
-{
-    int64 val = 0;
-    int   i;
- 
-    for (i = 0; i < len && isdigit(pbgn[i]); i++) {
-        val *= 10; val += pbgn[i] - '0';
-    }
- 
-    if (pval) *pval = val;
- 
-    return pbgn + i;
-}
-
 int http_proxy_cache_parse (void * vmsg, void * vclimsg, int * resend)
 {
     HTTPMsg        * msg = (HTTPMsg *)vmsg;
@@ -912,6 +990,7 @@ int http_proxy_cache_parse (void * vmsg, void * vclimsg, int * resend)
     char           * poct = NULL;
     int              len = 0;
 
+    uint8            cactlhdr = 0;
     uint8            directive = 0;     //0-max-age  1-no cache  2-no store
     uint8            revalidate = 0;    //0-none  1-must-revalidate
     uint8            pubattr = 0;       //0-unknonw  1-public  2-private(only browser cache)
@@ -936,7 +1015,7 @@ int http_proxy_cache_parse (void * vmsg, void * vclimsg, int * resend)
 
     if (!msg->cacheon) return -100;
  
-    if (climsg->issued) return 0;
+    if (climsg->res_encoded) return 0;
 
     if (msg->res_status >= 300 || msg->res_status < 200) {
         msg->cacheon = 0;
@@ -975,6 +1054,7 @@ int http_proxy_cache_parse (void * vmsg, void * vclimsg, int * resend)
     punit = http_header_get(msg, 1, "Cache-Control", -1);
     if (punit && punit->valuelen > 0) {
         num = string_tokenize(HUValue(punit), punit->valuelen, ",", 1, (void **)plist, plen, 8);
+        cactlhdr = num > 0 ? 1 : 0;
         for (i = 0; i < num; i++) {
             pbgn = plist[i];
             pend = pbgn + plen[i];
@@ -1015,9 +1095,9 @@ int http_proxy_cache_parse (void * vmsg, void * vclimsg, int * resend)
         }
     }
  
-    if (directive > 0                   ||   /* no-cache or no-store */
-        (directive == 0 && maxage == 0) ||   /* max-age set but value is 0 */
-        revalidate)                          /* set must-revalidate directive */
+    if (directive > 0                               ||   /* no-cache or no-store */
+        (directive == 0 && maxage == 0 && cactlhdr) ||   /* max-age set but value is 0 */
+        revalidate)                                      /* set must-revalidate directive */
     {
         climsg->cacheon = 0;
         msg->cacheon = 0;
@@ -1042,9 +1122,9 @@ int http_proxy_cache_parse (void * vmsg, void * vclimsg, int * resend)
         if (strncasecmp(pbgn, "bytes", 5) == 0) {
             pbgn = skipOver(pbgn+5, pend-pbgn-5, " \t\r\n\f\v", 6);
             num = string_tokenize(pbgn, pend-pbgn, "-/ \t", 4, (void **)plist, plen, 8);
-            if (num > 0) str2int64(plist[0], plen[0], &start);
-            if (num > 1) str2int64(plist[1], plen[1], &end);
-            if (num > 2) str2int64(plist[2], plen[2], &size);
+            if (num > 0) str_atoll(plist[0], plen[0], &start);
+            if (num > 1) str_atoll(plist[1], plen[1], &end);
+            if (num > 2) str_atoll(plist[2], plen[2], &size);
             hasrange = 1;
         }
     }
@@ -1069,11 +1149,15 @@ int http_proxy_cache_parse (void * vmsg, void * vclimsg, int * resend)
     if (cacinfo->ctime == 0)
         cacinfo->ctime = time(NULL); 
     cacinfo->expire = expire;
+    cacinfo->cache_control_hdr = cactlhdr;
+
+    if (maxage <= 0 && expire > 0) maxage = expire - cacinfo->ctime;
     cacinfo->maxage = maxage;
+
     cacinfo->mtime = mtime;
     if (cacinfo->mtime == 0)
         cacinfo->mtime = time(NULL); 
-    str_secpy(cacinfo->etag, sizeof(cacinfo->etag), etag, strlen(etag));
+    str_secpy(cacinfo->etag, sizeof(cacinfo->etag), etag, str_len(etag));
 
     msg->GetResContentTypeID(msg, &cacinfo->mimeid, NULL);
 
@@ -1178,7 +1262,7 @@ int http_cache_response_header (void * vmsg, void * vcacinfo)
 #else
             sprintf(buf, "bytes %lld-%lld/%lld", start, end, cacinfo->body_length);
 #endif
-            http_header_append(climsg, 1, "Content-Range", 13, buf, strlen(buf));
+            http_header_append(climsg, 1, "Content-Range", 13, buf, str_len(buf));
  
             if (length < cacinfo->body_length) {
                 if (climsg->res_status >= 200 && climsg->res_status < 300)
@@ -1202,20 +1286,41 @@ int http_cache_response_header (void * vmsg, void * vcacinfo)
         http_header_append(climsg, 1, "Transfer-Encoding", 17, "chunked", 7);
     }
  
+    /*if (http_header_get(climsg, 1, "ETag", 4) == NULL && str_len(cacinfo->etag) > 0)
+        http_header_append(climsg, 1, "ETag", 4, cacinfo->etag, str_len(cacinfo->etag));*/
+ 
     if (cacinfo->expire > 0 && http_header_get(climsg, 1, "Expires", 7) == NULL) {
         str_time2gmt(&cacinfo->expire, buf, sizeof(buf)-1, 0);
-        http_header_append(climsg, 1, "Expires", 7, buf, strlen(buf));
+        http_header_append(climsg, 1, "Expires", 7, buf, str_len(buf));
     }
  
-    if (cacinfo->maxage > 0 && http_header_get(climsg, 1, "Cache-Control", 13) == NULL) {
-        sprintf(buf, "max-age=%d", cacinfo->maxage);
-        if (cacinfo->pubattr == 1) {
-            sprintf(buf + strlen(buf), ", public");
-        } else if (cacinfo->pubattr == 2) {
-            sprintf(buf + strlen(buf), ", private");
+    buf[0] = '\0';
+    if (cacinfo->cache_control_hdr && 
+        http_header_get(climsg, 1, "Cache-Control", 13) == NULL)
+    {
+        if (cacinfo->directive == 0) {
+            sprintf(buf, "max-age=%d", cacinfo->maxage);
+            if (cacinfo->pubattr == 1) {
+                sprintf(buf + str_len(buf), ", public");
+            } else if (cacinfo->pubattr == 2) {
+                sprintf(buf + str_len(buf), ", private");
+            }
+            if (cacinfo->revalidate) {
+                sprintf(buf + str_len(buf), ", must-revalidate");
+            }
+        } else if (cacinfo->directive == 1) {
+            sprintf(buf, "no-cache");
+        } else if (cacinfo->directive == 2) {
+            sprintf(buf, "no-store");
         }
-        http_header_append(climsg, 1, "Cache-Control", 13, buf, strlen(buf));
+        if (str_len(buf) > 0)
+            http_header_append(climsg, 1, "Cache-Control", 13, buf, str_len(buf));
     }
  
+    if (str_len(cacinfo->etag) > 0) {
+        sprintf(buf, "\"%s\"", cacinfo->etag);
+        http_header_append(climsg, 1, "ETag", 4, buf, str_len(buf));
+    }
+
     return 0;
 }

@@ -1,16 +1,40 @@
 /*
- * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2024 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
+ *
+ * #####################################################
+ * #                       _oo0oo_                     #
+ * #                      o8888888o                    #
+ * #                      88" . "88                    #
+ * #                      (| -_- |)                    #
+ * #                      0\  =  /0                    #
+ * #                    ___/`---'\___                  #
+ * #                  .' \\|     |// '.                #
+ * #                 / \\|||  :  |||// \               #
+ * #                / _||||| -:- |||||- \              #
+ * #               |   | \\\  -  /// |   |             #
+ * #               | \_|  ''\---/''  |_/ |             #
+ * #               \  .-\__  '-'  ___/-. /             #
+ * #             ___'. .'  /--.--\  `. .'___           #
+ * #          ."" '<  `.___\_<|>_/___.'  >' "" .       #
+ * #         | | :  `- \`.;`\ _ /`;.`/ -`  : | |       #
+ * #         \  \ `_.   \_ __\ /__ _/   .-` /  /       #
+ * #     =====`-.____`.___ \_____/___.-`___.-'=====    #
+ * #                       `=---='                     #
+ * #     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   #
+ * #               佛力加持      佛光普照              #
+ * #  Buddha's power blessing, Buddha's light shining  #
+ * #####################################################
  */
 
 #include "adifall.ext"
-#include <stddef.h>
 
 #include "http_mgmt.h"
 #include "http_msg.h"
 #include "http_header.h"
 #include "http_request.h"
-#include "http_listen.h"
+#include "http_resloc.h"
+#include "http_cache.h"
 #include "http_script.h"
 #include "http_variable.h"
 
@@ -44,7 +68,7 @@ int http_var_init (void * vmgmt)
 
     if (!mgmt) return -1;
 
-    mgmt->varsize = 48;
+    mgmt->varsize = 72;
 
     mgmt->variable = var = kzalloc(mgmt->varsize * sizeof(http_var_t));
 
@@ -80,7 +104,6 @@ int http_var_init (void * vmgmt)
 
     http_var_name(&var[ind], "request_path");
     http_var_set2(&var[ind], HTTPMsg, req_path, req_pathlen, 5, 0, 0);
-    //http_var_set5(&var[ind], HTTPMsg, docuri, HTTPUri, path, pathlen, 5, 0, 0);
     ind++;
 
     http_var_name(&var[ind], "query_string");
@@ -123,6 +146,14 @@ int http_var_init (void * vmgmt)
     http_var_set(&var[ind], HTTPMsg, res_status, 2, 0, 0);
     ind++;
 
+    http_var_name(&var[ind], "mime");
+    http_var_set(&var[ind], HTTPMsg, res_mime, 5, 0, 0);
+    ind++;
+
+    http_var_name(&var[ind], "mimeid");
+    http_var_set(&var[ind], HTTPMsg, res_mimeid, 2, 1, 0);
+    ind++;
+
     http_var_name(&var[ind], "document_root");
     http_var_set(&var[ind], HTTPLoc, root, 4, 0, 2);
     ind++;
@@ -139,6 +170,18 @@ int http_var_init (void * vmgmt)
     http_var_set(&var[ind], HTTPMsg, req_body_length, 3, 0, 0);
     ind++;
 
+    http_var_name(&var[ind], "msgid");
+    http_var_set(&var[ind], HTTPMsg, msgid, 3, 1, 0);
+    ind++;
+
+    http_var_name(&var[ind], "conid");
+    http_var_set(&var[ind], HTTPMsg, conid, 3, 1, 0);
+    ind++;
+
+    http_var_name(&var[ind], "proxymsgid");
+    http_var_set(&var[ind], HTTPMsg, proxymsgid, 3, 1, 0);
+    ind++;
+
     http_var_name(&var[ind], "absuri");
     http_var_set4(&var[ind], HTTPMsg, absuri, HTTPUri, uri, 6, 0, 0);
     ind++;
@@ -152,7 +195,6 @@ int http_var_init (void * vmgmt)
     ind++;
 
     http_var_name(&var[ind], "document_uri");
-    //http_var_set4(&var[ind], HTTPMsg, docuri, HTTPUri, uri, 6, 0, 0);
     http_var_set5(&var[ind], HTTPMsg, docuri, HTTPUri, path, pathlen, 5, 0, 0);
     ind++;
 
@@ -170,6 +212,30 @@ int http_var_init (void * vmgmt)
 
     http_var_name(&var[ind], "server_protocol");
     http_var_set(&var[ind], HTTPMgmt, httpver1, 4, 0, 1);
+    ind++;
+
+    http_var_name(&var[ind], "sys_status");
+    http_var_set(&var[ind], HTTPMgmt, uptimestr, 4, 0, 1);
+    ind++;
+
+    http_var_name(&var[ind], "cache_maxage");
+    http_var_set4(&var[ind], HTTPMsg, res_cache_info, CacheInfo, maxage, 2, 0, 0);
+    ind++;
+
+    http_var_name(&var[ind], "cache_revalidate");
+    http_var_set4(&var[ind], HTTPMsg, res_cache_info, CacheInfo, revalidate, 0, 1, 0);
+    ind++;
+
+    http_var_name(&var[ind], "cache_file");
+    http_var_set4(&var[ind], HTTPMsg, res_cache_info, CacheInfo, cache_file, 5, 0, 0);
+    ind++;
+
+    http_var_name(&var[ind], "cachetmp_file");
+    http_var_set4(&var[ind], HTTPMsg, res_cache_info, CacheInfo, cache_tmp, 5, 0, 0);
+    ind++;
+
+    http_var_name(&var[ind], "cacheinfo_file");
+    http_var_set4(&var[ind], HTTPMsg, res_cache_info, CacheInfo, info_file, 5, 0, 0);
     ind++;
 
     http_var_name(&var[ind], "ejet_version");
@@ -198,22 +264,41 @@ int http_var_init (void * vmgmt)
 
     http_var_name(&var[ind], "datetime");
     var[ind].valtype = 7;  //array
-    var[ind].arraytype = 5; //datetime
+    var[ind].arraytype = 5; //$datetime, $datetime[createtime], $datetime[stamp]
     ind++;
 
     http_var_name(&var[ind], "date");
     var[ind].valtype = 7;  //array 
-    var[ind].arraytype = 6; //date
+    var[ind].arraytype = 6; //$date, $date[createtime], $date[stamp]
     ind++;
 
     http_var_name(&var[ind], "time");
     var[ind].valtype = 7;  //array 
-    var[ind].arraytype = 7; //time
+    var[ind].arraytype = 7; //$time, $time[createtime], $time[stamp]
+    ind++;
+
+    http_var_name(&var[ind], "unixtime");
+    var[ind].valtype = 7;  //array 
+    var[ind].arraytype = 8; //$unixtime, $unixtime[createtime], $unixtime[stamp]
+    ind++;
+
+    http_var_name(&var[ind], "filemtime");
+    var[ind].valtype = 7;  //array 
+    var[ind].arraytype = 9; // $filemtime[filename]
+    ind++;
+
+    http_var_name(&var[ind], "filectime");
+    var[ind].valtype = 7;  //array 
+    var[ind].arraytype = 10; // $filectime[filename]
+    ind++;
+
+    http_var_name(&var[ind], "filesize");
+    var[ind].valtype = 7;  //array 
+    var[ind].arraytype = 11; // $filesize[filename]
     ind++;
 
     mgmt->varnum = ind;
 
-    //mgmt->var_table = ht_only_new(mgmt->varnum * 3, http_var_cmp_name);
     mgmt->var_table = ht_only_new(149, http_var_cmp_name);
 
     for (i = 0; i < ind; i++) {
@@ -293,10 +378,16 @@ int http_var_value (void * vmsg, char * vname, char * buf, int len)
         case 4:  //response header
             return http_var_header_value(msg, 1, plist[1], plen[1], buf, len);
 
-        case 5:  //datetime, datatime[createtime], datetime[stamp]
-        case 6:  //date, date[createtime], date[stamp]
-        case 7:  //time, time[createtime], time[stamp]
+        case 5:  //$datetime, $datatime[createtime], $datetime[stamp]
+        case 6:  //$date, $date[createtime], $date[stamp]
+        case 7:  //$time, $time[createtime], $time[stamp]
+        case 8:  //$unixtime, $unixtime[createtime], $unixtime[stamp]
             return http_var_datetime_value(msg, plist[1], plen[1], buf, len, var->arraytype);
+
+        case 9:   //$filemtime[filename]
+        case 10:  //$filectime[filename]
+        case 11:  //$filesize[filename]
+            return http_var_fileattr_value(msg, plist[1], plen[1], buf, len, var->arraytype);
         }
         return -110;
     }
@@ -304,13 +395,22 @@ int http_var_value (void * vmsg, char * vname, char * buf, int len)
     ploc = (HTTPLoc *)msg->ploc;
     if (!ploc && var->structtype == 2) return -4;
 
-    switch (var->structtype) {
-    case 0:     //HTTPMsg 
-        obj = (uint8 *)msg + var->fieldpos;
+    if (var->structtype >= 0 && var->structtype <= 2) {
+        if (var->structtype == 0)  //HTTPMsg 
+            obj = (uint8 *)msg + var->fieldpos;
+        else if (var->structtype == 1)  //HTTPMgmt 
+            obj = (uint8 *)mgmt + var->fieldpos;
+        else if (var->structtype == 2)  //HTTPLoc
+            obj = (uint8 *)ploc + var->fieldpos;
+
         if (var->substruct) {
             subobj = * (void **)obj;
-            obj = (uint8 *)subobj + var->subfldpos;
-            objlen = (uint8 *)subobj + var->subfldlenpos;
+            if (subobj != NULL) {
+                obj = (uint8 *)subobj + var->subfldpos;
+                objlen = (uint8 *)subobj + var->subfldlenpos;
+            } else {
+                obj = NULL;
+            }
         } else if (var->condcheck) {
             if (msg->msgtype == 0) {
                 obj = (uint8 *)msg + var->subfldpos;
@@ -319,35 +419,8 @@ int http_var_value (void * vmsg, char * vname, char * buf, int len)
             if (var->haslen)
                 objlen = (uint8 *)msg + var->fldlenpos;
         }
-        break;
-
-    case 1:     //HTTPMgmt
-        obj = (uint8 *)mgmt + var->fieldpos;
-        if (var->substruct) {
-            subobj = * (void **)obj;
-            obj = (uint8 *)subobj + var->subfldpos;
-            objlen = (uint8 *)subobj + var->subfldlenpos;
-        } else {
-            if (var->haslen)
-                objlen = (uint8 *)mgmt + var->fldlenpos;
-        }
-        break;
-
-    case 2:    //HTTPLoc
-        obj = (uint8 *)ploc + var->fieldpos;
-        if (var->substruct) {
-            subobj = * (void **)obj;
-            obj = (uint8 *)subobj + var->subfldpos;
-            objlen = (uint8 *)subobj + var->subfldlenpos;
-        } else {
-            if (var->haslen)
-                objlen = (uint8 *)ploc + var->fldlenpos;
-        }
-        break;
-
-    case 3:    //global variable
+    } else if (var->structtype == 3) {  //global variable
         obj = var->field;
-        break;
     }
 
     if (obj) {
@@ -429,6 +502,7 @@ int http_var_value (void * vmsg, char * vname, char * buf, int len)
 
         case 5:   //char *
             pval = *(char **) obj;
+            if (!pval) return 0;
  
             if (var->haslen)
                 flen = *(int *) objlen;
@@ -444,6 +518,7 @@ int http_var_value (void * vmsg, char * vname, char * buf, int len)
 
         case 6:   //frame_p
             frm = *(frame_p *) obj;
+            if (!frm) return 0;
 
             if (buf) {
                 str_secpy(buf, len, frame_string(frm), frameL(frm));
@@ -466,6 +541,134 @@ int http_var_value (void * vmsg, char * vname, char * buf, int len)
     return -200;
 }
 
+int http_var_value_set (void * vmsg, char * vname, char * value, int vallen)
+{
+    HTTPMsg    * msg = (HTTPMsg *)vmsg;
+    HTTPMgmt   * mgmt = NULL;
+    HTTPLoc    * ploc = NULL;
+    http_var_t * var = NULL;
+
+    char         varmain[128];
+    char       * plist[4] = {NULL};
+    int          plen[4] = {0};
+    int          ret = 0;
+
+    void       * obj = NULL;
+    void       * subobj = NULL;
+    int          objsize = 0;
+
+    int          ival = 0;
+    int64        val64 = 0;
+
+    if (!msg) return -1;
+    if (!vname || strlen(vname) <= 0) return -2;
+
+    mgmt = (HTTPMgmt *)msg->httpmgmt;
+    if (!mgmt) return -3;
+
+    /* query [ fid ] */
+    ret = string_tokenize(vname, -1, "[] \t\r\n", 6, (void **)plist, plen, 4);
+    if (ret < 0) return -4;
+
+    str_secpy(varmain, sizeof(varmain)-1, plist[0], plen[0]);
+
+    var = ht_get(mgmt->var_table, varmain);
+    if (!var) return -100;
+
+    /* if it's an array variable. eg. request_header[content-type] */
+    if (var->valtype == 7) {
+        switch (var->arraytype) {
+        case 1:  //request header
+            return http_var_header_value_set(msg, 0, plist[1], plen[1], value, vallen);
+
+        case 2:  //cookie
+            return http_var_cookie_value_set(msg, plist[1], plen[1], value, vallen);
+
+        case 3:  //query
+            return http_var_query_value_set(msg, plist[1], plen[1], value, vallen);
+
+        case 4:  //response header
+            return http_var_header_value_set(msg, 1, plist[1], plen[1], value, vallen);
+        }
+        return -110;
+    }
+
+    ploc = (HTTPLoc *)msg->ploc;
+    if (!ploc && var->structtype == 2) return -4;
+
+    objsize = var->fieldsize;
+
+    if (var->structtype >= 0 && var->structtype <= 2) {
+        if (var->structtype == 0)  //HTTPMsg 
+            obj = (uint8 *)msg + var->fieldpos;
+        else if (var->structtype == 1)  //HTTPMgmt 
+            obj = (uint8 *)mgmt + var->fieldpos;
+        else if (var->structtype == 2)  //HTTPLoc
+            obj = (uint8 *)ploc + var->fieldpos;
+
+        if (var->substruct) {
+            subobj = * (void **)obj;
+            if (subobj != NULL) {
+                obj = (uint8 *)subobj + var->subfldpos;
+            } else {
+                obj = NULL;
+            }
+        } else if (var->condcheck) {
+            if (msg->msgtype == 0) {
+                obj = (uint8 *)msg + var->subfldpos;
+            }
+        }
+    } else if (var->structtype == 3) {  //global variable
+        obj = var->field;
+    }
+
+    if (obj) {
+        switch (var->valtype) {
+        case 0:   //char
+            str_atoi(value, vallen, &ival);
+            
+            if (var->unsign) {
+                *(uint8 *)obj = ival;
+            } else {
+                *(char *)obj = ival;
+            }
+            return 1;
+
+        case 1:   //short
+            str_atoi(value, vallen, &ival);
+            if (var->unsign) {
+                *(uint16 *)obj = ival;
+            } else {
+                *(int16 *)obj = ival;
+            }
+            return 2;
+
+        case 2:   //int
+            str_atoll(value, vallen, &val64);
+            if (var->unsign) {
+                *(uint32 *) obj = (uint32)val64;
+            } else {
+                *(int *) obj = (int)val64;
+            }
+            return 4;
+
+        case 3:   //int64
+            str_atoll(value, vallen, &val64);
+            if (var->unsign) {
+                *(uint64 *)obj = val64;
+            } else {
+                *(int64 *)obj = val64;
+            }
+            return 8;
+
+        case 4:   //char []
+            return str_secpy((char *)obj, objsize, value, vallen);
+        }
+    }
+
+    return -200;
+}
+
 static int is_var_char (int c)
 {
     /*if ( (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c == '_') )
@@ -475,28 +678,28 @@ static int is_var_char (int c)
          ( c >= '0' && c <= '9') || (c == '_') )
         return 1;
 
-
     return 0;
 }
 
 int http_var_copy (void * vmsg, char * vstr, int vlen, char * buf, int buflen,
                    ckstr_t * pmat, int matnum, char * lastvname, int lasttype)
 {
-    HTTPMsg    * msg = (HTTPMsg *)vmsg;
-    HTTPLoc    * ploc = NULL;
-    HTTPHost   * host = NULL;
-    HTTPListen * hl = NULL;
-    char         vname[128];
-    int          ret, iter = 0;
-    int          i, len = 0, matind = 0;
-    int          retlen = 0;
-    void       * jobj[3];
-    int          jobjnum = 0;
-    char       * pbgn = NULL;
-    char       * pend = NULL;
-    char       * pval = NULL;
-    char       * poct = NULL;
-    char       * pvarend = NULL;
+    HTTPMsg     * msg = (HTTPMsg *)vmsg;
+    HTTPLoc     * ploc = NULL;
+    HTTPHost    * host = NULL;
+    HTTPListen  * hl = NULL;
+    HTTPConnect * hc = NULL;
+    char          vname[128];
+    int           ret, iter = 0;
+    int           i, len = 0, matind = 0;
+    int           retlen = 0;
+    void        * jobj[4];
+    int           jobjnum = 0;
+    char        * pbgn = NULL;
+    char        * pend = NULL;
+    char        * pval = NULL;
+    char        * poct = NULL;
+    char        * pvarend = NULL;
 
     if (!msg) return -1;
 
@@ -509,11 +712,13 @@ int http_var_copy (void * vmsg, char * vstr, int vlen, char * buf, int buflen,
     ploc = (HTTPLoc *)msg->ploc;
     host = (HTTPHost *)msg->phost;
     hl = (HTTPListen *)msg->hl;
+    hc = (HTTPConnect *)msg->hc;
 
     jobjnum = 0;
     if (ploc) jobj[jobjnum++] = ploc->jsonobj;
     if (host) jobj[jobjnum++] = host->jsonobj;
     if (hl)   jobj[jobjnum++] = hl->jsonobj;
+    if (hc)   jobj[jobjnum++] = hc->jsonobj;
 
     pbgn = vstr;
     pend = vstr + vlen;
@@ -630,6 +835,20 @@ int http_var_copy (void * vmsg, char * vstr, int vlen, char * buf, int buflen,
             }
 
             continue;
+
+        } else if (pend - pbgn >= 8 && strncasecmp(pbgn, "<script>", 8) == 0) {
+            ret = http_script_segment_exec(msg, pbgn, pend - pbgn, &pval, &retlen, lastvname, lasttype);
+            if (buf) {
+                if (pval && retlen > 0)
+                    iter += str_secpy(buf + iter, buflen-iter, pval, retlen);
+            } else {
+                iter += retlen;
+            }
+            if (pval) kfree(pval);
+
+            pbgn += ret;
+
+            continue;
         }
 
 docopy:
@@ -694,6 +913,20 @@ int http_var_header_value (void * vmsg, int type, char * name, int namelen, char
     return punit->valuelen;
 }
 
+int http_var_header_value_set (void * vmsg, int type, char * name, int namelen, char * buf, int len)
+{
+    HTTPMsg    * msg = (HTTPMsg *)vmsg;
+
+    if (!msg) return -1;
+    if (!buf) return -2;
+    if (len < 0) len = strlen(buf);
+    if (len < 0) return -3;
+
+    http_header_del(msg, type, name, namelen);
+
+    return http_header_append(msg, type, name, namelen, buf, len);
+}
+
 int http_var_cookie_value (void * vmsg, char * name, int namelen, char * buf, int len)
 {
     HTTPMsg    * msg = (HTTPMsg *)vmsg;
@@ -720,6 +953,21 @@ int http_var_cookie_value (void * vmsg, char * name, int namelen, char * buf, in
     return punit->valuelen;
 }
 
+int http_var_cookie_value_set (void * vmsg, char * name, int namelen, char * buf, int len)
+{
+    HTTPMsg    * msg = (HTTPMsg *)vmsg;
+ 
+    if (!msg) return -1;
+    if (!buf) return -2;
+    if (len < 0) len = strlen(buf);
+    if (len < 0) return -3;
+ 
+    http_req_delcookie(msg, name, namelen);
+
+    return http_req_addcookie(msg, name, namelen, buf, len);
+}
+
+
 int http_var_query_value (void * vmsg, char * name, int namelen, char * buf, int len)
 {
     HTTPMsg    * msg = (HTTPMsg *)vmsg;
@@ -740,16 +988,14 @@ int http_var_query_value (void * vmsg, char * name, int namelen, char * buf, int
     }
 
     if (kvpair_getP(msg->req_query_kvobj, name, namelen, 0, (void **)&pval, &vlen) <= 0) {
-        if (isdigit(*name)) {
-            str_secpy(tmpbuf, sizeof(tmpbuf)-1, name, namelen);
-            seq = strtol(tmpbuf, NULL, 10);
+        for (seq = 0; seq < namelen && isdigit(name[seq]); seq++);
+        if (seq < namelen) return -12;
 
-            if (kvpair_seq_get(msg->req_query_kvobj, seq, 0, (void **)&pval, &vlen) <= 0) {
-                return -12;
-            }
+        str_secpy(tmpbuf, sizeof(tmpbuf)-1, name, namelen);
+        seq = strtol(tmpbuf, NULL, 10);
 
-        } else {
-            return -12;
+        if (kvpair_seq_get(msg->req_query_kvobj, seq, NULL, NULL, 0, (void **)&pval, &vlen) <= 0) {
+            return -13;
         }
     }
  
@@ -761,6 +1007,42 @@ int http_var_query_value (void * vmsg, char * name, int namelen, char * buf, int
     return vlen;
 }
 
+int http_var_query_value_set (void * vmsg, char * name, int namelen, char * buf, int len)
+{
+    HTTPMsg    * msg = (HTTPMsg *)vmsg;
+    char       * key = NULL;
+    int          keylen = 0;
+    char         tmpbuf[64];
+    int          seq = 0;
+
+    if (!msg) return -1;
+    if (!name || namelen <= 0) return -2;
+    if (!buf) return -3;
+    if (len < 0) len = strlen(buf);
+    if (len < 0) return -4;
+
+    if (!msg->req_query_kvobj) return -5;
+
+    if (kvpair_getP(msg->req_query_kvobj, name, namelen, 0, NULL, NULL) <= 0) {
+        for (seq = 0; seq < namelen && isdigit(name[seq]); seq++);
+        if (seq < namelen) return -12;
+
+        str_secpy(tmpbuf, sizeof(tmpbuf)-1, name, namelen);
+        seq = strtol(tmpbuf, NULL, 10);
+
+        if (kvpair_seq_get(msg->req_query_kvobj, seq, (void **)&key, &keylen, 0, NULL, NULL) <= 0)
+            return -13;
+
+    }  else {
+        key = name; keylen = namelen;
+    }
+
+    kvpair_del(msg->req_query_kvobj, key, keylen, -1);
+
+    return kvpair_add(msg->req_query_kvobj, key, keylen, buf, len);
+}
+
+
 int http_var_datetime_value(void * vmsg, char * name, int namelen, char * buf, int len, int type)
 {
     HTTPMsg    * msg = (HTTPMsg *)vmsg;
@@ -770,12 +1052,19 @@ int http_var_datetime_value(void * vmsg, char * name, int namelen, char * buf, i
     if (!msg) return -1;
  
     if (name && namelen == 10 && strncasecmp(name, "createtime", 10) == 0)
-        curt = msg->createtime;
+        curt = msg->createtime.s;
     else if (name && namelen == 5 && strncasecmp(name, "stamp", 5) == 0)
         curt = msg->stamp;
     else
         curt = time(0);
  
+    if (type == 8) { //$unixtime, $unixtime[createtime], $unixtime[stamp]
+        if (buf && len > 10) sprintf(buf, "%lu", curt);
+
+        for (len = 0; curt > 0; len++) curt /= 10;
+        return len;
+    }
+
     st = *localtime(&curt);
 
     if (type == 6) {
@@ -806,13 +1095,65 @@ int http_var_datetime_value(void * vmsg, char * name, int namelen, char * buf, i
     return 0;
 }
 
+int http_var_fileattr_value(void * vmsg, char * name, int namelen, char * buf, int len, int type)
+{
+    HTTPMsg    * msg = (HTTPMsg *)vmsg;
+    char         fname[2048];
+    char       * lastvar = NULL;
+    int          ret = 0;
+    int          retlen = 0;
+    int64        fsize = 0;
+    time_t       mtime = 0;
+    time_t       ctime = 0;
 
-void * var_obj_alloc()
+    if (!msg) return -1;
+
+    if (!name || namelen <= 0) goto nulret;
+
+    if (type == 9) lastvar = "filemtime";
+    else if (type == 10) lastvar = "filectime";
+    else if (type == 11) lastvar = "filesize";
+    else goto nulret;
+
+    ret = http_var_copy(msg, name, namelen, fname, sizeof(fname)-1, NULL, 0, lastvar, 3);
+    if (ret <= 0) goto nulret;
+
+    if (file_attr(fname, NULL, &fsize, NULL, &mtime, &ctime) < 0) goto nulret;
+
+    if (type == 9) {
+        if (buf && len >= 10) sprintf(buf, "%lu", mtime);
+        for (retlen = 0; mtime > 0; retlen++) mtime /= 10;
+
+    } else if (type == 10) {
+        if (buf && len >= 10) sprintf(buf, "%lu", ctime);
+        for (retlen = 0; ctime > 0; retlen++) ctime /= 10;
+
+    } else if (type == 11) {
+#if defined(_WIN32) || defined(_WIN64)
+        if (buf) sprintf(buf, "%I64d", fsize);
+#else
+        if (buf) sprintf(buf, "%lld", fsize);
+#endif
+        for (retlen = 0; fsize > 0; retlen++) fsize /= 10;
+    }
+
+    return retlen;
+
+nulret:
+    sprintf(buf, "0");
+    return 1;
+}
+
+
+void * var_obj_alloc(int alloctype, void * mpool)
 {
     var_obj_t  * obj = NULL;
 
-    obj = kzalloc(sizeof(*obj));
+    obj = k_mem_zalloc(sizeof(*obj), alloctype, mpool);
     if (!obj) return NULL;
+
+    obj->alloctype = alloctype;
+    obj->mpool = mpool;
 
     return obj;
 }
@@ -823,10 +1164,10 @@ void var_obj_free (void * vobj)
 
     if (!obj) return;
 
-    if (obj->name) kfree(obj->name);
-    if (obj->value) kfree(obj->value);
+    if (obj->name) k_mem_free(obj->name, obj->alloctype, obj->mpool);
+    if (obj->value) k_mem_free(obj->value, obj->alloctype, obj->mpool);
 
-    kfree(obj);
+    k_mem_free(obj, obj->alloctype, obj->mpool);
 }
 
 int var_obj_cmp_name (void * a, void * b)

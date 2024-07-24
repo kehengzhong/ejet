@@ -1,6 +1,30 @@
 /*
- * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2024 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
+ *
+ * #####################################################
+ * #                       _oo0oo_                     #
+ * #                      o8888888o                    #
+ * #                      88" . "88                    #
+ * #                      (| -_- |)                    #
+ * #                      0\  =  /0                    #
+ * #                    ___/`---'\___                  #
+ * #                  .' \\|     |// '.                #
+ * #                 / \\|||  :  |||// \               #
+ * #                / _||||| -:- |||||- \              #
+ * #               |   | \\\  -  /// |   |             #
+ * #               | \_|  ''\---/''  |_/ |             #
+ * #               \  .-\__  '-'  ___/-. /             #
+ * #             ___'. .'  /--.--\  `. .'___           #
+ * #          ."" '<  `.___\_<|>_/___.'  >' "" .       #
+ * #         | | :  `- \`.;`\ _ /`;.`/ -`  : | |       #
+ * #         \  \ `_.   \_ __\ /__ _/   .-` /  /       #
+ * #     =====`-.____`.___ \_____/___.-`___.-'=====    #
+ * #                       `=---='                     #
+ * #     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   #
+ * #               佛力加持      佛光普照              #
+ * #  Buddha's power blessing, Buddha's light shining  #
+ * #####################################################
  */
 
 #include "adifall.ext"
@@ -11,7 +35,7 @@
 #include "http_mgmt.h"
 #include "http_srv.h"
 #include "http_con.h"
-#include "http_listen.h"
+#include "http_resloc.h"
 #include "http_status.h"
 #include "http_sndpxy.h"
 #include "http_pump.h"
@@ -26,10 +50,44 @@
 #include "http_cache.h"
 #include "http_script.h"
 
-char * g_http_version = "1.2.12";
-char * g_http_build = "eJet/1.2.12 Web Server built "__DATE__" "__TIME__" "
+#define MAKESTR(n) STR(n)
+#define STR(n) #n
+
+#ifdef PKG_VER
+char * g_http_version = MAKESTR(PKG_VER);
+char * g_http_build = "eJet/"MAKESTR(PKG_VER)" Web Server built "__DATE__" "__TIME__" "
                       "by kehengzhong@hotmail.com";
+#else
+char * g_http_version = "1.6.8";
+char * g_http_build = "eJet/1.6.8 Web Server built "__DATE__" "__TIME__" "
+                      "by kehengzhong@hotmail.com";
+#endif
 char * g_http_author = "Lao Ke <kehengzhong@hotmail.com>";
+
+char * g_buddha = ""
+"#####################################################\n"
+"#                       _oo0oo_                     #\n"
+"#  #####   #           o8888888o                    #\n"
+"#      #   #           88\" . \"88                    #\n"
+"#  #########           (| -_- |)                    #\n"
+"#  #   #               0\\  =  /0                    #\n"
+"#  #   #####         ___/`---'\\___                  #\n"
+"#                  .' \\\\|     |// '.                #\n"
+"#                 / \\\\|||  :  |||// \\               #\n"
+"#                / _||||| -:- |||||- \\              #\n"
+"#               |   | \\\\\\  -  /// |   |             #\n"
+"#               | \\_|  ''\\---/''  |_/ |             #\n"
+"#               \\  .-\\__  '-'  ___/-. /             #\n"
+"#             ___'. .'  /--.--\\  `. .'___           #\n"
+"#          .\"\" '<  `.___\\_<|>_/___.'  >' \"\" .       #\n"
+"#         | | :  `- \\`.;`\\ _ /`;.`/ -`  : | |       #\n"
+"#         \\  \\ `_.   \\_ __\\ /__ _/   .-` /  /       #\n"
+"#     =====`-.____`.___ \\_____/___.-`___.-'=====    #\n"
+"#                       `=---='                     #\n"
+"#     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   #\n"
+"#  Buddha's power blessing, Buddha's light shining  #\n"
+"#####################################################\n";
+//"#               佛力加持      佛光普照              #\n"
 
 HTTPMgmt * gp_httpmgmt = NULL;
 
@@ -44,8 +102,8 @@ int http_mgmt_get_conf (void * vmgmt)
 
     if (!mgmt) return -1;
 
-    mgmt->conn_check_interval = 3;
-    mgmt->srv_check_interval = 5;
+    mgmt->conn_check_interval = 5;
+    mgmt->srv_check_interval = 20;
 
     /* when receiving client request, configuration as following */
 
@@ -104,22 +162,22 @@ int http_mgmt_get_conf (void * vmgmt)
 
     /* when sending request to remote origin server, configuration as following */
 
-    sprintf(key, "http.send request.max header size");  keylen = strlen(key);
+    sprintf(key, "http.connect.max header size");  keylen = strlen(key);
     ret = json_mget_int(mgmt->cnfjson, key, keylen, &mgmt->srv_max_header_size);
     if (ret <= 0)
         mgmt->srv_max_header_size = 32*1024;
 
-    sprintf(key, "http.send request.connecting timeout");  keylen = strlen(key);
+    sprintf(key, "http.connect.connecting timeout");  keylen = strlen(key);
     ret = json_mget_int(mgmt->cnfjson, key, keylen, &mgmt->srv_connecting_time);
     if (ret <= 0)
         mgmt->srv_connecting_time = 8;
 
-    sprintf(key, "http.send request.keepalive timeout");  keylen = strlen(key);
+    sprintf(key, "http.connect.keepalive timeout");  keylen = strlen(key);
     ret = json_mget_int(mgmt->cnfjson, key, keylen, &mgmt->srv_keepalive_time);
     if (ret <= 0)
         mgmt->srv_keepalive_time = 10;
 
-    sprintf(key, "http.send request.connection idle timeout");  keylen = strlen(key);
+    sprintf(key, "http.connect.connection idle timeout");  keylen = strlen(key);
     ret = json_mget_int(mgmt->cnfjson, key, keylen, &mgmt->srv_conn_idle_time);
     if (ret <= 0)
         mgmt->srv_conn_idle_time = 180;
@@ -127,39 +185,6 @@ int http_mgmt_get_conf (void * vmgmt)
     /* When seinding request to origin server by HTTPS/SSL connection, current web server
        will served as SSL client. if strict client authentication is required by SSL peer,
        the certificate, private key and CA verifying chain certificates will be provided. */
-
-    sprintf(key, "http.send request.ssl certificate");  keylen = strlen(key);
-    ret = json_mgetP(mgmt->cnfjson, key, keylen, (void **)&mgmt->srv_con_cert, NULL);
-    if (ret <= 0)
-        mgmt->srv_con_cert = NULL;
-
-    sprintf(key, "http.send request.ssl private key");  keylen = strlen(key);
-    ret = json_mgetP(mgmt->cnfjson, key, keylen, (void **)&mgmt->srv_con_prikey, NULL);
-    if (ret <= 0)
-        mgmt->srv_con_prikey = NULL;
-
-    sprintf(key, "http.send request.ssl ca certificate");  keylen = strlen(key);
-    ret = json_mgetP(mgmt->cnfjson, key, keylen, (void **)&mgmt->srv_con_cacert, NULL);
-    if (ret <= 0)
-        mgmt->srv_con_cacert = NULL;
-
-    sprintf(key, "http.send request.root");  keylen = strlen(key);
-    ret = json_mgetP(mgmt->cnfjson, key, keylen, (void **)&mgmt->srv_resp_root, NULL);
-    if (ret <= 0)
-        mgmt->srv_resp_root = NULL;
-
-    sprintf(key, "http.send request.cache");  keylen = strlen(key);
-    ret = json_mgetP(mgmt->cnfjson, key, keylen, (void **)&pstr, NULL);
-    if (ret <= 0 || !pstr) mgmt->srv_resp_cache = 0;
-    if (pstr && strcasecmp(pstr, "on") == 0)
-        mgmt->srv_resp_cache = 1;
-    else
-        mgmt->srv_resp_cache = 0;
-
-    sprintf(key, "http.send request.cache file");  keylen = strlen(key);
-    ret = json_mgetP(mgmt->cnfjson, key, keylen, (void **)&mgmt->srv_resp_cache_file, NULL);
-    if (ret <= 0)
-        mgmt->srv_resp_cache_file = NULL;
 
     /* proxy configuration */
 
@@ -233,6 +258,9 @@ void * http_mgmt_alloc (void * pcore, char * confname, int extsize, int msgextsi
     tolog(0, "\n");
     tolog(1, "eJet - HTTP module allocated.\n");
 
+    mgmt->startup_time = time(NULL);
+    sprintf(mgmt->uptimestr, "%lu.sysinfo", mgmt->startup_time);
+
     strcpy(mgmt->httpver0, "HTTP/1.0");
     strcpy(mgmt->httpver1, "HTTP/1.1");
     mgmt->header_num = 71;
@@ -260,14 +288,6 @@ void * http_mgmt_alloc (void * pcore, char * confname, int extsize, int msgextsi
 
     mgmt->mimemgmt_alloc = 0;
 
-    GetRandStr(mgmt->uploadso, 18, 0);
-    GetRandStr(mgmt->shellcmdso, 20, 0);
-    GetRandStr(mgmt->uploadvar, 10, 0);
-    GetRandStr(mgmt->shellcmdvar, 8, 0);
-
-    strcat((char *)mgmt->uploadso, ".so");
-    strcat((char *)mgmt->shellcmdso, ".so");
-
     mgmt->msgextsize = msgextsize;
     mgmt->pcore = pcore;
 
@@ -294,45 +314,70 @@ int http_mgmt_init (void * vmgmt)
 
     mgmt->conid = 1;
     InitializeCriticalSection(&mgmt->conCS);
-    mgmt->con_table = ht_only_new(800, http_con_cmp_conid);
+    mgmt->con_table = ht_only_new(30000, http_con_cmp_conid);
     ht_set_hash_func(mgmt->con_table, http_con_hash_func);
+
+    InitializeCriticalSection(&mgmt->acceptconCS);
+    mgmt->accept_con_num = 0;
+
+    InitializeCriticalSection(&mgmt->issuedconCS);
+    mgmt->issued_con_num = 0;
 
     mgmt->msgid = 0;
     InitializeCriticalSection(&mgmt->msgidCS);
     InitializeCriticalSection(&mgmt->msgtableCS);
-    mgmt->msg_table = ht_only_new(600, http_msg_cmp_msgid);
+    mgmt->msg_table = ht_only_new(30000, http_msg_cmp_msgid);
     ht_set_hash_func(mgmt->msg_table, http_msg_hash_msgid);
 
+    if (!mgmt->msg_kmem_pool) {
+        mgmt->msg_kmem_pool = kempool_alloc(4096*1024, 16384);
+    }
+
+    if (!mgmt->msgmem_pool) {
+        mgmt->msgmem_pool = mpool_alloc(NULL, 0);
+        mpool_set_unitsize(mgmt->msgmem_pool, 8192);
+        mpool_set_allocnum(mgmt->msgmem_pool, 1024);
+    }
+
+    if (!mgmt->con_kmem_pool) {
+        mgmt->con_kmem_pool = kempool_alloc(8192*1024, 16384);
+    }
+
     if (!mgmt->con_pool) { 
-        mgmt->con_pool = bpool_init(NULL);
-        bpool_set_initfunc (mgmt->con_pool, http_con_init);
-        bpool_set_freefunc (mgmt->con_pool, http_con_free);
-        bpool_set_unitsize(mgmt->con_pool, sizeof(HTTPCon));
-        bpool_set_allocnum(mgmt->con_pool, 64);
-    } 
+        mgmt->con_pool = mpool_osalloc();
+        mpool_set_allocnum(mgmt->con_pool, 1024);
+        mpool_set_unitsize(mgmt->con_pool, sizeof(HTTPCon));
+        mpool_set_initfunc (mgmt->con_pool, http_con_init);
+        mpool_set_freefunc (mgmt->con_pool, http_con_free);
+    }
 
     if (!mgmt->msg_pool) {
-        mgmt->msg_pool = bpool_init(NULL);
-        bpool_set_freefunc(mgmt->msg_pool, http_msg_free);
-        bpool_set_unitsize(mgmt->msg_pool, sizeof(HTTPMsg) - 1 + mgmt->msgextsize);
-        bpool_set_allocnum(mgmt->msg_pool, 128);
+        mgmt->msg_pool = mpool_osalloc();
+        mpool_set_freefunc(mgmt->msg_pool, http_msg_free);
+        mpool_set_unitsize(mgmt->msg_pool, sizeof(HTTPMsg) - 1 + mgmt->msgextsize);
+        mpool_set_allocnum(mgmt->msg_pool, 1024);
     }
 
     if (!mgmt->header_unit_pool) {
-        mgmt->header_unit_pool = bpool_init(NULL);
-        bpool_set_freefunc(mgmt->header_unit_pool, hunit_free);
-        bpool_set_unitsize(mgmt->header_unit_pool, sizeof(HeaderUnit));
-        bpool_set_allocnum(mgmt->header_unit_pool, 256);
+        mgmt->header_unit_pool = mpool_osalloc();
+        mpool_set_initfunc(mgmt->header_unit_pool, hunit_init);
+        mpool_set_freefunc(mgmt->header_unit_pool, hunit_free);
+        mpool_set_unitsize(mgmt->header_unit_pool, sizeof(HeaderUnit));
+        mpool_set_allocnum(mgmt->header_unit_pool, 8192);
     }
 
     if (!mgmt->frame_pool) {
-        mgmt->frame_pool = bpool_init(NULL);
-        bpool_set_initfunc(mgmt->frame_pool, frame_empty);
-        bpool_set_freefunc(mgmt->frame_pool, frame_free);
-        bpool_set_unitsize(mgmt->frame_pool, sizeof(frame_t));
-        bpool_set_allocnum(mgmt->frame_pool, 64);
-        //bpool_set_getsizefunc(mgmt->frame_pool, frame_size);
-        //bpool_set_freesize(mgmt->frame_pool, 32*1024);
+        mgmt->frame_pool = mpool_alloc(NULL, 0);
+        mpool_set_initfunc(mgmt->frame_pool, frame_empty);
+        mpool_set_freefunc(mgmt->frame_pool, frame_free_inner);
+        mpool_set_unitsize(mgmt->frame_pool, sizeof(frame_t));
+        mpool_set_allocnum(mgmt->frame_pool, 128);
+        mpool_set_usizefunc(mgmt->frame_pool, frame_size);
+        mpool_set_freesize(mgmt->frame_pool, 32*1024);
+    }
+
+    if (!mgmt->fragmem_kempool) {
+        mgmt->fragmem_kempool = kempool_alloc(256*1024, 0);
     }
 
     if (!mgmt->mimemgmt) {
@@ -341,6 +386,8 @@ int http_mgmt_init (void * vmgmt)
     }
     http_conf_mime_init(mgmt);
 
+    http_connect_init(mgmt);
+
     http_cache_info_init(mgmt);
 
     http_var_init(mgmt);
@@ -348,17 +395,18 @@ int http_mgmt_init (void * vmgmt)
     http_status_init(mgmt);
     http_mgmt_srv_init(mgmt);
 
-    if (mgmt->srv_sslctx == NULL) {
-#ifdef HAVE_OPENSSL
-        mgmt->srv_sslctx = http_ssl_client_ctx_init(mgmt->srv_con_cert,
-                                   mgmt->srv_con_prikey, mgmt->srv_con_cacert);
-#endif
-    }
-
     InitializeCriticalSection(&mgmt->countCS);
     gettimeofday(&mgmt->count_tick, NULL);
     mgmt->total_recv = 0;
     mgmt->total_sent = 0;
+
+    mgmt->countind = 0;
+    mgmt->count_time[mgmt->countind] = btime(0);
+
+    mgmt->count_timer = iotimer_start(mgmt->pcore, COUNT_INTERVAL * 1000,
+                                      t_http_count, (void *)NULL,
+                                      http_pump, mgmt, 0);
+
 
     if (mgmt->objinit) 
         (*mgmt->objinit)(mgmt, &mgmt->extdata[0], mgmt->hobjconf);
@@ -384,17 +432,6 @@ int http_mgmt_cleanup (void * vmgmt)
 
     tolog(0, "\n");
 
-    script_parser_clean();
-
-    http_var_free(mgmt);
-
-    if (mgmt->srv_sslctx) {
-#ifdef HAVE_OPENSSL
-        http_ssl_ctx_free(mgmt->srv_sslctx);
-#endif
-        mgmt->srv_sslctx = NULL;
-    }
-
     http_listen_cleanup(mgmt);
 
     if (mgmt->mimemgmt && mgmt->mimemgmt_alloc) {
@@ -406,9 +443,12 @@ int http_mgmt_cleanup (void * vmgmt)
 
     DeleteCriticalSection(&mgmt->conCS);
     if (mgmt->con_table) {
-        ht_free_all(mgmt->con_table, http_con_free);
+        ht_free_all(mgmt->con_table, http_mgmt_con_free);
         mgmt->con_table = NULL;
     }
+
+    DeleteCriticalSection(&mgmt->acceptconCS);
+    DeleteCriticalSection(&mgmt->issuedconCS);
 
     cookie_mgmt_free(mgmt->cookiemgmt);
 
@@ -419,28 +459,59 @@ int http_mgmt_cleanup (void * vmgmt)
     DeleteCriticalSection(&mgmt->msgidCS);
 
     DeleteCriticalSection(&mgmt->msgtableCS);
-    ht_free_all(mgmt->msg_table, http_msg_free);
+    ht_free_all(mgmt->msg_table, http_mgmt_msg_free);
 
     http_mgmt_fcgisrv_clean(mgmt);
 
+    script_parser_clean();
+
+    http_var_free(mgmt);
+
+    http_connect_cleanup(mgmt);
+
     if (mgmt->con_pool) {
-        bpool_clean(mgmt->con_pool);
+        mpool_free(mgmt->con_pool);
         mgmt->con_pool = NULL;
     }
 
     if (mgmt->msg_pool) {
-        bpool_clean(mgmt->msg_pool);
+        mpool_free(mgmt->msg_pool);
         mgmt->msg_pool = NULL;
     }
 
     if (mgmt->header_unit_pool) {
-        bpool_clean(mgmt->header_unit_pool);
+        mpool_free(mgmt->header_unit_pool);
         mgmt->header_unit_pool = NULL;
     }
 
     if (mgmt->frame_pool) {
-        bpool_clean(mgmt->frame_pool);
+        mpool_free(mgmt->frame_pool);
         mgmt->frame_pool = NULL;
+    }
+
+    if (mgmt->msgmem_pool) {
+        mpool_free(mgmt->msgmem_pool);
+        mgmt->msgmem_pool = NULL;
+    }
+
+    if (mgmt->msg_kmem_pool) {
+        kempool_free(mgmt->msg_kmem_pool);
+	mgmt->msg_kmem_pool = NULL;
+    }
+
+    if (mgmt->conmem_pool) {
+        mpool_free(mgmt->conmem_pool);
+        mgmt->conmem_pool = NULL;
+    }
+
+    if (mgmt->con_kmem_pool) {
+        kempool_free(mgmt->con_kmem_pool);
+        mgmt->con_kmem_pool = NULL;
+    }
+
+    if (mgmt->fragmem_kempool) {
+        kempool_free(mgmt->fragmem_kempool);
+	mgmt->fragmem_kempool = NULL;
     }
 
     /* application-layer resource release now */
@@ -461,6 +532,7 @@ int http_mgmt_cleanup (void * vmgmt)
         mgmt->cnfjson = NULL;
     }
 
+    iotimer_stop(mgmt->pcore, mgmt->count_timer);
     DeleteCriticalSection(&mgmt->countCS);
 
     gp_httpmgmt = NULL;
@@ -564,6 +636,7 @@ void http_overhead_sent (void * vmgmt, long sent)
  
     EnterCriticalSection(&mgmt->countCS);
     mgmt->total_sent += sent;
+    mgmt->sent_byte[mgmt->countind % CNTNUM] += sent;
     LeaveCriticalSection(&mgmt->countCS);
 }
  
@@ -575,9 +648,62 @@ void http_overhead_recv (void * vmgmt, long recv)
  
     EnterCriticalSection(&mgmt->countCS);
     mgmt->total_recv += recv;
+    mgmt->recv_byte[mgmt->countind % CNTNUM] += recv;
     LeaveCriticalSection(&mgmt->countCS);
 }
  
+void http_connection_accepted (void * vmgmt, int num)
+{
+    HTTPMgmt * mgmt = (HTTPMgmt *)vmgmt;
+ 
+    if (!mgmt) return;
+ 
+    EnterCriticalSection(&mgmt->countCS);
+    mgmt->accept_con[mgmt->countind % CNTNUM] += num;
+    LeaveCriticalSection(&mgmt->countCS);
+}
+
+void http_connection_issued (void * vmgmt, int num)
+{
+    HTTPMgmt * mgmt = (HTTPMgmt *)vmgmt;
+ 
+    if (!mgmt) return;
+
+    EnterCriticalSection(&mgmt->countCS);
+    mgmt->issued_con[mgmt->countind % CNTNUM] += num;
+    LeaveCriticalSection(&mgmt->countCS);
+}   
+
+void http_count_timeout (void * vmgmt)
+{
+    HTTPMgmt * mgmt = (HTTPMgmt *)vmgmt;
+    int        ind = 0;
+ 
+    if (!mgmt) return;
+
+    EnterCriticalSection(&mgmt->countCS);
+
+    ind = mgmt->countind % CNTNUM;
+    mgmt->count_interval[ind] = btime(0) - mgmt->count_time[ind];
+
+    mgmt->countind++;
+    ind = mgmt->countind % CNTNUM;
+    mgmt->count_time[ind] = btime(0);
+ 
+    mgmt->sent_byte[ind] = 0;
+    mgmt->recv_byte[ind] = 0;
+
+    mgmt->accept_con[ind] = mgmt->accept_con_num;
+    mgmt->issued_con[ind] = mgmt->issued_con_num;
+
+    LeaveCriticalSection(&mgmt->countCS);
+
+    mgmt->count_timer = iotimer_start(mgmt->pcore, COUNT_INTERVAL * 1000,
+                                      t_http_count, (void *)NULL,
+                                      http_pump, mgmt, 0);
+}
+
+
 int http_set_reqhandler (void * vmgmt, HTTPCBHandler * reqhandler, void * cbobj)
 {
     HTTPMgmt * mgmt = (HTTPMgmt *)vmgmt;
@@ -624,7 +750,7 @@ int http_mgmt_con_add (void * vmgmt, void * vcon)
     if (!pcon) return -2;
 
     EnterCriticalSection(&mgmt->conCS);
-    ht_set(mgmt->con_table, &pcon->conid, pcon);
+    ht_set(mgmt->con_table, (void *)pcon->conid, pcon);
     LeaveCriticalSection(&mgmt->conCS);
 
     return 0;
@@ -638,7 +764,7 @@ void * http_mgmt_con_get (void * vmgmt, ulong conid)
     if (!mgmt) return NULL;
 
     EnterCriticalSection(&mgmt->conCS);
-    pcon = ht_get(mgmt->con_table, &conid);
+    pcon = ht_get(mgmt->con_table, (void *)conid);
     LeaveCriticalSection(&mgmt->conCS);
 
     return pcon;
@@ -652,7 +778,7 @@ void * http_mgmt_con_del (void * vmgmt, ulong conid)
     if (!mgmt) return NULL;
 
     EnterCriticalSection(&mgmt->conCS);
-    pcon = ht_delete(mgmt->con_table, &conid);
+    pcon = ht_delete(mgmt->con_table, (void *)conid);
     LeaveCriticalSection(&mgmt->conCS);
 
     return pcon;
@@ -673,6 +799,67 @@ int http_mgmt_con_num (void * vmgmt)
 }
 
 
+int http_mgmt_acceptcon_add (void * vmgmt, void * vcon)
+{
+    HTTPMgmt * mgmt = (HTTPMgmt *)vmgmt;
+    HTTPCon  * pcon = (HTTPCon *)vcon;
+
+    if (!mgmt) return -1;
+    if (!pcon) return -2;
+
+    EnterCriticalSection(&mgmt->acceptconCS);
+    mgmt->accept_con_num++;
+    LeaveCriticalSection(&mgmt->acceptconCS);
+
+    return 0;
+}
+
+void * http_mgmt_acceptcon_del (void * vmgmt, ulong conid)
+{
+    HTTPMgmt * mgmt = (HTTPMgmt *)vmgmt;
+    HTTPCon  * pcon = NULL;
+
+    if (!mgmt) return NULL;
+
+    EnterCriticalSection(&mgmt->acceptconCS);
+    if (mgmt->accept_con_num > 0)
+        mgmt->accept_con_num--;
+    LeaveCriticalSection(&mgmt->acceptconCS);
+
+    return pcon;
+}
+
+int http_mgmt_issuedcon_add (void * vmgmt, void * vcon)
+{
+    HTTPMgmt * mgmt = (HTTPMgmt *)vmgmt;
+    HTTPCon  * pcon = (HTTPCon *)vcon;
+
+    if (!mgmt) return -1;
+    if (!pcon) return -2;
+
+    EnterCriticalSection(&mgmt->issuedconCS);
+    mgmt->issued_con_num++;
+    LeaveCriticalSection(&mgmt->issuedconCS);
+
+    return 0;
+}
+
+void * http_mgmt_issuedcon_del (void * vmgmt, ulong conid)
+{
+    HTTPMgmt * mgmt = (HTTPMgmt *)vmgmt;
+    HTTPCon  * pcon = NULL;
+
+    if (!mgmt) return NULL;
+
+    EnterCriticalSection(&mgmt->issuedconCS);
+    if (mgmt->issued_con_num > 0)
+        mgmt->issued_con_num--;
+    LeaveCriticalSection(&mgmt->issuedconCS);
+
+    return pcon;
+}
+
+
 void * http_msg_fetch (void * vmgmt)
 {
     HTTPMgmt         * mgmt = (HTTPMgmt *)vmgmt;
@@ -680,7 +867,7 @@ void * http_msg_fetch (void * vmgmt)
 
     if (!mgmt) return NULL;
    
-    msg = bpool_fetch(mgmt->msg_pool);
+    msg = mpool_fetch(mgmt->msg_pool);
     if (!msg) return NULL;
 
     EnterCriticalSection(&mgmt->msgidCS);
@@ -695,6 +882,8 @@ void * http_msg_fetch (void * vmgmt)
     http_msg_init_method(msg);
 
     http_msg_mgmt_add(mgmt, msg);
+
+    msg->hc = mgmt->connectcfg;
 
     return msg;
 }
@@ -843,6 +1032,350 @@ int http_conf_mime_clean (void * vmgmt)
     }
     
     tolog(1, "eJet - MIME type resource freed.\n");
+    return 0;
+}
+
+extern void * g_kmempool;
+
+int http_print (void * vmgmt, frame_p frm, FILE * fp)
+{
+    HTTPMgmt   * mgmt = (HTTPMgmt *)vmgmt;
+    CookieMgmt * cookiemgmt = NULL;
+    HTTPLog    * plog = NULL;
+    HTTPListen * hl = NULL;
+    rbtnode_t  * rbtn = NULL;
+    HTTPSrv    * srv = NULL;
+    char         buf[512];
+    int          i, num, ind;
+    double       dv;
+    long         memsize = 0;
+    FILE       * fpexe = NULL;
+
+    if (!mgmt) return -1;
+
+    memsize += kempool_size(g_kmempool);
+    memsize += mpool_size(mgmt->con_pool);
+    memsize += mpool_size(mgmt->msg_pool);
+    memsize += mpool_size(mgmt->header_unit_pool);
+    memsize += mpool_size(mgmt->msgmem_pool);
+    memsize += mpool_size(mgmt->srv_pool);
+    memsize += mpool_size(mgmt->fcgisrv_pool);
+    memsize += mpool_size(mgmt->fcgicon_pool);
+    memsize += mpool_size(mgmt->fcgimsg_pool);
+    memsize += mpool_size(mgmt->conmem_pool);
+    memsize += kempool_size(mgmt->msg_kmem_pool);
+    memsize += kempool_size(mgmt->con_kmem_pool);
+    memsize += kempool_size(mgmt->fragmem_kempool);
+
+    cookiemgmt = mgmt->cookiemgmt;
+    plog = mgmt->httplog;
+
+    str_datetime(NULL, buf, sizeof(buf)-1, 0);
+    if (frm) {
+        frame_appendf(frm, "CurrentTime: %s\n", buf);
+
+        str_datetime(&mgmt->startup_time, buf, sizeof(buf)-1, 0);
+        num = arr_num(mgmt->listen_list);
+        frame_appendf(frm, "\nHTTPModule: %s started, uptime: %ld, HTTPListen: %d\n", buf, time(0)-mgmt->startup_time, num);
+
+        for (i = 0; i < num; i++) {
+            hl = arr_value(mgmt->listen_list, i);
+            if (!hl) continue;
+            frame_appendf(frm, "  Listen Port:%d LocalIP:%s SSL:%d ForwardProxy:%d\n",
+                          hl->port, hl->localip, hl->ssl_link, hl->forwardproxy);
+        }
+        frame_appendf(frm, "  Variables: %d\n", ht_num(mgmt->var_table));
+        frame_appendf(frm, "  HTTPCon: %d ConID: %lu  AcceptCon: %lu  IssuedCon: %lu\n",
+                      ht_num(mgmt->con_table), mgmt->conid, mgmt->accept_con_num, mgmt->issued_con_num);
+        frame_appendf(frm, "  HTTPMsg: %d MsgID: %lu\n", ht_num(mgmt->msg_table), mgmt->msgid);
+        frame_appendf(frm, "  FcgiSrv: %d\n", ht_num(mgmt->fcgisrv_table));
+        frame_appendf(frm, "  CacInfo: %d\n", ht_num(mgmt->cacinfo_table));
+        frame_appendf(frm, "  Cookies: %d Domains: %d\n", arr_num(cookiemgmt->cookie_list), ht_num(cookiemgmt->domain_table));
+        frame_appendf(frm, "  Status : %d\n", ht_num(mgmt->status_table));
+        frame_appendf(frm, "  SndProxy: %d\n", arr_num(mgmt->sndpxy_list));
+
+        mpool_print(mgmt->con_pool, "ConPool", 2, frm, NULL);
+        mpool_print(mgmt->msg_pool, "MsgPool", 2, frm, NULL);
+        mpool_print(mgmt->header_unit_pool, "HdrPool", 2, frm, NULL);
+        mpool_print(mgmt->srv_pool, "SrvPool", 2, frm, NULL);
+        mpool_print(mgmt->frame_pool, "FrmPool", 2, frm, NULL);
+        mpool_print(mgmt->fcgisrv_pool, "FcgiSrvPool", 2, frm, NULL);
+        mpool_print(mgmt->fcgicon_pool, "FcgiConPool", 2, frm, NULL);
+        mpool_print(mgmt->fcgimsg_pool, "FcgiMsgPool", 2, frm, NULL);
+        mpool_print(mgmt->msgmem_pool, "MsgMemPool", 2, frm, NULL);
+        mpool_print(mgmt->conmem_pool, "ConMemPool", 2, frm, NULL);
+
+
+        if (g_kmempool) {
+            KemPool * memp = (KemPool *)g_kmempool;
+            mpool_print(memp->kemunit_pool, "KUnitPool", 2, frm, NULL);
+        }
+
+        kempool_print(mgmt->msg_kmem_pool, frm, NULL, 0, 0, 0, "MsgKemPool", 2);
+        if (mgmt->msg_kmem_pool) {
+            KemPool * memp = (KemPool *)mgmt->msg_kmem_pool;
+            mpool_print(memp->kemunit_pool, "KUnitPool", 6, frm, NULL);
+        }
+
+        kempool_print(mgmt->con_kmem_pool, frm, NULL, 0, 0, 0, "ConKemPool", 2);
+        if (mgmt->con_kmem_pool) {
+            KemPool * memp = (KemPool *)mgmt->con_kmem_pool;
+            mpool_print(memp->kemunit_pool, "KUnitPool", 6, frm, NULL);
+        }
+
+        kempool_print(mgmt->fragmem_kempool, frm, NULL, 0, 0, 0, "FragKemPool", 2);
+        if (mgmt->fragmem_kempool) {
+            KemPool * memp = (KemPool *)mgmt->fragmem_kempool;
+            mpool_print(memp->kemunit_pool, "KUnitPool", 6, frm, NULL);
+        }
+
+        frame_appendf(frm, "  HTTPLog info: not-write-num=%d  refifo=%d "
+                           "accumulated-lognum=%llu\n",
+                      ar_fifo_num(plog->wlog_fifo),
+                      ar_fifo_num(plog->logrec_fifo),
+                      plog->wlog_num);
+        plog = mgmt->httplog;
+        if (plog && plog->logrec_fifo) {
+            num = ar_fifo_num(plog->logrec_fifo);
+            for (i = 0; i < num; i++) {
+                frame_appendf(frm, "  %d/%d memsize=%d\n",
+                        i, num, *(int*)ar_fifo_value(plog->logrec_fifo, i));
+            }
+        }
+        if (plog && plog->wlog_mpool) {
+            KemPool * memp = (KemPool *)plog->wlog_mpool;
+            mpool_print(memp->kemunit_pool, "KUnitPool", 6, frm, NULL);
+            kempool_print(memp, frm, NULL, 0, 0, 0, "LogKemPool", 2);
+        }
+
+        frame_appendf(frm, "\n");
+
+        frame_appendf(frm, "  HTTPSrv: %d SrvID: %lu\n", rbtree_num(mgmt->srv_tree), mgmt->srvid);
+        num = rbtree_num(mgmt->srv_tree);
+        rbtn = rbtree_min_node(mgmt->srv_tree);
+        for (i = 0; i < num && rbtn; i++) {
+            srv = RBTObj(rbtn);
+            rbtn = rbtnode_next(rbtn);
+            if (!srv) continue;
+            frame_appendf(frm, "    Srv:%lu %s:%d %s/%d SSL:%d Tunnel:%s:%d Msg:%d Con:%d/%d Try:%d/%d/%d\n", 
+                          srv->srvid, srv->host, srv->port, srv->dstip[0], srv->ipnum,
+                          srv->ssl_link, srv->proxyhost?srv->proxyhost:"", srv->proxyport,
+                          ar_fifo_num(srv->msg_fifo), srv->concnt, rbtree_num(srv->con_tree),
+                          srv->trytimes, srv->failtimes, srv->succtimes);
+        }
+        frame_appendf(frm, "\n");
+
+        num = mgmt->countind + 1 > CNTNUM ? CNTNUM : mgmt->countind + 1;
+
+        frame_appendf(frm, "  Accepted HTTPCon of TimePoint: %d\n   ", mgmt->countind + 1);
+        ind = mgmt->countind % CNTNUM;
+        for (i = 0; i < num; i++) {
+            if (ind < i) ind += CNTNUM;
+            frame_appendf(frm, " %d", mgmt->accept_con[ind - i]);
+            if (i > 0 && (i+1) % 20 == 0) {
+                frame_appendf(frm, "\n   ");
+            }
+        }
+        frame_appendf(frm, "\n");
+
+        frame_appendf(frm, "  Initiated HTTPCon of TimePoint: %d\n   ", mgmt->countind + 1);
+        ind = mgmt->countind % CNTNUM;
+        for (i = 0; i < num; i++) {
+            if (ind < i) ind += CNTNUM;
+            frame_appendf(frm, " %d", mgmt->issued_con[ind - i]);
+            if (i > 0 && (i+1) % 20 == 0) {
+                frame_appendf(frm, "\n   ");
+            }
+        }
+        frame_appendf(frm, "\n");
+
+        frame_appendf(frm, "  Recv/Sent Data Amount of TimePoint: %d (Mbps)\n   ", mgmt->countind + 1);
+        ind = mgmt->countind % CNTNUM;
+        for (i = 0; i < num; i++) {
+            if (ind < i) ind += CNTNUM;
+            dv = mgmt->recv_byte[ind - i] + mgmt->sent_byte[ind  - i];
+            frame_appendf(frm, " %.2f", dv / 1024. / 1024. / COUNT_INTERVAL * 8);
+            if (i > 0 && (i+1) % 20 == 0) {
+                frame_appendf(frm, "\n   ");
+            }
+        }
+        frame_appendf(frm, "\n");
+
+        frame_appendf(frm, "\nHTTP Total Memory: %ld (B)\n", memsize);
+        frame_appendf(frm, "\n");
+
+#if defined(_WIN32) || defined(_WIN64)
+#else
+        sprintf(buf, "top -b -n1 | grep %u", getpid());
+        frame_appendf(frm, "%s\n", buf);
+        fpexe = popen(buf, "r");
+        if (!fpexe && errno != 0) {
+            frame_append(frm, strerror(errno));
+        }
+        while (fpexe && !feof(fpexe)) {
+            memset(buf, 0, sizeof(buf));
+            fgets(buf, sizeof(buf)-1, fpexe);
+            frame_appendf(frm, "%s", buf);
+        }
+        if (fpexe) pclose(fpexe);
+        frame_appendf(frm, "\n");
+#endif
+
+    }
+
+    if (fp) {
+        fprintf(fp, "CurrentTime: %s\n", buf);
+
+        str_datetime(&mgmt->startup_time, buf, sizeof(buf)-1, 0);
+        num = arr_num(mgmt->listen_list);
+        fprintf(fp, "\nHTTPModule: %s started, uptime: %ld, HTTPListen: %d\n", buf, time(0)-mgmt->startup_time, num);
+        for (i = 0; i < num; i++) {
+            hl = arr_value(mgmt->listen_list, i);
+            if (!hl) continue;
+            fprintf(fp, "  Listen Port:%d LocalIP:%s SSL:%d ForwardProxy:%d\n",
+                    hl->port, hl->localip, hl->ssl_link, hl->forwardproxy);
+        }
+        fprintf(fp, "  Variables: %d\n", ht_num(mgmt->var_table));
+        fprintf(fp, "  HTTPCon: %d ConID: %lu  AcceptCon: %lu  IssuedCon: %lu\n",
+                ht_num(mgmt->con_table), mgmt->conid, mgmt->accept_con_num, mgmt->issued_con_num);
+        fprintf(fp, "  HTTPMsg: %d MsgID: %lu\n", ht_num(mgmt->msg_table), mgmt->msgid);
+        fprintf(fp, "  FcgiSrv: %d\n", ht_num(mgmt->fcgisrv_table));
+        fprintf(fp, "  CacInfo: %d\n", ht_num(mgmt->cacinfo_table));
+        fprintf(fp, "  Cookies: %d Domains: %d\n", arr_num(cookiemgmt->cookie_list), ht_num(cookiemgmt->domain_table));
+        fprintf(fp, "  Status : %d\n", ht_num(mgmt->status_table));
+        fprintf(fp, "  SndProxy: %d\n", arr_num(mgmt->sndpxy_list));
+
+        mpool_print(mgmt->con_pool, "ConPool", 2, NULL, fp);
+        mpool_print(mgmt->msg_pool, "MsgPool", 2, NULL, fp);
+        mpool_print(mgmt->header_unit_pool, "HdrPool", 2, NULL, fp);
+        mpool_print(mgmt->srv_pool, "SrvPool", 2, NULL, fp);
+        mpool_print(mgmt->frame_pool, "FrmPool", 2, NULL, fp);
+        mpool_print(mgmt->fcgisrv_pool, "FcgiSrvPool", 2, NULL, fp);
+        mpool_print(mgmt->fcgicon_pool, "FcgiConPool", 2, NULL, fp);
+        mpool_print(mgmt->fcgimsg_pool, "FcgiMsgPool", 2, NULL, fp);
+        mpool_print(mgmt->msgmem_pool, "MsgMemPool", 2, NULL, fp);
+        mpool_print(mgmt->conmem_pool, "ConMemPool", 2, NULL, fp);
+
+        fprintf(fp, "\n");
+
+        if (g_kmempool) {
+            KemPool * memp = (KemPool *)g_kmempool;
+            mpool_print(memp->kemunit_pool, "KUnitPool", 2, NULL, fp);
+        }
+
+        kempool_print(mgmt->msg_kmem_pool, NULL, fp, 0, 0, 0, "MsgKemPool", 2);
+        if (mgmt->msg_kmem_pool) {
+            KemPool * memp = (KemPool *)mgmt->msg_kmem_pool;
+            mpool_print(memp->kemunit_pool, "KUnitPool", 6, NULL, fp);
+        }
+
+        kempool_print(mgmt->con_kmem_pool, NULL, fp, 0, 0, 0, "ConKemPool", 2);
+        if (mgmt->con_kmem_pool) {
+            KemPool * memp = (KemPool *)mgmt->con_kmem_pool;
+            mpool_print(memp->kemunit_pool, "KUnitPool", 6, NULL, fp);
+        }
+
+        if (mgmt->fragmem_kempool) {
+            KemPool * memp = (KemPool *)mgmt->fragmem_kempool;
+            kempool_print(memp, NULL, fp, 0, 0, 0, "FragKemPool", 2);
+            mpool_print(memp->kemunit_pool, "KUnitPool", 6, NULL, fp);
+        }
+
+        fprintf(fp, "  HTTPLog info: not-write-num=%d  refifo=%d "
+                           "accumulated-lognum=%llu\n",
+                      ar_fifo_num(plog->wlog_fifo),
+                      ar_fifo_num(plog->logrec_fifo),
+                      plog->wlog_num);
+        plog = mgmt->httplog;
+        if (plog && plog->logrec_fifo) {
+            num = ar_fifo_num(plog->logrec_fifo);
+            for (i = 0; i < num; i++) {
+                fprintf(fp, "  %d/%d memsize=%d\n",
+                        i, num, *(int*)ar_fifo_value(plog->logrec_fifo, i));
+            }
+        }
+        if (plog && plog->wlog_mpool) {
+            KemPool * memp = (KemPool *)plog->wlog_mpool;
+            kempool_print(memp, NULL, fp, 0, 0, 0, "LogKemPool", 2);
+            mpool_print(memp->kemunit_pool, "KUnitPool", 6, fp, NULL);
+        }
+
+        frame_appendf(frm, "\n");
+
+        fprintf(fp, "  HTTPSrv: %d SrvID: %lu\n", rbtree_num(mgmt->srv_tree), mgmt->srvid);
+        num = rbtree_num(mgmt->srv_tree);
+        rbtn = rbtree_min_node(mgmt->srv_tree);
+        for (i = 0; i < num && rbtn; i++) {
+            srv = RBTObj(rbtn);
+            rbtn = rbtnode_next(rbtn);
+            if (!srv) continue;
+            fprintf(fp, "    Srv:%lu %s:%d %s/%d SSL:%d Tunnel:%s:%d Msg:%d Con:%d/%d Try:%d/%d/%d\n", 
+                          srv->srvid, srv->host, srv->port, srv->dstip[0], srv->ipnum,
+                          srv->ssl_link, srv->proxyhost?srv->proxyhost:"", srv->proxyport,
+                          ar_fifo_num(srv->msg_fifo), srv->concnt, rbtree_num(srv->con_tree),
+                          srv->trytimes, srv->failtimes, srv->succtimes);
+        }
+        fprintf(fp, "\n");
+
+        num = mgmt->countind + 1 > CNTNUM ? CNTNUM : mgmt->countind + 1;
+
+        fprintf(fp, "  Accepted HTTPCon of TimePoint: %d\n   ", mgmt->countind + 1);
+        ind = mgmt->countind % CNTNUM;
+        for (i = 0; i < num; i++) {
+            if (ind < i) ind += CNTNUM;
+            fprintf(fp, " %d", mgmt->accept_con[ind - i]);
+            if (i > 0 && (i+1) % 20 == 0) {
+                fprintf(fp, "\n   ");
+            }
+        }
+        fprintf(fp, "\n");
+
+        fprintf(fp, "  Initiated HTTPCon of TimePoint: %d\n   ", mgmt->countind + 1);
+        ind = mgmt->countind % CNTNUM;
+        for (i = 0; i < num; i++) {
+            if (ind < i) ind += CNTNUM;
+            fprintf(fp, " %d", mgmt->issued_con[ind - i]);
+            if (i > 0 && (i+1) % 20 == 0) {
+                fprintf(fp, "\n   ");
+            }
+        }
+        fprintf(fp, "\n");
+
+        fprintf(fp, "  Recv/Sent Data Amount of TimePoint: %d (Mbps)\n   ", mgmt->countind + 1);
+        ind = mgmt->countind % CNTNUM;
+        for (i = 0; i < num; i++) {
+            if (ind < i) ind += CNTNUM;
+            dv = mgmt->recv_byte[ind - i] + mgmt->sent_byte[ind  - i];
+            fprintf(fp, " %.2f", dv / 1024. / 1024. / COUNT_INTERVAL * 8);
+            if (i > 0 && (i+1) % 20 == 0) {
+                fprintf(fp, "\n   ");
+            }
+        }
+        fprintf(fp, "\n");
+
+        fprintf(fp, "\nHTTP Total Memory: %ld (B)\n", memsize);
+        fprintf(fp, "\n");
+
+
+#if defined(_WIN32) || defined(_WIN64)
+#else
+        sprintf(buf, "top -b -n1 | grep %u", getpid());
+        fprintf(fp, "%s\n", buf);
+        fpexe = popen(buf, "r");
+        if (!fpexe && errno != 0) {
+            fprintf(fp, strerror(errno));
+        }
+        while (fpexe && !feof(fpexe)) {
+            memset(buf, 0, sizeof(buf));
+            fgets(buf, sizeof(buf)-1, fpexe);
+            fprintf(fp, "%s", buf);
+        }
+        if (fpexe) pclose(fpexe);
+        fprintf(fp, "\n");
+#endif
+
+    }
+
     return 0;
 }
 

@@ -1,18 +1,36 @@
 /*
- * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2024 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
+ *
+ * #####################################################
+ * #                       _oo0oo_                     #
+ * #                      o8888888o                    #
+ * #                      88" . "88                    #
+ * #                      (| -_- |)                    #
+ * #                      0\  =  /0                    #
+ * #                    ___/`---'\___                  #
+ * #                  .' \\|     |// '.                #
+ * #                 / \\|||  :  |||// \               #
+ * #                / _||||| -:- |||||- \              #
+ * #               |   | \\\  -  /// |   |             #
+ * #               | \_|  ''\---/''  |_/ |             #
+ * #               \  .-\__  '-'  ___/-. /             #
+ * #             ___'. .'  /--.--\  `. .'___           #
+ * #          ."" '<  `.___\_<|>_/___.'  >' "" .       #
+ * #         | | :  `- \`.;`\ _ /`;.`/ -`  : | |       #
+ * #         \  \ `_.   \_ __\ /__ _/   .-` /  /       #
+ * #     =====`-.____`.___ \_____/___.-`___.-'=====    #
+ * #                       `=---='                     #
+ * #     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   #
+ * #               佛力加持      佛光普照              #
+ * #  Buddha's power blessing, Buddha's light shining  #
+ * #####################################################
  */
 
 #include "adifall.ext"
 #include "http_header.h"
 #include "http_msg.h"
 #include "http_mgmt.h"
-
-
-typedef struct comm_strkey_ {
-    char   * name;
-    int      namelen;
-} CommStrkey;
 
 
 HeaderUnit * hunit_alloc ()
@@ -23,13 +41,30 @@ HeaderUnit * hunit_alloc ()
     return hunit;
 }
 
-int hunit_free (void * vhunit)
+int hunit_init (void * vhunit)
 {
     HeaderUnit * hunit = (HeaderUnit *)vhunit;
 
     if (!hunit) return -1;
 
-    kfree(hunit);
+    hunit->res[0] = hunit->res[1] = NULL;
+
+    hunit->name = NULL;
+    hunit->namelen = 0;
+    hunit->value = NULL;
+    hunit->valuelen = 0;
+
+    hunit->namepos = 0;
+    hunit->valuepos = 0;
+    hunit->frame = NULL;
+
+    hunit->next = NULL;
+
+    return 0;
+}
+
+int hunit_free (void * vhunit)
+{
     return 0;
 }
 
@@ -70,58 +105,18 @@ int hunit_cmp_hunit_by_name(void * a, void * b)
 }
 
 
-ulong hunit_hash_func (void * vkey)
-{
-    CommStrkey * key = (CommStrkey *)vkey;
-    static long  hunit_mask = ~0U << 26;
-    ulong        ret = 0;
-    uint8      * p = NULL;
-    int          i;
-
-    if (!key) return 0;
-
-    p = (uint8 *)key->name;
-
-    for (i = 0; i < key->namelen; i++) {
-        ret = (ret & hunit_mask) ^ (ret << 6) ^ (tolower(*p));
-        p++;
-    }
-
-    return ret;
-}
-
-
 int hunit_cmp_key (void * a, void * b)
 {
     HeaderUnit * unit = (HeaderUnit *)a;
-    CommStrkey * key = (CommStrkey *)b;
-    int          len = 0, ret;
+    ckstr_t    * key = (ckstr_t *)b;
+    ckstr_t      hukey;
  
     if (!unit || !key) return -1;
 
-    if (unit->namelen != key->namelen) {
+    hukey.p = HUName(unit);
+    hukey.len = unit->namelen;
 
-        len = (unit->namelen > key->namelen) ? key->namelen : unit->namelen;
-        if (len <= 0) {
-            if (unit->namelen > 0) return 1;
-            return -1;
-        }
-
-        ret = str_ncasecmp(HUName(unit), key->name, len);
-        if (ret == 0) {
-            if (unit->namelen > key->namelen)
-                return 1;
-            else
-                return -1;
-
-        } else
-            return ret;
-    }
- 
-    len = unit->namelen;
-    if (len <= 0) return 0;
- 
-    return str_ncasecmp(HUName(unit), key->name, len);
+    return ckstr_casecmp(&hukey, key);
 }
 
 
@@ -129,21 +124,21 @@ int hunit_set_hashfunc (hashtab_t * htab)
 {
     if (!htab) return -1;
 
-    ht_set_hash_func(htab, hunit_hash_func);
+    ht_set_hash_func(htab, ckstr_generic_hash);
     return 0;
 }
 
 
 int hunit_add (hashtab_t * htab, char * name, int namelen, void * value)
 {
-    CommStrkey  key;
+    ckstr_t key;
 
     if (!htab) return -1;
     if (!name || namelen <= 0) return -2;
     if (!value) return -3;
 
-    key.name = name;
-    key.namelen = namelen;
+    key.p = name;
+    key.len = namelen;
 
     return ht_set(htab, &key, value);
 }
@@ -151,14 +146,14 @@ int hunit_add (hashtab_t * htab, char * name, int namelen, void * value)
 
 HeaderUnit * hunit_get (hashtab_t * htab, char * name, int namelen)
 {
-    CommStrkey   key;
+    ckstr_t      key;
     HeaderUnit * punit = NULL;
 
     if (!htab) return NULL;
     if (!name || namelen <= 0) return NULL;
 
-    key.name = name;
-    key.namelen = namelen;
+    key.p = name;
+    key.len = namelen;
 
     punit = (HeaderUnit *)ht_get(htab, &key);
     return punit;
@@ -167,14 +162,14 @@ HeaderUnit * hunit_get (hashtab_t * htab, char * name, int namelen)
 
 HeaderUnit * hunit_del (hashtab_t * htab, char * name, int namelen)
 {
-    CommStrkey   key;
+    ckstr_t      key;
     HeaderUnit * punit = NULL;
     
     if (!htab) return NULL;
     if (!name || namelen <= 0) return NULL;
 
-    key.name = name;
-    key.namelen = namelen;
+    key.p = name;
+    key.len = namelen;
 
     punit = (HeaderUnit *)ht_delete(htab, &key);
     return punit;
@@ -183,14 +178,14 @@ HeaderUnit * hunit_del (hashtab_t * htab, char * name, int namelen)
 
 HeaderUnit * hunit_get_from_list (arr_t * hlist, char * name, int namelen)
 {
-    CommStrkey   key;
+    ckstr_t      key;
     HeaderUnit * punit = NULL;
 
     if (!hlist) return NULL;
     if (!name || namelen <= 0) return NULL;
 
-    key.name = name;
-    key.namelen = namelen;
+    key.p = name;
+    key.len = namelen;
 
     punit = (HeaderUnit *)arr_find_by(hlist, &key, hunit_cmp_key);
     return punit;
@@ -243,7 +238,7 @@ int http_header_add (void * vmsg, int type, char * name, int namelen, char * val
         }
     }
  
-    punit = bpool_fetch(mgmt->header_unit_pool);
+    punit = mpool_fetch(mgmt->header_unit_pool);
     if (!punit) {
         tolog(1, "http_header_add: fetchUnit null. type=%d name=%s\n", type, name);
         return -5;
@@ -297,7 +292,7 @@ int http_header_del (void * vmsg, int type, char * name, int namelen)
         punit = phu; phu = phu->next;
 
         if (punit && arr_delete_ptr(header_list, punit)) {
-            bpool_recycle(mgmt->header_unit_pool, punit);
+            mpool_recycle(mgmt->header_unit_pool, punit);
         }
     }
     if (punit)
@@ -335,7 +330,7 @@ int http_header_delall (void * vmsg, int type)
     for (i = 0; i < num; i++) {
         unit = arr_value(header_list, i);
         if (!unit) continue;
-        bpool_recycle(mgmt->header_unit_pool, unit);
+        mpool_recycle(mgmt->header_unit_pool, unit);
     }
     arr_zero(header_list);
     ht_zero(header_table);
@@ -473,6 +468,7 @@ int http_header_append (void * vmsg, int type, char * name, int namelen, char * 
  
     if (!msg) return -1;
     if (!name) return -2;
+    if (!msg->httpmgmt) return -3;
  
     if (namelen < 0) namelen = strlen(name);
     if (namelen <= 0) return -3;
@@ -484,10 +480,17 @@ int http_header_append (void * vmsg, int type, char * name, int namelen, char * 
     if (type == 0) { //REQUEST
         header_table = msg->req_header_table;
         header_list = msg->req_header_list;
+
+        if (msg->req_header_stream == NULL)
+            msg->req_header_stream = frame_alloc(0, msg->alloctype, msg->kmemblk);
         frame = msg->req_header_stream;
+
     } else {
         header_table = msg->res_header_table;
         header_list = msg->res_header_list;
+
+        if (msg->res_header_stream == NULL)
+            msg->res_header_stream = frame_alloc(0, msg->alloctype, msg->kmemblk);
         frame = msg->res_header_stream;
     }
  
@@ -501,7 +504,7 @@ int http_header_append (void * vmsg, int type, char * name, int namelen, char * 
         }
     }
  
-    punit = bpool_fetch(mgmt->header_unit_pool);
+    punit = mpool_fetch(mgmt->header_unit_pool);
     if (!punit) {
         return -5;
     }
@@ -536,14 +539,6 @@ int http_header_append (void * vmsg, int type, char * name, int namelen, char * 
         phu->next = punit;
  
     arr_insert_by(header_list, punit, hunit_cmp_hunit_by_name);
- 
-    if (type == 0) { //REQUEST
-        if (msg->req_header_stream == NULL)
-            msg->req_header_stream = frame;
-    } else {
-        if (msg->res_header_stream == NULL)
-            msg->res_header_stream = frame;
-    }
  
     return 0;
 }

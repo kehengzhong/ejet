@@ -1,11 +1,35 @@
 /*
- * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2024 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
+ *
+ * #####################################################
+ * #                       _oo0oo_                     #
+ * #                      o8888888o                    #
+ * #                      88" . "88                    #
+ * #                      (| -_- |)                    #
+ * #                      0\  =  /0                    #
+ * #                    ___/`---'\___                  #
+ * #                  .' \\|     |// '.                #
+ * #                 / \\|||  :  |||// \               #
+ * #                / _||||| -:- |||||- \              #
+ * #               |   | \\\  -  /// |   |             #
+ * #               | \_|  ''\---/''  |_/ |             #
+ * #               \  .-\__  '-'  ___/-. /             #
+ * #             ___'. .'  /--.--\  `. .'___           #
+ * #          ."" '<  `.___\_<|>_/___.'  >' "" .       #
+ * #         | | :  `- \`.;`\ _ /`;.`/ -`  : | |       #
+ * #         \  \ `_.   \_ __\ /__ _/   .-` /  /       #
+ * #     =====`-.____`.___ \_____/___.-`___.-'=====    #
+ * #                       `=---='                     #
+ * #     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   #
+ * #               浣涘姏鍔犳寔      浣涘厜鏅収              #
+ * #  Buddha's power blessing, Buddha's light shining  #
+ * #####################################################
  */
 
 #include "adifall.ext"
 #include "epump.h"
-#include "http_listen.h"
+#include "http_resloc.h"
 #include "http_msg.h"
 #include "http_mgmt.h"
 #include "http_header.h"
@@ -126,11 +150,11 @@ int http_pagetpl_parse (void * vmsg, char * tplfile, void * vbyte, int bytelen, 
  
     for ( ; pbgn < pend; ) {
         /* <?ejetpl TEXT $CURROOT PARA=abcd ?>                                               */
-        /* <?ejetpl LINK $LINKNAME URL=/csc/disponlist.so SHOW=第一页 PARA=listfile?>        */
-        /* <?ejetpl IMG $IMGNAME URL=/csc/drawimg.so?randval=234 SHOW=实时走势 PARA="a=1"?>  */
+        /* <?ejetpl LINK $LINKNAME URL=/csc/disponlist.so SHOW=鏄剧ず姹夊瓧 PARA=listfile?>    */
+        /* <?ejetpl IMG $IMGNAME URL=/csc/drawimg.so?randval=234 SHOW=瀹炴椂璧板娍 PARA="a=1"?>  */
         /* <?ejetpl LIST $ACCESSLOG PARA=1?>                                                 */
         /* <?ejetpl INCLUDE /home/hzke/dxcang/httpdoc/foot.html PARA=1?>                     */
- 
+
         pval = sun_find_string(pbgn, pend - pbgn, "<?ejetpl", 8, NULL);
         if (!pval || pval >= pend) break;
  
@@ -169,7 +193,7 @@ int http_pagetpl_parse (void * vmsg, char * tplfile, void * vbyte, int bytelen, 
         /* pval is begining of command content, poct is the end of content.
                               |      |
                               V      V
-             <?ejetpl INCLUDE abc.txt PARA=..... ?> xxxxxx  */
+             <?ejetpl INCLUDE abc.txt PARA=xxxx ?> xxxxxx  */
         pval = skipOver(poct, pvalend - poct, ",; \t\r\n\f\v", 8);
         if (pval >= pvalend) continue;
         poct = skipTo(pval, pvalend-pval, ",; \t\r\n\f\v", 8);
@@ -180,11 +204,11 @@ int http_pagetpl_parse (void * vmsg, char * tplfile, void * vbyte, int bytelen, 
             tpl.type = 1;
  
         } else if (len == 4 && str_ncasecmp(ptxt, "LINK", 4) == 0) {
-            /* <?ejetpl LINK $LINKNAME URL=/csc/disponlist.so SHOW=第一页 PARA=listfile?>        */
+            /* <?ejetpl LINK $LINKNAME URL=/csc/disponlist.so SHOW=Page1 PARA=listfile?>        */
             tpl.type = 2;
  
         } else if (len == 3 && str_ncasecmp(ptxt, "IMG", 3) == 0) {
-            /* <?ejetpl IMG $IMGNAME URL=/csc/drawimg.so?randval=234 SHOW=实时走势 PARA="a=1"?>  */
+            /* <?ejetpl IMG $IMGNAME URL=/csc/drawimg.so?randval=234 SHOW=RealTrend PARA="a=1"?>  */
             tpl.type = 3;
  
         } else if (len == 4 && str_ncasecmp(ptxt, "LIST", 4) == 0) {
@@ -318,7 +342,7 @@ int http_pagetpl_text_cb (void * vhl, char * hostn, int hostlen,
     if (textlen < 0) textlen = strlen(text);
     if (textlen <= 0) return -3;
  
-    host = http_host_create(hl, hostn, hostlen, NULL, NULL, NULL, NULL);
+    host = http_listen_host_create(hl, hostn, hostlen, NULL, NULL, NULL, NULL);
     if (!host) return -100;
 
     key.p = text;
@@ -363,7 +387,7 @@ int http_pagetpl_list_cb (void * vhl, char * hostn, int hostlen,
     if (textlen < 0) textlen = strlen(text);
     if (textlen <= 0) return -3;
  
-    host = http_host_create(hl, hostn, hostlen, NULL, NULL, NULL, NULL);
+    host = http_listen_host_create(hl, hostn, hostlen, NULL, NULL, NULL, NULL);
     if (!host) return -100;
  
     key.p = text;
@@ -393,4 +417,3 @@ int http_pagetpl_list_cb (void * vhl, char * hostn, int hostlen,
 
     return 0;
 }
-

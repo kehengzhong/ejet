@@ -1,9 +1,34 @@
 /*
- * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2024 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
+ *
+ * #####################################################
+ * #                       _oo0oo_                     #
+ * #                      o8888888o                    #
+ * #                      88" . "88                    #
+ * #                      (| -_- |)                    #
+ * #                      0\  =  /0                    #
+ * #                    ___/`---'\___                  #
+ * #                  .' \\|     |// '.                #
+ * #                 / \\|||  :  |||// \               #
+ * #                / _||||| -:- |||||- \              #
+ * #               |   | \\\  -  /// |   |             #
+ * #               | \_|  ''\---/''  |_/ |             #
+ * #               \  .-\__  '-'  ___/-. /             #
+ * #             ___'. .'  /--.--\  `. .'___           #
+ * #          ."" '<  `.___\_<|>_/___.'  >' "" .       #
+ * #         | | :  `- \`.;`\ _ /`;.`/ -`  : | |       #
+ * #         \  \ `_.   \_ __\ /__ _/   .-` /  /       #
+ * #     =====`-.____`.___ \_____/___.-`___.-'=====    #
+ * #                       `=---='                     #
+ * #     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   #
+ * #               佛力加持      佛光普照              #
+ * #  Buddha's power blessing, Buddha's light shining  #
+ * #####################################################
  */
 
 #include "adifall.ext"
+ 
 #include "http_mgmt.h"
 #include "http_msg.h"
 #include "http_header.h"
@@ -14,6 +39,7 @@
 #include "http_fcgi_con.h"
 #include "http_fcgi_msg.h"
  
+extern HTTPMgmt * gp_httpmgmt;
 
 int fcgi_header_type_valid (uint8 type, int resp)
 {
@@ -105,8 +131,17 @@ ulong http_fcgimsg_hash_msgid (void * key)
 int http_fcgimsg_init (void * vmsg)
 {
     FcgiMsg  * msg = (FcgiMsg *)vmsg;
+    HTTPMgmt * mgmt = (HTTPMgmt *)gp_httpmgmt;
 
     if (!msg) return -1;
+
+    if (mgmt->msg_kmem_pool && (msg->kmemblk = mpool_fetch(mgmt->msgmem_pool))) {
+        kemblk_init(mgmt->msg_kmem_pool, msg->kmemblk, mpool_unitsize(mgmt->msgmem_pool), 1);
+        msg->alloctype = 3;
+    } else {
+        msg->alloctype = 0;
+        msg->kmemblk = NULL;
+    }
 
     msg->msgid = 0;
 
@@ -119,22 +154,14 @@ int http_fcgimsg_init (void * vmsg)
     msg->req_stream_sent = 0;
     msg->reqsent = 0;
 
-    if (msg->req_rcvs_list == NULL) {
-        msg->req_rcvs_list = arr_new(4);
-    }
-    arr_zero(msg->req_rcvs_list);
+    msg->req_rcvs_list = arr_alloc(4, msg->alloctype, msg->kmemblk);
 
-    if (msg->req_body_chunk == NULL) {
-        msg->req_body_chunk = chunk_new(8192);
-    }
-    chunk_zero(msg->req_body_chunk);
+    msg->req_body_chunk = chunk_alloc(8192, msg->alloctype, msg->kmemblk);
 
     msg->fcgi_role = FCGI_RESPONDER;
-    msg->fcgi_keep_alive = 1; //1;
+    msg->fcgi_keep_alive = 1;
 
-    if (msg->fcgi_request == NULL)
-        msg->fcgi_request = frame_new(512);
-    frame_empty(msg->fcgi_request);
+    msg->fcgi_request = frame_alloc(512, msg->alloctype, msg->kmemblk);
 
     msg->req_header_length = 0;
 
@@ -152,7 +179,28 @@ int http_fcgimsg_init (void * vmsg)
     msg->conid = 0;
     msg->pcon = NULL;
 
-    msg->stamp = time(&msg->createtime);
+    msg->stamp = time(NULL);
+    btime(&msg->createtime);
+
+    return 0;
+}
+
+int http_mgmt_fcgimsg_free (void * vmsg)
+{
+    FcgiMsg  * msg = (FcgiMsg *)vmsg;
+    FcgiSrv  * srv = NULL;
+    HTTPMgmt * mgmt = NULL;
+
+    if (!msg) return -1;
+
+    srv = (FcgiSrv *)msg->srv;
+    if (!srv) return -2;
+
+    mgmt = (HTTPMgmt *)srv->mgmt;
+    if (!mgmt) return -3;
+
+    if (http_fcgimsg_free(msg) == 0)
+        mpool_recycle(mgmt->fcgimsg_pool, msg);
 
     return 0;
 }
@@ -173,7 +221,13 @@ int http_fcgimsg_free (void * vmsg)
         msg->req_body_chunk = NULL;
     }
 
-    frame_delete(&msg->fcgi_request);
+    if (msg->fcgi_request)
+        frame_delete(&msg->fcgi_request);
+
+    if (msg->kmemblk) {
+        kemblk_free(msg->kmemblk);
+        msg->kmemblk = NULL;
+    }
 
     return 0;
 }
@@ -190,10 +244,7 @@ void * http_fcgimsg_fetch (void * vsrv)
     if (!mgmt) return NULL;
 
     msg = mpool_fetch(mgmt->fcgimsg_pool);
-    if (!msg) {
-        msg = kzalloc(sizeof(*msg));
-        http_fcgimsg_init(msg);
-    }
+    if (!msg) return NULL;
 
     msg->msgid = http_fcgisrv_get_msgid(srv);
     msg->srv = srv;
@@ -221,13 +272,28 @@ int http_fcgimsg_recycle (void * vmsg)
         return http_fcgimsg_free(msg);
     }
 
-    while (arr_num(msg->req_rcvs_list) > 0)
-        frame_free(arr_pop(msg->req_rcvs_list));
-    arr_zero(msg->req_rcvs_list);
+    if (msg->req_rcvs_list != NULL) {
+        while (arr_num(msg->req_rcvs_list) > 0)
+            frame_free(arr_pop(msg->req_rcvs_list));
+        arr_free(msg->req_rcvs_list);
+        msg->req_rcvs_list = NULL;
+    }
 
-    chunk_zero(msg->req_body_chunk);
+    if (msg->req_body_chunk) {
+        chunk_free(msg->req_body_chunk);
+        msg->req_body_chunk = NULL;
+    }
 
-    frame_empty(msg->fcgi_request);
+    if (msg->fcgi_request) {
+        frame_free(msg->fcgi_request);
+        msg->fcgi_request = NULL;
+    }
+
+    if (msg->kmemblk) {
+        kemblk_free(msg->kmemblk);
+        mpool_recycle(mgmt->msgmem_pool, msg->kmemblk);
+        msg->kmemblk = NULL;
+    }
 
     mpool_recycle(mgmt->fcgimsg_pool, msg);
 
@@ -260,6 +326,29 @@ void * http_fcgimsg_open  (void * vsrv, void * vhttpmsg)
     chunk_prepend_bufptr(msg->req_body_chunk, frameP(msg->fcgi_request),
                          frameL(msg->fcgi_request), NULL, NULL, 1);
 
+    if (httpmsg->req_body_length <= 0) goto retmsg;
+
+    /* copy client-side request body of HTTPMsg to FastCGI msg */
+
+    if (chunk_size(httpmsg->req_body_chunk, 0) > 0) {
+        chunk_copy(msg->req_body_chunk, httpmsg->req_body_chunk, NULL, NULL);
+
+    } else if (httpmsg->req_file_handle) {
+        chunk_add_filefd(msg->req_body_chunk,
+                         native_file_fd(httpmsg->req_file_handle),
+                         0, -1);
+
+    } else if (frameL(httpmsg->req_body_stream) > 0) {
+        chunk_add_bufptr(msg->req_body_chunk,
+                         frameP(httpmsg->req_body_stream),
+                         frameL(httpmsg->req_body_stream), NULL, NULL);
+    }
+
+retmsg:
+    if (httpmsg->req_gotall_body) {
+        http_fcgimsg_stdin_end_encode_chunk(msg);
+    }
+
     return msg;
 }
 
@@ -281,7 +370,6 @@ int http_fcgimsg_abort (void * vmsg)
     FcgiMsg  * msg = (FcgiMsg *)vmsg;
 
     if (!msg) return -1;
-
 
     return 0;
 }
@@ -640,7 +728,7 @@ int http_fcgimsg_pre_crash (void * vmsg, int status)
 
     httpmsg = (HTTPMsg *)msg->httpmsg;
 
-    if (!msg->got_end_request && !httpmsg->issued) {
+    if (!msg->got_end_request && !httpmsg->res_encoded) {
         httpmsg->fastcgi = 0;
         httpmsg->fcgimsg = NULL;
 
@@ -707,3 +795,53 @@ int http_fcgimsg_stdin_end_encode_chunk (void * vmsg)
     return 0;
 }
  
+
+int fcgimsg_stdin_encode (void * pbyte, int bytelen, void * porig, int end,
+                          frame_t * frm, void * hfile, void * chunk)
+{
+    int      MAXCONT = 65528; //8-byte alignment assuring that no padding is appended
+    uint8    padarr[8] = {0};
+    uint8    hdrbuf[16];
+    int      i, pos = 0;
+    int      num = 0;
+    uint16   contlen = 0;
+    int      padding = 0;
+ 
+    num = (bytelen + MAXCONT - 1) / MAXCONT;
+ 
+    for (i = 0, pos = 0; i < num; i++) {
+        if (i == num - 1) contlen = bytelen % MAXCONT;
+        else contlen = MAXCONT;
+ 
+        fcgi_header_encode2(hdrbuf, FCGI_STDIN, /*msg->msgid*/1, contlen);
+        if (frm) frame_put_nlast(frm, hdrbuf, 8);
+        if (hfile) native_file_write(hfile, hdrbuf, 8);
+        if (chunk) chunk_add_buffer(chunk, hdrbuf, 8);
+
+        if (frm) frame_put_nlast(frm, (uint8 *)pbyte + pos, contlen);
+        if (hfile) native_file_write(hfile, (uint8 *)pbyte + pos, contlen);
+        if (chunk) chunk_add_bufptr(chunk, (uint8 *)pbyte + pos, contlen, porig, NULL);
+
+        padding = contlen % 8;
+        if (padding > 0) padding = 8 - padding;
+        if (frm) frame_put_nlast(frm, padarr, padding);
+        if (hfile) native_file_write(hfile, padarr, padding);
+        if (chunk) chunk_add_buffer(chunk, padarr, padding);
+ 
+        pos += contlen;
+    }
+ 
+    if (end) {
+        fcgi_header_encode2(hdrbuf, FCGI_STDIN, /*msg->msgid*/1, 0);
+        if (frm) frame_put_nlast(frm, hdrbuf, 8);
+        if (hfile) native_file_write(hfile, hdrbuf, 8);
+        if (chunk) {
+            chunk_add_buffer(chunk, hdrbuf, 8);
+            chunk_set_end(chunk);
+        }
+    }
+ 
+    return pos;
+}
+ 
+

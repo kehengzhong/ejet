@@ -1,6 +1,30 @@
 /*
- * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2024 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
+ *
+ * #####################################################
+ * #                       _oo0oo_                     #
+ * #                      o8888888o                    #
+ * #                      88" . "88                    #
+ * #                      (| -_- |)                    #
+ * #                      0\  =  /0                    #
+ * #                    ___/`---'\___                  #
+ * #                  .' \\|     |// '.                #
+ * #                 / \\|||  :  |||// \               #
+ * #                / _||||| -:- |||||- \              #
+ * #               |   | \\\  -  /// |   |             #
+ * #               | \_|  ''\---/''  |_/ |             #
+ * #               \  .-\__  '-'  ___/-. /             #
+ * #             ___'. .'  /--.--\  `. .'___           #
+ * #          ."" '<  `.___\_<|>_/___.'  >' "" .       #
+ * #         | | :  `- \`.;`\ _ /`;.`/ -`  : | |       #
+ * #         \  \ `_.   \_ __\ /__ _/   .-` /  /       #
+ * #     =====`-.____`.___ \_____/___.-`___.-'=====    #
+ * #                       `=---='                     #
+ * #     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   #
+ * #               佛力加持      佛光普照              #
+ * #  Buddha's power blessing, Buddha's light shining  #
+ * #####################################################
  */
 
 #include "adifall.ext"
@@ -10,6 +34,7 @@
 #include "http_header.h"
 #include "http_msg.h"
 #include "http_con.h"
+#include "http_srv.h"
 #include "http_request.h"
 #include "http_response.h"
 #include "http_chunk.h"
@@ -40,7 +65,7 @@ int http_msg_cmp_http_msg(void * a, void * b)
 int http_msg_cmp_msgid (void * a, void * pat)
 {
     HTTPMsg * msg = (HTTPMsg *)a;
-    ulong     msgid = *(ulong *)pat;
+    ulong     msgid = (ulong)pat;
 
     if (!msg) return -1;
 
@@ -52,53 +77,102 @@ int http_msg_cmp_msgid (void * a, void * pat)
 
 ulong http_msg_hash_msgid (void * key)
 {
-    ulong msgid = *(ulong *)key;
+    ulong msgid = (ulong)key;
     return msgid;
 }
 
 
+int http_mgmt_msg_free (void * vmsg)
+{
+    HTTPMsg  * msg = (HTTPMsg *)vmsg;
+    HTTPMgmt * mgmt = NULL;
+
+    if (!msg) return -1;
+
+    mgmt = (HTTPMgmt *)msg->httpmgmt;
+    if (!mgmt) return -2;
+
+    if (http_msg_free(msg) == 0)
+        mpool_recycle(mgmt->msg_pool, msg);
+
+    return 1;
+}
 
 int http_msg_free (void * vmsg)
 {
     HTTPMsg  * msg = (HTTPMsg *)vmsg;
+    HTTPMsg  * proxymsg = NULL;
 
     if (!msg) return -1;
+
+    if (msg->proxied > 0 && (proxymsg = msg->proxymsg)) {
+        if (proxymsg->proxied > 0 && proxymsg->proxymsg == msg) {
+            proxymsg->proxymsg = NULL;
+        }
+        msg->proxymsg = NULL;
+    }
 
     if (msg->script_var_tab) {
         ht_free_all(msg->script_var_tab, var_obj_free);
         msg->script_var_tab = NULL;
     }
 
-    http_header_delall(msg, 0);
-    http_header_delall(msg, 1);
-
     /* clear the buffer/data management resources which handle the http request */
-    http_uri_free(msg->uri);
-    http_uri_free(msg->absuri);
-    http_uri_free(msg->docuri);
+    if (msg->uri) {
+        http_uri_free(msg->uri);
+        msg->uri = NULL;
+    }
+    if (msg->absuri) {
+        http_uri_free(msg->absuri);
+        msg->absuri = NULL;
+    }
+    if (msg->docuri) {
+        http_uri_free(msg->docuri);
+        msg->docuri = NULL;
+    }
 
-    frame_delete(&msg->req_header_stream);
-    frame_delete(&msg->req_body_stream);
-    frame_delete(&msg->req_stream);
-
-    ht_free(msg->req_header_table);
-    arr_free(msg->req_header_list);
-
-    msg->req_multipart = 0;
     if (msg->req_file_handle) {
         native_file_close(msg->req_file_handle);
         msg->req_file_handle = NULL;
     }
-    if (msg->req_file_cache && msg->req_file_name) {
+    if (msg->req_file_name) {
         unlink(msg->req_file_name);
+        msg->req_file_cache = 0;
 
-        kfree(msg->req_file_name);
+        k_mem_free(msg->req_file_name, msg->alloctype, msg->kmemblk);
         msg->req_file_name = NULL;
     }
-    msg->req_file_cache = 0;
 
     http_req_delallcookie(msg);
-    ht_free(msg->req_cookie_table);
+    http_header_delall(msg, 0);
+
+    if (msg->req_cookie_table) {
+        ht_free(msg->req_cookie_table);
+        msg->req_cookie_table = NULL;
+    }
+
+    if (msg->req_header_table) {
+        ht_free(msg->req_header_table);
+        msg->req_header_table = NULL;
+    }
+
+    if (msg->req_header_list) {
+        arr_free(msg->req_header_list);
+        msg->req_header_list = NULL;
+    }
+
+    if (msg->req_header_stream) {
+        frame_delete(&msg->req_header_stream);
+        msg->req_header_stream = NULL;
+    }
+    if (msg->req_body_stream) {
+        frame_delete(&msg->req_body_stream);
+        msg->req_body_stream = NULL;
+    }
+    if (msg->req_stream) {
+        frame_delete(&msg->req_stream);
+        msg->req_stream = NULL;
+    }
 
     if (msg->req_chunk) {
         http_chunk_free(msg->req_chunk);
@@ -141,16 +215,55 @@ int http_msg_free (void * vmsg)
     }
 
     if (msg->fwdurl) {
-        kfree(msg->fwdurl);  
+        k_mem_free(msg->fwdurl, msg->alloctype, msg->kmemblk);  
         msg->fwdurl = NULL;
     }
     msg->fwdurllen = 0;
 
     /* clear the buffer/data management resources which handle the http response */
-    frame_delete(&msg->res_line);
-    frame_delete(&msg->res_header_stream);
-    frame_delete(&msg->res_body_stream);
-    frame_delete(&msg->res_stream);
+
+    if (msg->res_file_handle) {
+        native_file_close(msg->res_file_handle);
+        msg->res_file_handle = NULL;
+    }
+    if (msg->res_file_name) {
+        k_mem_free(msg->res_file_name, msg->alloctype, msg->kmemblk);
+        msg->res_file_name = NULL;
+    }
+    if (msg->res_file_cache == 1) {
+        //unlink(msg->res_file_name);
+    }
+
+    if (msg->res_cache_info) {
+        cache_info_close(msg->res_cache_info);
+        msg->res_cache_info = NULL;
+    }
+
+    /* Recycle all header-units and release resources */
+    http_header_delall(msg, 1);
+
+    if (msg->res_header_table) {
+        ht_free(msg->res_header_table);
+        msg->res_header_table = NULL;
+    }
+
+    if (msg->res_header_list) {
+        arr_free(msg->res_header_list);
+        msg->res_header_list = NULL;
+    }
+
+    if (msg->res_header_stream) {
+        frame_delete(&msg->res_header_stream);
+        msg->res_header_stream = NULL;
+    }
+    if (msg->res_body_stream) {
+        frame_delete(&msg->res_body_stream);
+        msg->res_body_stream = NULL;
+    }
+    if (msg->res_stream) {
+        frame_delete(&msg->res_stream);
+        msg->res_stream = NULL;
+    }
 
     if (msg->res_chunk) {
         http_chunk_free(msg->res_chunk);
@@ -167,26 +280,6 @@ int http_msg_free (void * vmsg)
         msg->res_rcvs_list = NULL;
     }
 
-    ht_free(msg->res_header_table);
-    arr_free(msg->res_header_list);
-
-    if (msg->res_file_handle) {
-        native_file_close(msg->res_file_handle);
-        msg->res_file_handle = NULL;
-    }
-    if (msg->res_file_name) {
-        kfree(msg->res_file_name);
-        msg->res_file_name = NULL;
-    }
-    if (msg->res_file_cache == 1) {
-        //unlink(msg->res_file_name);
-    }
-
-    if (msg->res_cache_info) {
-        cache_info_close(msg->res_cache_info);
-        msg->res_cache_info = NULL;
-    }
-
     msg->res_file_cache = 0;
     msg->res_store_file = NULL;
     msg->res_store_offset = 0;
@@ -194,12 +287,16 @@ int http_msg_free (void * vmsg)
     msg->res_recv_procnotify = NULL;
     msg->res_recv_procnotify_para = NULL;
     msg->res_recv_procnotify_cbval= 0;
- 
+
     msg->req_send_procnotify = NULL;
     msg->req_send_procnotify_para = NULL;
     msg->req_send_procnotify_cbval = 0;
 
-    kfree(msg);
+    if (msg->kmemblk) {
+        kemblk_free(msg->kmemblk);
+        msg->kmemblk = NULL;
+    }
+
     return 0;
 }
 
@@ -237,7 +334,7 @@ int http_msg_init_method (void * vmsg)
     msg->InitReq = http_msg_init_req;
     msg->InitRes = http_msg_init_res;
     msg->Recycle = http_msg_recycle;
-    msg->Close = http_msg_close;
+    msg->Close = http_msg_closeit;
 
     msg->CacheType = http_msg_cache_type;
     msg->CacheFile = http_msg_cache_file;
@@ -396,6 +493,7 @@ int http_msg_init_method (void * vmsg)
     msg->AddResTplFile = http_pagetpl_add_file;
 
     msg->RedirectReply = RedirectReply;
+    msg->AsynReply = AsynReply;
     msg->Reply = Reply;
     msg->ReplyFeeding = ReplyFeeding;
 
@@ -409,11 +507,21 @@ int http_msg_init (void * vmsg)
     
     if (!msg) return -1;
 
-    mgmt = (HTTPMgmt *)msg->httpmgmt;
+    mgmt = (HTTPMgmt *)gp_httpmgmt;
+
+    if (mgmt->msg_kmem_pool && (msg->kmemblk = mpool_fetch(mgmt->msgmem_pool))) {
+        kemblk_init(mgmt->msg_kmem_pool, msg->kmemblk, mpool_unitsize(mgmt->msgmem_pool), 1);
+        msg->alloctype = 3;
+    } else {
+        msg->alloctype = 0;
+        msg->kmemblk = NULL;
+    }
 
     msg->msgtype = 0;
+    msg->recycled = 0;
 
     msg->hl = NULL;
+    msg->hc = NULL;
     msg->phost = NULL;
     msg->ploc = NULL;
     msg->locinst_times = 0;
@@ -422,14 +530,11 @@ int http_msg_init (void * vmsg)
 
     msg->cbobj = NULL;
 
-    if (!msg->script_var_tab) {
-        msg->script_var_tab = ht_only_new(23, var_obj_cmp_name);
-    } else {
-        ht_free_member(msg->script_var_tab, var_obj_free);
-    }
+    msg->script_var_tab = ht_only_alloc(23, var_obj_cmp_name, msg->alloctype, msg->kmemblk);
 
     msg->state = HTTP_MSG_NULL;
-    msg->stamp = time(&msg->createtime);
+    msg->stamp = time(NULL);
+    btime(&msg->createtime);
 
     msg->ssl_link = 0;
 
@@ -437,6 +542,7 @@ int http_msg_init (void * vmsg)
 
     msg->pcon = NULL;
     msg->conid = 0;
+
     msg->workerid = 0;
 
     msg->redirected = 0;
@@ -445,13 +551,11 @@ int http_msg_init (void * vmsg)
     msg->proxied = 0;
     msg->cacheon = 0;
     msg->proxymsg = NULL;
+    msg->proxymsgid = 0;
     msg->proxy = NULL;
     msg->proxyport = 0;
 
-    if (msg->fwdurl) {
-        kfree(msg->fwdurl);  
-        msg->fwdurl = NULL;
-    }
+    msg->fwdurl = NULL;
     msg->fwdurllen = 0;
 
     /* fastcgi setting clear */
@@ -460,15 +564,15 @@ int http_msg_init (void * vmsg)
     msg->fcgi_resend = 0;
 
     msg->partial_flag = 0;
-    if (msg->partial_list == NULL) 
-        msg->partial_list = vstar_new(sizeof(http_partial_t), 2, NULL);
-    vstar_zero(msg->partial_list);
+    msg->partial_list = vstar_alloc(sizeof(http_partial_t), 2, NULL, msg->alloctype, msg->kmemblk);
 
     msg->flag304 = 0;
-
-    msg->issued = 0;
+    msg->req_encoded = 0;
+    msg->res_encoded = 0;
 
     http_msg_init_res(msg);
+
+    msg->httpsrv = NULL;
 
     msg->resnotify = NULL;
     msg->resnotify_called = 0;
@@ -499,10 +603,21 @@ int http_msg_recycle (void * vmsg)
 {
     HTTPMsg  * msg = (HTTPMsg *)vmsg;
     HTTPMgmt * mgmt = NULL;
+    HTTPMsg  * proxymsg = NULL;
 
     if (!msg) return -1;
 
+    ++msg->recycled;
+
+    if (msg->proxied > 0 && (proxymsg = msg->proxymsg)) {
+        if (proxymsg->proxied > 0 && proxymsg->proxymsg == msg) {
+            proxymsg->proxymsg = NULL;
+        }
+        msg->proxymsg = NULL;
+    }
+
     msg->hl = NULL;
+    msg->hc = NULL;
     msg->phost = NULL;
     msg->ploc = NULL;
     msg->matchnum = 0;
@@ -511,7 +626,8 @@ int http_msg_recycle (void * vmsg)
     msg->cbobj = NULL;
 
     if (msg->script_var_tab) {
-        ht_free_member(msg->script_var_tab, var_obj_free);
+        ht_free_all(msg->script_var_tab, var_obj_free);
+        msg->script_var_tab = NULL;
     }
 
     if (msg->resnotify && !msg->resnotify_called) {
@@ -524,51 +640,91 @@ int http_msg_recycle (void * vmsg)
         msg->pcon = NULL;
     }
 
-    //mgmt = (HTTPMgmt *)msg->httpmgmt;
     mgmt = (HTTPMgmt *)gp_httpmgmt;
     if (!mgmt || !mgmt->msg_pool)
-        return http_msg_free(msg);
+        return -10;
 
     msg->state = HTTP_MSG_NULL;
 
-    http_req_delallcookie(msg);
-
-    http_header_delall(msg, 0);
-    http_header_delall(msg, 1);
-
-    frame_empty(msg->req_header_stream);
-    frame_empty(msg->req_body_stream);
-    frame_empty(msg->req_stream);
-
-    if (frame_size(msg->req_header_stream) > REUSE_BUF_THRESHOLD / 8)     //at most 8k
-        frame_realloc(msg->req_header_stream, REUSE_BUF_THRESHOLD / 8);
-    if (frame_size(msg->req_body_stream) > REUSE_BUF_THRESHOLD / 2)       //32k
-        frame_realloc(msg->req_body_stream, REUSE_BUF_THRESHOLD / 2);
-    if (frame_size(msg->req_stream) > REUSE_BUF_THRESHOLD / 2) //32k
-        frame_realloc(msg->req_stream, REUSE_BUF_THRESHOLD / 2);
+    /* clear the buffer/data management resources which handle the http request */
+    if (msg->uri) {
+        http_uri_free(msg->uri);
+        msg->uri = NULL;
+    }
+    if (msg->absuri) {
+        http_uri_free(msg->absuri);
+        msg->absuri = NULL;
+    }
+    if (msg->docuri) {
+        http_uri_free(msg->docuri);
+        msg->docuri = NULL;
+    }
 
     if (msg->req_file_handle) {
         native_file_close(msg->req_file_handle);
         msg->req_file_handle = NULL;
     }
-    if (msg->req_file_cache && msg->req_file_name) {
+    if (msg->req_file_name) {
         unlink(msg->req_file_name);
         msg->req_file_cache = 0;
 
-        kfree(msg->req_file_name);
+        k_mem_free(msg->req_file_name, msg->alloctype, msg->kmemblk);
         msg->req_file_name = NULL;
     }
     msg->req_multipart = 0;
 
-    http_chunk_zero(msg->req_chunk);
-    chunk_zero(msg->req_body_chunk);
+    http_req_delallcookie(msg);
+    http_header_delall(msg, 0);
 
-    while (arr_num(msg->req_rcvs_list) > 0)
-        frame_free(arr_pop(msg->req_rcvs_list));
-    arr_zero(msg->req_rcvs_list);
+    if (msg->req_cookie_table) {
+        ht_free(msg->req_cookie_table);
+        msg->req_cookie_table = NULL;
+    }
 
-    while (arr_num(msg->req_formlist) > 0)
-        http_form_free(arr_pop(msg->req_formlist));
+    if (msg->req_header_table) {
+        ht_free(msg->req_header_table);
+        msg->req_header_table = NULL;
+    }
+
+    if (msg->req_header_list) {
+        arr_free(msg->req_header_list);
+        msg->req_header_list = NULL;
+    }
+
+    if (msg->req_header_stream) {
+        frame_delete(&msg->req_header_stream);
+        msg->req_header_stream = NULL;
+    }
+    if (msg->req_body_stream) {
+        frame_delete(&msg->req_body_stream);
+        msg->req_body_stream = NULL;
+    }
+    if (msg->req_stream) {
+        frame_delete(&msg->req_stream);
+        msg->req_stream = NULL;
+    }
+
+    if (msg->req_chunk) {
+        http_chunk_free(msg->req_chunk);
+        msg->req_chunk = NULL;
+    }
+
+    if (msg->req_body_chunk) {
+        chunk_free(msg->req_body_chunk);
+        msg->req_body_chunk = NULL;
+    }
+
+    if (msg->req_rcvs_list) {
+        while (arr_num(msg->req_rcvs_list) > 0)
+            frame_free(arr_pop(msg->req_rcvs_list));
+        arr_free(msg->req_rcvs_list);
+        msg->req_rcvs_list = NULL;
+    }
+
+    if (msg->req_formlist) {
+        arr_pop_free(msg->req_formlist, http_form_free);
+        msg->req_formlist = NULL;
+    }
 
     if (msg->req_form_kvobj) {
         kvpair_clean(msg->req_form_kvobj);
@@ -585,40 +741,25 @@ int http_msg_recycle (void * vmsg)
         msg->req_query_kvobj = NULL;
     }
 
-    vstar_zero(msg->partial_list);
-
     if (msg->fwdurl) {
-        kfree(msg->fwdurl);
+        k_mem_free(msg->fwdurl, msg->alloctype, msg->kmemblk);
         msg->fwdurl = NULL;
     }
     msg->fwdurllen = 0;
 
-    /* clear the response member */
-    frame_empty(msg->res_header_stream);
-    frame_empty(msg->res_body_stream);
-    frame_empty(msg->res_stream);
-    frame_empty(msg->res_line);
+    if (msg->partial_list) {
+        vstar_free(msg->partial_list);
+        msg->partial_list = NULL;
+    }
 
-    if (frame_size(msg->res_header_stream) > 10240) //REUSE_BUF_THRESHOLD/4) //16k
-        frame_realloc(msg->res_header_stream, 10240);
-    if (frame_size(msg->res_body_stream) > REUSE_BUF_THRESHOLD / 2)          //32k
-        frame_realloc(msg->res_body_stream, REUSE_BUF_THRESHOLD / 2);
-    if (frame_size(msg->res_stream) > REUSE_BUF_THRESHOLD / 2)               //32k
-        frame_realloc(msg->res_stream, REUSE_BUF_THRESHOLD / 2);
-
-    http_chunk_zero(msg->res_chunk);
-    chunk_zero(msg->res_body_chunk);
-
-    while (arr_num(msg->res_rcvs_list) > 0)
-        frame_free(arr_pop(msg->res_rcvs_list));
-    arr_zero(msg->res_rcvs_list);
+    /* clean the resources occupied by response */
 
     if (msg->res_file_handle) {
         native_file_close(msg->res_file_handle);
         msg->res_file_handle = NULL;
     }
     if (msg->res_file_name) {
-        kfree(msg->res_file_name);
+        k_mem_free(msg->res_file_name, msg->alloctype, msg->kmemblk);
         msg->res_file_name = NULL;
     }
     if (msg->res_file_cache == 1) {
@@ -630,33 +771,98 @@ int http_msg_recycle (void * vmsg)
         msg->res_cache_info = NULL;
     }
 
+    /* Recycle all header-units and release resources */
+    http_header_delall(msg, 1);
+
+    if (msg->res_header_table) {
+        ht_free(msg->res_header_table);
+        msg->res_header_table = NULL;
+    }
+
+    if (msg->res_header_list) {
+        arr_free(msg->res_header_list);
+        msg->res_header_list = NULL;
+    }
+
+    if (msg->res_header_stream) {
+        frame_delete(&msg->res_header_stream);
+        msg->res_header_stream = NULL;
+    }
+    if (msg->res_body_stream) {
+        frame_delete(&msg->res_body_stream);
+        msg->res_body_stream = NULL;
+    }
+    if (msg->res_stream) {
+        frame_delete(&msg->res_stream);
+        msg->res_stream = NULL;
+    }
+
+    if (msg->res_chunk) {
+        http_chunk_free(msg->res_chunk);
+        msg->res_chunk = NULL;
+    }
+
+    if (msg->res_body_chunk) {
+        chunk_free(msg->res_body_chunk);
+        msg->res_body_chunk = NULL;
+    }
+
+    if (msg->res_rcvs_list) {
+        while (arr_num(msg->res_rcvs_list) > 0)
+            frame_free(arr_pop(msg->res_rcvs_list));
+        arr_free(msg->res_rcvs_list);
+        msg->res_rcvs_list = NULL;
+    }
+
     msg->res_file_cache = 0;
     msg->cache_req_start = 0;
     msg->cache_req_off = 0;
     msg->cache_req_len = -1;
 
-    //msg->msgid = 0;
+    if (msg->kmemblk) {
+        kemblk_free(msg->kmemblk);
+        mpool_recycle(mgmt->msgmem_pool, msg->kmemblk);
+    }
+    msg->kmemblk = NULL;
 
-    /* recycle the msg to memory pool */
-    bpool_recycle(mgmt->msg_pool, msg);
+    mpool_recycle(mgmt->msg_pool, msg);
     return 0;
 }
 
-int http_msg_close (void * vmsg)
+int http_msg_closeit (void * vmsg)
+{
+    return http_msg_close(vmsg);
+}
+
+int http_msg_close_dbg (void * vmsg, char * file, int line)
 {
     HTTPMsg  * msg = (HTTPMsg *)vmsg;
+    HTTPMgmt * mgmt = NULL;
+    HTTPSrv  * srv = NULL;
+    int        ret = 0;
 
     if (!msg) return -1;
 
-    if (http_msg_mgmt_del(gp_httpmgmt, msg->msgid) != msg)
-        return -100;
+    mgmt = (HTTPMgmt *)gp_httpmgmt;
+    if (!mgmt) return -2;
+
+    if (http_msg_mgmt_del(gp_httpmgmt, msg->msgid) != msg) {
+        ret = -100;
+    }
+
+    if (ret < 0) goto cloexit;
+
+    if ((srv = msg->httpsrv) != NULL) {
+        srv->rtt = btime_diff_now(&msg->createtime);
+    }
 
     /* write http access log to file */
     http_log_write(msg);
 
     http_msg_recycle(msg);
 
-    return 0;
+cloexit:
+    return ret;
 }
 
 
@@ -664,8 +870,6 @@ int http_msg_init_req (void * vmsg)
 {
     HTTPMsg    * msg = (HTTPMsg *)vmsg;
     HTTPMgmt   * mgmt = NULL;
-    HeaderUnit * unit = NULL;
-    int          i, num;
     
     if (!msg) return -1;
     
@@ -677,28 +881,22 @@ int http_msg_init_req (void * vmsg)
     msg->dstport = 0;
 
     msg->reqsent = 0;
+    msg->req_gotall_body = 0;
     msg->redirecttimes = 0;
     msg->req_url_type = 0;
 
+    msg->req_methind = HTTP_METHOD_NONE;
     memset(msg->req_meth, 0, sizeof(msg->req_meth));
     memset(msg->req_ver, 0, sizeof(msg->req_ver));
     msg->req_ver_major = 0;
     msg->req_ver_minor = 0;
 
-    if (!msg->uri)
-        msg->uri = http_uri_alloc();
-    else
-        http_uri_init(msg->uri);
+    msg->uri = http_uri_alloc(msg->alloctype, msg->kmemblk);
+    msg->absuri = http_uri_alloc(msg->alloctype, msg->kmemblk);
+    msg->docuri = http_uri_alloc(msg->alloctype, msg->kmemblk);
 
-    if (!msg->absuri)
-        msg->absuri = http_uri_alloc();
-    else
-        http_uri_init(msg->absuri);
-
-    if (!msg->docuri)
-        msg->docuri = http_uri_alloc();
-    else
-        http_uri_init(msg->docuri);
+    msg->pathhash = 0;
+    msg->urihash = 0;
 
     msg->req_scheme = NULL;
     msg->req_schemelen = 0;
@@ -726,89 +924,37 @@ int http_msg_init_req (void * vmsg)
     msg->req_body_length = 0;
     msg->req_body_iolen = 0;
 
-    msg->req_chunk_state = 0;
-    msg->req_chunk_size = -1;
-    msg->req_chunk_iolen = 0;
-
     msg->req_conn_keepalive = 0;
 
     /* temperory file for storing request */
     msg->req_multipart = 0;
     msg->req_file_cache = 0;
     msg->req_file_name = NULL;
-    if (msg->req_file_handle) {
-        native_file_close(msg->req_file_handle);
-        msg->req_file_handle = NULL;
-    }
+    msg->req_file_handle = NULL;
 
-    if (!msg->req_header_table) {
-        msg->req_header_table = ht_only_new(mgmt->header_num, hunit_cmp_key);
-        hunit_set_hashfunc(msg->req_header_table);
-    }
-    ht_zero(msg->req_header_table);
+    msg->req_header_table = ht_only_alloc(mgmt->header_num, hunit_cmp_key, msg->alloctype, msg->kmemblk);
+    hunit_set_hashfunc(msg->req_header_table);
 
-    if (!msg->req_cookie_table) {
-        msg->req_cookie_table = ht_only_new(mgmt->header_num, hunit_cmp_key);
-        hunit_set_hashfunc(msg->req_cookie_table);
-    }
-    ht_zero(msg->req_cookie_table);
+    msg->req_cookie_table = ht_only_alloc(mgmt->header_num, hunit_cmp_key, msg->alloctype, msg->kmemblk);
+    hunit_set_hashfunc(msg->req_cookie_table);
 
-    if (!msg->req_header_list)
-        msg->req_header_list = arr_new(4);
-    else {
-        num = arr_num(msg->req_header_list);
-        for (i = 0; i < num; i++) {
-            unit = arr_pop(msg->req_header_list);
-            if (!unit) continue;
-            bpool_recycle(mgmt->header_unit_pool, unit);
-        }
-    }
-    arr_zero(msg->req_header_list);
+    msg->req_header_list = arr_alloc(16, msg->alloctype, msg->kmemblk);
 
-    if (!msg->req_header_stream) msg->req_header_stream = frame_new(256);
-    frame_empty(msg->req_header_stream);
+    msg->req_header_stream = frame_alloc(0, msg->alloctype, msg->kmemblk);
+    msg->req_body_stream = frame_alloc(0, msg->alloctype, msg->kmemblk);
+    msg->req_stream = frame_alloc(0, msg->alloctype, msg->kmemblk);
 
-    if (!msg->req_body_stream) msg->req_body_stream = frame_new(128);
-    frame_empty(msg->req_body_stream);
+    msg->req_chunk = NULL;
 
-    if (!msg->req_stream) msg->req_stream = frame_new(256);
-    frame_empty(msg->req_stream);
+    msg->req_body_chunk = chunk_alloc(8192, msg->alloctype, msg->kmemblk);
 
-    if (msg->req_chunk == NULL) {
-        msg->req_chunk = http_chunk_alloc();
-    }
-    http_chunk_zero(msg->req_chunk);
+    msg->req_rcvs_list = arr_alloc(2, msg->alloctype, msg->kmemblk);
 
-    if (msg->req_body_chunk == NULL) {
-        msg->req_body_chunk = chunk_new(8192);
-    }
-    chunk_zero(msg->req_body_chunk);
+    msg->req_formlist = arr_alloc(4, msg->alloctype, msg->kmemblk);
+    msg->req_form_kvobj = NULL;
+    msg->req_form_json = NULL;
 
-    if (msg->req_rcvs_list == NULL) {
-        msg->req_rcvs_list = arr_new(2);
-    }
-    arr_zero(msg->req_rcvs_list);
-
-    if (msg->req_formlist == NULL) {
-        msg->req_formlist = arr_new(4);
-    }
-    while (arr_num(msg->req_formlist) > 0)
-        http_form_free(arr_pop(msg->req_formlist));
-
-    if (msg->req_form_kvobj) {
-        kvpair_clean(msg->req_form_kvobj);
-        msg->req_form_kvobj = NULL;
-    }
-
-    if (msg->req_form_json) {
-        json_clean(msg->req_form_json);
-        msg->req_form_json = NULL;
-    }
-
-    if (msg->req_query_kvobj) {
-        kvpair_clean(msg->req_query_kvobj);
-        msg->req_query_kvobj = NULL;
-    }
+    msg->req_query_kvobj = NULL;
 
     msg->req_stream_sent = 0;
     msg->req_stream_recv = 0;
@@ -820,23 +966,17 @@ int http_msg_init_res (void * vmsg)
 {
     HTTPMsg    * msg = (HTTPMsg *)vmsg;
     HTTPMgmt   * mgmt = NULL;
-    HeaderUnit * unit = NULL;
-    int          i, num;
     
     if (!msg) return -1;
     
     mgmt = (HTTPMgmt *)msg->httpmgmt;
     
+    msg->res_ver[0] = '\0';
     msg->res_status = -500;
+    msg->res_reason[0] = '\0';
 
-    msg->res_verloc = 0;
-    msg->res_verlen = 0;
-    msg->res_statusloc = 0;
-    msg->res_statuslen = 0;
-    msg->res_reasonloc = 0;
-    msg->res_reasonlen = 0;
-    if (!msg->res_line) msg->res_line = frame_new(32);
-    frame_empty(msg->res_line);
+    msg->res_mime = NULL;
+    msg->res_mimeid = 0;
 
     msg->res_header_length = 0;
     msg->res_body_length = 0;
@@ -844,72 +984,37 @@ int http_msg_init_res (void * vmsg)
 
     msg->res_body_flag = BC_CONTENT_LENGTH;
 
+    msg->res_gotall_body = 0;
+
     msg->res_conn_keepalive = 0;
 
-    if (msg->res_file_handle) {
-        native_file_close(msg->res_file_handle);
-        msg->res_file_handle = NULL;
-    }
-    if (msg->res_file_name) {
-        kfree(msg->res_file_name);
-        msg->res_file_name = NULL;
-    }
+    msg->res_file_handle = NULL;
+    msg->res_file_name = NULL;
 
-    if (msg->res_cache_info) {
-        cache_info_close(msg->res_cache_info);
-        msg->res_cache_info = NULL;
-    }
+    msg->res_cache_info = NULL;
 
     msg->res_file_cache = 0;
     msg->cache_req_start = 0;
     msg->cache_req_off = 0;
     msg->cache_req_len = -1;
 
-    if (!msg->res_header_table) {
-        msg->res_header_table = ht_only_new(mgmt->header_num, hunit_cmp_key);
-        hunit_set_hashfunc(msg->res_header_table);
-    }
-    ht_zero(msg->res_header_table);
+    msg->res_header_table = ht_only_alloc(mgmt->header_num, hunit_cmp_key, msg->alloctype, msg->kmemblk);
+    hunit_set_hashfunc(msg->res_header_table);
 
-    if (!msg->res_header_list)
-        msg->res_header_list = arr_new(4);
-    else {
-        num = arr_num(msg->res_header_list);
-        for (i=0; i<num; i++) {
-            unit = arr_pop(msg->res_header_list);
-            if (!unit) continue;
-            bpool_recycle(mgmt->header_unit_pool, unit);
-        }
-    }
-    arr_zero(msg->res_header_list);
-
+    msg->res_header_list = arr_alloc(16, msg->alloctype, msg->kmemblk);
     
-    if (!msg->res_header_stream) msg->res_header_stream = frame_new(4096);
-    frame_empty(msg->res_header_stream);
+    msg->res_header_stream = frame_alloc(0, msg->alloctype, msg->kmemblk);
+    msg->res_body_stream = frame_alloc(0, msg->alloctype, msg->kmemblk);
+    msg->res_stream = frame_alloc(0, msg->alloctype, msg->kmemblk);
 
-    if (!msg->res_body_stream) msg->res_body_stream = frame_new(8192);
-    frame_empty(msg->res_body_stream);
+    msg->res_chunk = NULL;
 
-    if (!msg->res_stream) msg->res_stream = frame_new(8192);
-    frame_empty(msg->res_stream);
-
-    if (msg->res_chunk == NULL) {
-        msg->res_chunk = http_chunk_alloc();
-    }
-    http_chunk_zero(msg->res_chunk);
-
-    if (msg->res_body_chunk == NULL) {
-        msg->res_body_chunk = chunk_new(8192);
-    }
-    chunk_zero(msg->res_body_chunk);
+    msg->res_body_chunk = chunk_alloc(8192, msg->alloctype, msg->kmemblk);
 
     msg->res_stream_sent = 0;
     msg->res_stream_recv = 0;
 
-    if (msg->res_rcvs_list == NULL) {
-        msg->res_rcvs_list = arr_new(4);
-    }
-    arr_zero(msg->res_rcvs_list);
+    msg->res_rcvs_list = arr_alloc(4, msg->alloctype, msg->kmemblk);
 
     return 0;
 }
@@ -1134,7 +1239,7 @@ int http_msg_mgmt_add (void * vmgmt, void * vmsg)
     if (!pmsg) return -2;
 
     EnterCriticalSection(&mgmt->msgtableCS);
-    ht_set(mgmt->msg_table, &pmsg->msgid, pmsg);
+    ht_set(mgmt->msg_table, (void *)pmsg->msgid, pmsg);
     LeaveCriticalSection(&mgmt->msgtableCS);
 
     return 0;
@@ -1148,7 +1253,7 @@ void * http_msg_mgmt_get (void * vmgmt, ulong msgid)
     if (!mgmt) return NULL;
 
     EnterCriticalSection(&mgmt->msgtableCS);
-    pmsg = ht_get(mgmt->msg_table, &msgid);
+    pmsg = ht_get(mgmt->msg_table, (void *)msgid);
     LeaveCriticalSection(&mgmt->msgtableCS);
 
     return pmsg;
@@ -1162,7 +1267,7 @@ void * http_msg_mgmt_del (void * vmgmt, ulong msgid)
     if (!mgmt) return NULL;
 
     EnterCriticalSection(&mgmt->msgtableCS);
-    pmsg = ht_delete(mgmt->msg_table, &msgid);
+    pmsg = ht_delete(mgmt->msg_table, (void *)msgid);
     LeaveCriticalSection(&mgmt->msgtableCS);
 
     return pmsg;
@@ -1186,23 +1291,24 @@ int http_msg_var_set (void * vmsg, char * name, char * value, int valuelen)
 
     obj = ht_get(msg->script_var_tab, name);
     if (!obj) {
-        obj = var_obj_alloc();
+        obj = var_obj_alloc(msg->alloctype, msg->kmemblk);
         
-        obj->name = str_dup(name, namelen);
+        obj->name = k_mem_str_dup(name, namelen, msg->alloctype, msg->kmemblk);
         obj->namelen = namelen;
 
         ht_set(msg->script_var_tab, name, obj);
 
     } else {
         if (obj->value) {
-            kfree(obj->value);
+            //kfree(obj->value);
+            k_mem_free(obj->value, msg->alloctype, msg->kmemblk);
             obj->value = NULL;
         }
         obj->valuelen = 0;
     }
 
     if (value && valuelen >= 0)
-        obj->value = str_dup(value, valuelen);
+        obj->value = k_mem_str_dup(value, valuelen, msg->alloctype, msg->kmemblk);
      obj->valuelen = valuelen;
 
     return 0;

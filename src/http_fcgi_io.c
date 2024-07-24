@@ -1,6 +1,30 @@
 /*
- * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2024 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
+ *
+ * #####################################################
+ * #                       _oo0oo_                     #
+ * #                      o8888888o                    #
+ * #                      88" . "88                    #
+ * #                      (| -_- |)                    #
+ * #                      0\  =  /0                    #
+ * #                    ___/`---'\___                  #
+ * #                  .' \\|     |// '.                #
+ * #                 / \\|||  :  |||// \               #
+ * #                / _||||| -:- |||||- \              #
+ * #               |   | \\\  -  /// |   |             #
+ * #               | \_|  ''\---/''  |_/ |             #
+ * #               \  .-\__  '-'  ___/-. /             #
+ * #             ___'. .'  /--.--\  `. .'___           #
+ * #          ."" '<  `.___\_<|>_/___.'  >' "" .       #
+ * #         | | :  `- \`.;`\ _ /`;.`/ -`  : | |       #
+ * #         \  \ `_.   \_ __\ /__ _/   .-` /  /       #
+ * #     =====`-.____`.___ \_____/___.-`___.-'=====    #
+ * #                       `=---='                     #
+ * #     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   #
+ * #               佛力加持      佛光普照              #
+ * #  Buddha's power blessing, Buddha's light shining  #
+ * #####################################################
  */
 
 #include "adifall.ext"
@@ -10,6 +34,7 @@
 #include "http_mgmt.h"
 #include "http_chunk.h"
 #include "http_header.h"
+#include "http_request.h"
 #include "http_response.h"
 #include "http_cli_io.h"
 #include "http_cc.h"
@@ -21,14 +46,18 @@
 
 extern HTTPMgmt * gp_httpmgmt;
 
-int http_fcgi_send_probe (void * vcon)
+int http_fcgi_send_probe (void * vsrv, ulong conid)
 {
-    FcgiCon  * pcon = (FcgiCon *)vcon;
+    FcgiSrv  * srv = (FcgiSrv *)vsrv;
+    FcgiCon  * pcon = NULL;
     FcgiMsg  * msg = NULL;
     int        num = 0;
  
-    if (!pcon) return -1;
- 
+    if (!srv) return -1;
+
+    pcon = http_fcgisrv_con_get(srv, conid);
+    if (!pcon) return -2;
+
     if (pcon->snd_state < FCGI_CON_SEND_READY) return -100;
  
     num = arr_num(pcon->msg_list) + http_fcgisrv_msg_num(pcon->srv);
@@ -58,9 +87,10 @@ int http_fcgi_send_probe (void * vcon)
     return 0;
 }
 
-int http_fcgi_send (void * vcon)
+int http_fcgi_send (void * vsrv, ulong conid)
 {
-    FcgiCon     * pcon = (FcgiCon *)vcon;
+    FcgiSrv     * srv = (FcgiSrv *)vsrv;
+    FcgiCon     * pcon = NULL;
     FcgiMsg     * msg = NULL;
     time_t        curt = 0;
 
@@ -73,7 +103,10 @@ int http_fcgi_send (void * vcon)
     int           num = 0;
     int           err = 0;
 
-    if (!pcon) return -1;
+    if (!srv) return -1;
+
+    pcon = http_fcgisrv_con_get(srv, conid);
+    if (!pcon) return -2;
 
     if (pcon->snd_state < FCGI_CON_SEND_READY)
         return -100;
@@ -105,7 +138,7 @@ int http_fcgi_send (void * vcon)
         } else {
             curt = time(0);
             while ((msg = http_fcgisrv_msg_pull(pcon->srv)) != NULL) {
-                if (curt - msg->createtime > 60) {
+                if (curt - msg->createtime.s > 60) {
                     http_fcgimsg_close(msg);
                     msg = NULL;
                     continue;
@@ -145,7 +178,7 @@ int http_fcgi_send (void * vcon)
 
             if (ret < 0 || (iovec.size > 0 && iovec.vectype != 1 && iovec.vectype != 2)) {
                 pcon->snd_state = FCGI_CON_IDLE;
-                http_fcgicon_crash_handle(pcon);
+                http_fcgicon_crash_handle(srv, conid);
                 return ret;
             }
  
@@ -156,7 +189,7 @@ int http_fcgi_send (void * vcon)
                 /* all octets in buffer are sent to FastCGI server and de-congesting process
                    should be started. Connection of client-side is checked to add Read notification
                    if it's removed before */
-                http_fcgi_send_cc(pcon);
+                http_fcgi_send_cc(srv, conid);
 
                 return 0;
             }
@@ -166,7 +199,7 @@ int http_fcgi_send (void * vcon)
                                    iovec.fpos, iovec.size , &num, &err);
                 if (ret < 0) {
                     pcon->snd_state = FCGI_CON_IDLE;
-                    http_fcgicon_crash_handle(pcon);
+                    http_fcgicon_crash_handle(srv, conid);
                     return ret;
                 }
  
@@ -174,7 +207,7 @@ int http_fcgi_send (void * vcon)
                 ret = tcp_writev(iodev_fd(pcon->pdev), iovec.iovs, iovec.iovcnt, &num, &err);
                 if (ret < 0) {
                     pcon->snd_state = FCGI_CON_IDLE;
-                    http_fcgicon_crash_handle(pcon);
+                    http_fcgicon_crash_handle(srv, conid);
                     return ret;
                 }
             }
@@ -203,7 +236,7 @@ int http_fcgi_send (void * vcon)
                    should be started. Connection of client-side is checked to add Read notification
                    if it's removed before */
                 if (sentnum > 0)
-                    http_fcgi_send_cc(pcon);
+                    http_fcgi_send_cc(srv, conid);
 
                 return 0;
             }
@@ -237,6 +270,7 @@ int http_fcgi_send_final (void * vmsg)
     if (!msg) return -1;
  
     fnum = chunk_remove(msg->req_body_chunk, msg->req_stream_sent, 0);
+ 
     if (fnum <= 0)
         return 0;
  
@@ -256,13 +290,17 @@ int http_fcgi_send_final (void * vmsg)
 }
 
 
-int http_fcgicon_crash_handle (void * vcon)
+int http_fcgicon_crash_handle_dbg (void * vsrv, ulong conid, char * file, int line)
 {
-    FcgiCon    * pcon = (FcgiCon *)vcon;
-    FcgiMsg    * msg = NULL;
-    HTTPMsg    * httpmsg = NULL;
+    FcgiSrv * srv = (FcgiSrv *)vsrv;
+    FcgiCon * pcon = NULL;
+    FcgiMsg * msg = NULL;
+    HTTPMsg * httpmsg = NULL;
 
-    if (!pcon) return -1;
+    if (!srv) return -1;
+
+    pcon = http_fcgisrv_con_get(srv, conid);
+    if (!pcon) return -2;
 
     msg = http_fcgicon_msg_first(pcon);
  
@@ -271,34 +309,38 @@ int http_fcgicon_crash_handle (void * vcon)
             frame_empty(httpmsg->res_header_stream);
             http_fcgi_send_start(pcon->srv, httpmsg);
  
-            http_fcgicon_close(pcon);
+            http_fcgicon_close_dbg(srv, conid, file, line);
             return 0;
         }
     }
  
     http_fcgimsg_pre_crash(msg, 503);
-    http_fcgicon_close(pcon);
+    http_fcgicon_close_dbg(srv, conid, file, line);
  
     return -100;
 }
 
 
-int http_fcgi_recv (void * vcon)
+int http_fcgi_recv (void * vsrv, ulong conid)
 {
-    FcgiCon    * pcon = (FcgiCon *)vcon;
-    FcgiMsg    * msg = NULL;
-    int          ret = 0, num = 0;
-    int          err = 0;
-    uint8        crashed = 0;
+    FcgiSrv * srv = (FcgiSrv *)vsrv;
+    FcgiCon * pcon = NULL;
+    FcgiMsg * msg = NULL;
+    int       ret = 0, num = 0;
+    int       err = 0;
+    uint8     crashed = 0;
  
-    if (!pcon) return -1;
+    if (!srv) return -1;
  
+    pcon = http_fcgisrv_con_get(srv, conid);
+    if (!pcon) return -2;
+
     /* If the receiving speed of FastCGI server is greater than the sending
        speed of client side, a great deal of data will be piled up in memory.
        Congestion control should be activated by neglecting the read-ready event of server side.
        After that, receving buffer of underlying TCP/UnixSocket will be full soon.
        TCP/UnixSocket stack will start congestion control mechanism */
-    if (http_fcgi_recv_cc(pcon) > 0) 
+    if (http_fcgi_recv_cc(srv, conid) > 0) 
         return 0;
 
     while (1) {
@@ -310,7 +352,7 @@ int http_fcgi_recv (void * vcon)
             crashed = 1;
  
             if (frameL(pcon->rcvstream) <= 0) {
-                return http_fcgicon_crash_handle(pcon);
+                return http_fcgicon_crash_handle(srv, conid);
             }
         }
  
@@ -324,13 +366,14 @@ int http_fcgi_recv (void * vcon)
         if (frameL(pcon->rcvstream) <= 0) 
            return 0;
 
-        ret = http_fcgi_recv_forward(pcon);
+        //ret = http_fcgi_recv_parse(pcon);
+        ret = http_fcgi_recv_forward(srv, conid);
         if (ret < 0) {
-            return http_fcgicon_crash_handle(pcon);
+            return http_fcgicon_crash_handle(srv, conid);
  
         } else if (ret == 0) {
             if (crashed) {
-                http_fcgicon_crash_handle(pcon);
+                http_fcgicon_crash_handle(srv, conid);
             }
  
             return 0;
@@ -353,7 +396,7 @@ int http_fcgi_recv (void * vcon)
             if (frameL(pcon->rcvstream) <= 0) {
                 /* go on sending another Fcgi Request and receiving its Response */
                 if (arr_num(pcon->msg_list) + http_fcgisrv_msg_num(pcon->srv) > 0) {
-                    http_fcgi_send(pcon);
+                    http_fcgi_send(srv, conid);
                 }
  
                 return 0;
@@ -369,14 +412,222 @@ int http_fcgi_recv (void * vcon)
    move the octets of body of STDOUT to HTTPMsg res_body_stream
    when encountering END_REQUESt, all body got and reply HTTPMsg to client */
 
-/* First, we must get header octets for assembly a new HTTP response headers.
-   Then, send header and body octets directly to client as soon as receiving any data */
-
-int http_fcgi_recv_forward (void * vcon)
+int http_fcgi_recv_parse (void * vcon)
 {
     FcgiCon  * pcon = (FcgiCon *)vcon;
     FcgiMsg  * msg = NULL;
     FcgiSrv  * srv = NULL;
+
+    HTTPMgmt * mgmt = NULL;
+    HTTPMsg  * httpmsg = NULL;
+
+    uint8    * pbgn = NULL;
+    uint8    * pbody = NULL;
+    uint8    * pbyte = NULL;
+    uint8    * pend  = NULL;
+    int        num = 0;
+
+    int        iter = 0;
+    int        hdrlen = 0;
+    int        bodylen = 0;
+    int        padding = 0;
+
+    uint8    * ppar[4];
+    int        arlen[4];
+    int        ind = 0;
+    int        ret = 0;
+
+    if (!pcon) return -1;
+
+    srv = (FcgiSrv *)pcon->srv;
+    if (!srv) return -2;
+
+    mgmt = (HTTPMgmt *)srv->mgmt;
+    if (!mgmt) return -3;
+
+    num = frameL(pcon->rcvstream);
+    if (num <= 0) {
+        return 0;
+    }
+
+    msg = http_fcgicon_msg_first(pcon);
+    if (!msg) {  //the FCGI Response has no corresponding FCGI request
+        return -102;
+    }
+
+    httpmsg = msg->httpmsg;
+    if (!httpmsg) return -103;
+
+    if (httpmsg->res_header_stream == NULL)
+        httpmsg->res_header_stream = frame_alloc(0, httpmsg->alloctype, httpmsg->kmemblk);
+
+    while ((num = frameL(pcon->rcvstream)) >= 8) {
+        pbgn = frameP(pcon->rcvstream);
+
+        hdrlen = fcgi_header_decode(pbgn, num, &msg->cgihdr);
+        if (hdrlen != 8)  //FcgiHeader length
+            return 0;
+
+        if (!fcgi_header_type_valid(msg->cgihdr.type, 1)) { //if FCGI type invalid
+            return -101;
+        }
+
+        pbody = pbgn + hdrlen;
+        bodylen = msg->cgihdr.contlen;
+        padding = msg->cgihdr.padding;
+        pend = pbody + bodylen;
+
+        if (msg->cgihdr.type == FCGI_STDOUT) {
+            if (bodylen == 0) {
+                /* FCGI response body got end */
+                frame_del_first(pcon->rcvstream, hdrlen);
+                continue;
+            }
+
+            if (hdrlen + bodylen > num) {
+                /* there is no more data to fill one complete FCGI Pdu */
+                return 0;  //waiting for more data coming
+            }
+
+            ppar[0]  = frameP(httpmsg->res_header_stream);
+            arlen[0] = frameL(httpmsg->res_header_stream);
+            ppar[1]  = pbody;
+            arlen[1] = bodylen;
+
+            if (msg->got_all_header == 0) {
+
+                pbyte = sun_find_mbytes((void **)ppar, arlen, 2,  "\r\n\r\n", 4, NULL, &ind);
+                if (!pbyte) {
+                    if (arlen[0] + arlen[1] > mgmt->srv_max_header_size) {
+                        /* request header is too large, possibly a malicious attack */
+                        return -104;
+                    }
+    
+                    msg->got_all_header = 0;
+
+                    frame_put_nlast(httpmsg->res_header_stream, pbody, bodylen);
+                    frame_del_first(pcon->rcvstream, pend - pbgn + padding);
+
+                    continue;
+                }
+    
+                msg->got_all_header = 1;
+
+                if (ind == 0) { /* \r\n\r\n occurs in res_header_stream */
+
+                    if (pbyte + 4 <= ppar[0] + arlen[0]) {
+                        /* there are some body octets retained in res_header_stream, 
+                           move them to body_stream */
+                        iter = ppar[0] + arlen[0] - pbyte - 4;
+                        if (iter > 0) {
+                            frame_put_nlast(httpmsg->res_body_stream, pbyte + 4, iter);
+                            frame_del_last(httpmsg->res_body_stream, iter);
+                        }
+
+                        /* move all STDOUT body into httpmsg->res_body_stream */
+                        frame_put_nlast(httpmsg->res_body_stream, pbody, bodylen);
+
+                    } else {
+                        /* header trailer \r\n\r\n across the 2 buffer, move them 
+                           into httpmsg->res_header_stream */
+                        iter = pbyte + 4 - ppar[0] - arlen[0];
+                        frame_put_nlast(httpmsg->res_header_stream, pbody, iter);
+
+                        /* move STDOUT body into httpmsg->res_body_stream */
+                        frame_put_nlast(httpmsg->res_body_stream, pbody + iter, bodylen - iter);
+                    }
+
+                    /* remove the octets of first FastCGI pdu */
+                    frame_del_first(pcon->rcvstream, pend - pbgn + padding);
+
+                } else if (ind == 1) {
+                    iter = pbyte + 4 - pbody;
+                    frame_put_nlast(httpmsg->res_header_stream, pbody, iter);
+
+                    /* move STDOUT body into httpmsg->res_body_stream */
+                    frame_put_nlast(httpmsg->res_body_stream, pbody + iter, pend - pbody - iter);
+
+                    /* remove the octets of first FastCGI pdu */
+                    frame_del_first(pcon->rcvstream, pend - pbgn + padding);
+                }
+    
+                ret = http_res_parse_header(httpmsg, 0);
+                if (ret < 0) return -106;
+    
+                continue;
+
+            } else {  //STDOUT header has been got before
+                /* move STDOUT body into httpmsg->res_body_stream */
+                frame_put_nlast(httpmsg->res_body_stream, pbody, bodylen);
+
+                /* remove the octets of first FastCGI pdu */
+                frame_del_first(pcon->rcvstream, pend - pbgn + padding);
+
+                continue;
+            }
+
+        } else if (msg->cgihdr.type == FCGI_END_REQUEST) {
+            if (bodylen != 8) {
+            }
+
+            msg->app_status = (pbody[0] << 24) + (pbody[1] << 16) + (pbody[2] << 8) + pbody[3];
+            msg->proto_status = pbody[4];
+
+            /* remove the octets of unknown FastCGI pdu */
+            frame_del_first(pcon->rcvstream, pend - pbgn + padding);
+
+            msg->got_end_request = 1;
+
+            if ((bodylen = frameL(httpmsg->res_body_stream)) > 0) {
+                chunk_add_bufptr(httpmsg->res_body_chunk, frameP(httpmsg->res_body_stream),
+                                 bodylen, NULL, NULL);
+            }
+
+            if (msg->proto_status != 0) {
+                httpmsg->SetStatus(httpmsg, 406, NULL);
+            } else {
+                httpmsg->SetStatus(httpmsg, 200, NULL);
+            }
+
+            /* clear the possible remaining octets in FcgiCon rcvstream */
+            frame_empty(pcon->rcvstream);
+
+            /* FcgiMsg has done all job, now unbind it from FcgiCon */
+            pcon->msg = NULL;
+            http_fcgicon_msg_del(pcon, msg);
+
+            /* close FcgiMsg */
+            http_fcgimsg_close(msg);
+
+            /* unset httpmsg's fcgimsg value */
+            httpmsg->fcgimsg = NULL;
+
+            /* extracted data from FcgiCon/FcgiMsg to HTTP response successfully!
+               now send the HTTP response to client */ 
+
+            return httpmsg->Reply(httpmsg);
+
+        } else if (msg->cgihdr.type == FCGI_STDERR) {
+            /* remove the octets of unknown FastCGI pdu */
+            frame_del_first(pcon->rcvstream, pend - pbgn + padding);
+
+        } else {
+            /* remove the octets of unknown FastCGI pdu */
+            frame_del_first(pcon->rcvstream, pend - pbgn + padding);
+        }
+    } //end while
+
+    return 0;
+}
+
+/* First, we must get header octets for assembly a new HTTP response headers.
+   Then, send header and body octets directly to client as soon as receiving any data */
+
+int http_fcgi_recv_forward (void * vsrv, ulong conid)
+{
+    FcgiSrv  * srv = (FcgiSrv *)vsrv;
+    FcgiCon  * pcon = NULL;
+    FcgiMsg  * msg = NULL;
     frame_p    frm = NULL;
 
     HTTPMgmt * mgmt = NULL;
@@ -403,10 +654,10 @@ int http_fcgi_recv_forward (void * vcon)
     int        ret = 0;
     int        len = 0;
 
-    if (!pcon) return -1;
+    if (!srv) return -1;
 
-    srv = (FcgiSrv *)pcon->srv;
-    if (!srv) return -2;
+    pcon = http_fcgisrv_con_get(srv, conid);
+    if (!pcon) return -2;
 
     mgmt = (HTTPMgmt *)srv->mgmt;
     if (!mgmt) return -3;
@@ -424,13 +675,18 @@ int http_fcgi_recv_forward (void * vcon)
     httpmsg = msg->httpmsg;
     if (!httpmsg) return -103;
 
+    EnterCriticalSection(&pcon->excCS);
     frm = pcon->rcvstream;
     arr_push(httpmsg->res_rcvs_list, frm);
-    pcon->rcvstream = frame_new(8192);
+    pcon->rcvstream = frame_alloc(0, pcon->alloctype, pcon->kmemblk);
+    LeaveCriticalSection(&pcon->excCS);
  
     pbgn = frameP(frm);
     num = frameL(frm);
     iter = 0;
+
+    if (httpmsg->res_header_stream == NULL)
+        httpmsg->res_header_stream = frame_alloc(0, httpmsg->alloctype, httpmsg->kmemblk);
 
     while (iter + 8 <= num) { 
         if (!msg->cgihdr.wait_more_data) {
@@ -577,7 +833,7 @@ int http_fcgi_recv_forward (void * vcon)
                 ret = http_res_encoding(httpmsg);
                 if (ret < 0) return -107;
  
-                httpmsg->issued = 1;
+                httpmsg->res_encoded = 1;
                 httpmsg->state = HTTP_MSG_REQUEST_HANDLED;
 
                 continue;
@@ -610,16 +866,17 @@ int http_fcgi_recv_forward (void * vcon)
             /* close FcgiMsg */
             http_fcgimsg_close(msg);
 
-            /* close FcgiCon, added on 2020-12-25 for the reason of high CPU consumption
-             * when uploading sequential pieces of big file in multiple HTTP requests over
-             * one TCP connection and FastCGI requests over one unix-sock connection.
-             * In theroy, long-lived connection between eJet and php-fpm should
-             * reduce the overhead of connection building. But load balance on the base
-             * of request/response transaction over short-lived connection cannot be 
-             * assured by php-fpm (maybe need to go on tunning in new php-fpm version).
-             * Accordingly, the connection to FastCGI server is forced to close when the
-             * response is delivered to HTTP client successfully. */
-            http_fcgicon_close(pcon);
+            /* If multiple HTTP requests on a long TCP connection are FastCGI requests,
+               is it appropriate to use long-life connection or short-life connection for
+               TCP or unix-socket connection between eJet and FastCGI server? Theoretically,
+               the connection between eJet and php-fpm should be long-lived, which can reduce
+               the overhead required for frequent connection establishment. However, after
+               testing, it is found that php-fpm has defects in sending and receiving FastCGI
+               requests/responses with long connections (it may need to be optimized in the new
+               version). Therefore, when FastCGI's response is successfully delivered to the
+               HTTP client, the connection between eJet and FastCGI server will be forcibly closed. */
+
+            http_fcgicon_close(srv, conid);
 
             /* unset httpmsg's fcgimsg value */
             httpmsg->fcgimsg = NULL;
@@ -644,35 +901,22 @@ int http_fcgi_recv_forward (void * vcon)
         frame_put_nlast(pcon->rcvstream, pbgn + iter, num - iter);
     }
 
-    http_cli_send(httpmsg->pcon);
-
+    http_cli_send(mgmt, httpmsg->conid);
     return 0;
 }
+
 
 int http_fcgi_handle (void * vmsg)
 {
     HTTPMsg  * msg = (HTTPMsg *)vmsg;
-    HTTPMgmt * mgmt = NULL;
-    FcgiSrv  * cgisrv = NULL;
-    char       url[512];
+    int        ret = 0;
 
     if (!msg) return -1;
 
-    mgmt = (HTTPMgmt *)msg->httpmgmt;
-    if (!mgmt) return -2;
+    ret = http_fcgi_examine(msg);
+    if (ret < 0) return ret;
 
-    /* check the request if it's to be transformed to FCGI server */
-    if (http_fcgi_check(msg, url, sizeof(url)-1) <= 0)
-        return -100;
-
-    msg->fastcgi = 1;
- 
-    cgisrv = http_fcgisrv_open(mgmt, url, 100);
-    if (!cgisrv) return -200;
- 
-    http_fcgi_send_start(cgisrv, msg);
- 
-    return 0;
+    return http_fcgi_launch(msg);
 }
 
 int http_fcgi_check (void * vmsg, void * purl, int urlen)
@@ -685,17 +929,47 @@ int http_fcgi_check (void * vmsg, void * purl, int urlen)
 
     if (!msg->ploc) return 0;
  
+    /* /w/h/wc.php?key=setbitfunc&stamp=327239843983
+     * location = {
+           type = fastcgi;
+           path = [ "\.(php|php?)$", '~*'];
+
+           passurl = fastcgi://121.17.94.8:9000;
+
+           index = [ index.php ];
+           root = /data/wwwroot/wordproc;
+            }
+     * url --> fastcgi://121.17.94.8:9000/
+     */
+ 
     ret = http_loc_passurl_get(msg, SERV_FASTCGI, url, urlen);
     if (ret > 0) {
-        if (msg->fwdurl) kfree(msg->fwdurl);
+        if (msg->fwdurl) k_mem_free(msg->fwdurl, msg->alloctype, msg->kmemblk);
         msg->fwdurllen = strlen(url);
-        msg->fwdurl = str_dup(url, msg->fwdurllen);
+        msg->fwdurl = k_mem_str_dup(url, msg->fwdurllen, msg->alloctype, msg->kmemblk);
 
         return 1;
     }
  
     return 0;
 }
+
+int http_fcgi_examine (void * vmsg)
+{
+    HTTPMsg  * msg = (HTTPMsg *)vmsg;
+    char       url[512];
+
+    if (!msg) return -1;
+
+    /* check the request if it's to be transformed to FCGI server */
+    if (http_fcgi_check(msg, url, sizeof(url)-1) <= 0)
+        return -100;
+
+    msg->fastcgi = 1; 
+
+    return 0;
+}
+
  
 void * http_fcgi_send_start (void * vfcgisrv, void * vhttpmsg)
 {
@@ -709,13 +983,9 @@ void * http_fcgi_send_start (void * vfcgisrv, void * vhttpmsg)
 
     /* create one FastCGI FcgiMsg object */
     cgimsg = httpmsg->fcgimsg = http_fcgimsg_open(cgisrv, httpmsg);
-         
-    cgicon = http_fcgisrv_connect(cgisrv);
+
+    cgicon = http_fcgisrv_connect(cgisrv, httpmsg->workerid);
     if (cgicon) { 
-        /* upcoming R/W events of proxycon will be delivered to current thread.
-           for the Read/Write pipeline of 2 HTTP connections */
-        iodev_workerid_set(cgicon->pdev, 1);
-     
         http_fcgicon_msg_add(cgicon, cgimsg);
      
         http_fcgi_srv_send(cgicon, cgimsg);
@@ -729,6 +999,48 @@ void * http_fcgi_send_start (void * vfcgisrv, void * vhttpmsg)
     return cgicon;
 }
 
+int http_fcgi_launch (void * vmsg)
+{
+    HTTPMsg  * msg = (HTTPMsg *)vmsg;
+    HTTPMgmt * mgmt = NULL;
+    FcgiSrv  * cgisrv = NULL;
+    FcgiMsg  * cgimsg = NULL;
+
+    if (!msg) return -1;
+
+    mgmt = (HTTPMgmt *)msg->httpmgmt;
+    if (!mgmt) return -2;
+
+    if (msg->fastcgi != 1) return -60;
+
+    if (!msg->fwdurl || msg->fwdurllen <= 0) return -70;
+
+#if defined _DEBUG
+  print_request(msg, stdout);
+#endif
+
+    /* It is necessary to solve the problem of repeatedly calling this function. */
+
+    cgisrv = http_fcgisrv_open(mgmt, msg->fwdurl, 100);
+    if (!cgisrv || (cgisrv->trytimes > 16 && cgisrv->failtimes * 100 / cgisrv->trytimes >= 97)) {
+        /* if the success ratio of connecting to CGIServer is lower than 3%, reply error to client */
+        if (!msg->res_encoded) {
+            msg->SetStatus(msg, 503, NULL);
+            msg->AsynReply(msg, 1, 1);
+        }
+        return -300;
+    }
+
+    if ((cgimsg = msg->fcgimsg) && cgimsg->pcon && http_fcgicon_msg_exist(cgimsg->pcon, cgimsg) >= 0) {
+        /* if FastCGI msg is created and the fcgimsg is bound to one fcgicon,
+           no subsequent operation is required */
+        return 0;
+    }
+
+    http_fcgi_send_start(cgisrv, msg);
+
+    return 0;
+}
 
 int http_fcgi_srv_send (void * vfcgicon, void * vfcgimsg)
 {
@@ -745,7 +1057,6 @@ int http_fcgi_srv_send (void * vfcgicon, void * vfcgimsg)
     uint8       * pbgn = NULL;
     int           num = 0;
  
-    if (!cgicon) return -1;
     if (!cgimsg) return -2;
  
     climsg = cgimsg->httpmsg;
@@ -761,13 +1072,20 @@ int http_fcgi_srv_send (void * vfcgicon, void * vfcgimsg)
 
     pbgn = frameP(frm);
     num = frameL(frm);
-    if (num > 0) { 
-        arr_push(cgimsg->req_rcvs_list, frm);
-        clicon->rcvstream = frame_new(8192);
+
+    if (climsg->req_gotall_body || num <= 0) {
+        if (cgicon)
+            return http_fcgi_send(cgicon->srv, cgicon->conid);
+        return 0;
     }
 
-    chunk = (HTTPChunk *)climsg->req_chunk;
- 
+    EnterCriticalSection(&clicon->excCS);
+    if ((num = frameL(clicon->rcvstream)) > 0) {
+        arr_push(cgimsg->req_rcvs_list, frm);
+        clicon->rcvstream = frame_alloc(0, clicon->alloctype, clicon->kmemblk);
+    }
+    LeaveCriticalSection(&clicon->excCS);
+
     if (climsg->req_body_flag == BC_CONTENT_LENGTH &&
         climsg->req_body_length - cgimsg->req_body_iolen > 0 && num > 0)
     {
@@ -775,6 +1093,7 @@ int http_fcgi_srv_send (void * vfcgicon, void * vfcgimsg)
         rcvslen = climsg->req_body_length - cgimsg->req_body_iolen;
         rcvslen = min(num, rcvslen);
  
+        climsg->req_body_iolen += rcvslen;
         cgimsg->req_body_iolen += rcvslen;
         climsg->req_stream_recv += rcvslen;
 
@@ -786,6 +1105,11 @@ int http_fcgi_srv_send (void * vfcgicon, void * vfcgimsg)
 
     } else if (climsg->req_body_flag == BC_TE && num > 0) {
  
+        chunk = (HTTPChunk *)climsg->req_chunk;
+        if (chunk == NULL) {
+            chunk = climsg->req_chunk = http_chunk_alloc(climsg->alloctype, climsg->kmemblk);
+        }
+
         ret = http_chunk_add_bufptr(chunk, pbgn, num, &rcvslen);
  
         isend = chunk->gotall;
@@ -795,6 +1119,10 @@ int http_fcgi_srv_send (void * vfcgicon, void * vfcgimsg)
         }
  
         cgimsg->req_body_iolen += rcvslen;
+        cgimsg->req_body_length += rcvslen;
+
+        climsg->req_body_iolen += rcvslen;
+        climsg->req_body_length += rcvslen;
         climsg->req_stream_recv += rcvslen;
  
     } else if (climsg->req_body_flag == BC_NONE || climsg->req_body_length == 0) {
@@ -806,26 +1134,31 @@ int http_fcgi_srv_send (void * vfcgicon, void * vfcgimsg)
         frame_put_nlast(clicon->rcvstream, pbgn + rcvslen, num - rcvslen);
     }
  
-    if (isend)
+    if (isend) {
         clicon->rcv_state = HTTP_CON_READY;
-    else
+        climsg->req_gotall_body = 1;
+        clicon->rcv_state = HTTP_CON_READY;
+    } else {
         clicon->rcv_state = HTTP_CON_WAITING_BODY;
+    }
 
-    return http_fcgi_send(cgicon);
+    if (cgicon)
+        return http_fcgi_send(cgicon->srv, cgicon->conid);
+    return 0;
 }
 
-int http_fcgi_con_lifecheck (void * vcon)
+int http_fcgi_con_lifecheck (void * vsrv, ulong conid)
 {
-    FcgiCon  * pcon = (FcgiCon *)vcon;
-    FcgiSrv  * srv = NULL;
+    FcgiSrv  * srv = (FcgiSrv *)vsrv;
+    FcgiCon  * pcon = NULL;
     HTTPMgmt * mgmt = NULL;
     time_t     curt = 0;
     int        num = 0;
  
-    if (!pcon) return -1;
+    if (!srv) return -1;
  
-    srv = (FcgiSrv *)pcon->srv;
-    if (!srv) return -2;
+    pcon = http_fcgisrv_con_get(srv, conid);
+    if (!pcon) return -2;
 
     mgmt = (HTTPMgmt *)srv->mgmt;
     if (!mgmt) return -3;
@@ -835,33 +1168,33 @@ int http_fcgi_con_lifecheck (void * vcon)
  
     if (num <= 0 && curt - pcon->stamp >= mgmt->fcgi_keepalive_time) {
         /* keep the connection alive waiting for the new fcgimsg. */
-        return http_fcgicon_close(pcon);
+        return http_fcgicon_close(srv, conid);
     }
  
     if (pcon->snd_state < FCGI_CON_SEND_READY && curt - pcon->stamp >= mgmt->fcgi_connecting_time) {
         /* if exceeds the max time that builds TCP connection to remote server, close it.
            seems that it never go here */
-        return http_fcgicon_close(pcon);
+        return http_fcgicon_close(srv, conid);
     }
  
     if (curt > pcon->stamp && curt - pcon->stamp >= mgmt->fcgi_conn_idle_time) {
         /* when in sending or receiving state, the TCP connection is waiting and 
            no I/O operations occures.
            e.g. long-polling connection to server can exist for conn_idle_time */
-        return http_fcgicon_close(pcon);
+        return http_fcgicon_close(srv, conid);
     }
  
     if (num > 0 && pcon->snd_state == FCGI_CON_SEND_READY && pcon->rcv_state == FCGI_CON_READY) {
         /* FcgiCon sending and receivng facilities are in ready state */
-        http_fcgi_send_probe(pcon);
+        http_fcgi_send_probe(srv, conid);
     }
  
     pcon->life_timer = iotimer_start(pcon->pcore,
                                   6 * 1000,
                                   t_fcgi_srv_con_life,
-                                  (void *)pcon->conid,
+                                  (void *)conid,
                                   http_fcgisrv_pump,
-                                  pcon->srv);
+                                  srv, iodev_epumpid(pcon->pdev));
  
     return 0;
 }

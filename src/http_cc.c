@@ -1,10 +1,34 @@
 /*
- * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2024 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
-
-   Congestion Control of underlying TCP is activated by removing 
-   the event-notification and filling the receiving buffer of TCP connection
+ *
+ * #####################################################
+ * #                       _oo0oo_                     #
+ * #                      o8888888o                    #
+ * #                      88" . "88                    #
+ * #                      (| -_- |)                    #
+ * #                      0\  =  /0                    #
+ * #                    ___/`---'\___                  #
+ * #                  .' \\|     |// '.                #
+ * #                 / \\|||  :  |||// \               #
+ * #                / _||||| -:- |||||- \              #
+ * #               |   | \\\  -  /// |   |             #
+ * #               | \_|  ''\---/''  |_/ |             #
+ * #               \  .-\__  '-'  ___/-. /             #
+ * #             ___'. .'  /--.--\  `. .'___           #
+ * #          ."" '<  `.___\_<|>_/___.'  >' "" .       #
+ * #         | | :  `- \`.;`\ _ /`;.`/ -`  : | |       #
+ * #         \  \ `_.   \_ __\ /__ _/   .-` /  /       #
+ * #     =====`-.____`.___ \_____/___.-`___.-'=====    #
+ * #                       `=---='                     #
+ * #     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   #
+ * #               佛力加持      佛光普照              #
+ * #  Buddha's power blessing, Buddha's light shining  #
+ * #####################################################
  */
+
+/* Congestion Control of underlying TCP is activated by removing 
+   the event-notification and filling the receiving buffer of TCP connection */
 
 #include "adifall.ext"
 #include "epump.h"
@@ -23,25 +47,24 @@
 extern HTTPMgmt * gp_httpmgmt;
 
 
-int http_cli_recv_cc (void * vcon)
+int http_cli_recv_cc (void * vmgmt, ulong conid)
 {
-    HTTPCon    * pcon = (HTTPCon *)vcon;
-    HTTPMgmt   * mgmt = NULL;
+    HTTPMgmt   * mgmt = (HTTPMgmt *)vmgmt;
+    HTTPCon    * pcon = NULL;
     HTTPMsg    * msg = NULL;
     HTTPMsg    * srvmsg = NULL;
     HTTPCon    * srvcon = NULL;
     FcgiSrv    * cgisrv = NULL;
     FcgiMsg    * cgimsg = NULL;
-    FcgiCon    * cgicon = NULL;
  
-    if (!pcon) return -1;
- 
-    mgmt = (HTTPMgmt *)pcon->mgmt;
-    if (!mgmt) return -2;
- 
+    if (!mgmt) return -1;
+
+    pcon = http_mgmt_con_get(mgmt, conid);
+    if (!pcon) return -2;
+
     /* === TUNNEL === */
 
-    if (pcon->httptunnel == 1 && pcon->tunnelcon &&
+    if (pcon->httptunnel == 1 && /*pcon->tunnelcon &&*/
         frameL(pcon->rcvstream) >= mgmt->proxy_buffer_size)
     {
         /* As the tunnel connection of client request, if client-side
@@ -54,8 +77,8 @@ int http_cli_recv_cc (void * vcon)
         pcon->read_ignored++;
  
         if (!tcp_connected(iodev_fd(pcon->pdev))) {
-           http_con_close(pcon->tunnelcon);
-           http_con_close(pcon);
+           http_con_close(mgmt, pcon->tunnelconid);
+           http_con_close(mgmt, conid);
            return -100;
         }
  
@@ -80,8 +103,8 @@ int http_cli_recv_cc (void * vcon)
         if (!tcp_connected(iodev_fd(pcon->pdev)) ||
             (srvcon && !tcp_connected(iodev_fd(srvcon->pdev)))
            ) {
-           http_con_close(srvmsg->pcon);
-           http_con_close(pcon);
+           http_con_close(mgmt, srvmsg->conid);
+           http_con_close(mgmt, conid);
            return -100;
         }
  
@@ -101,13 +124,10 @@ int http_cli_recv_cc (void * vcon)
         pcon->read_ignored++;
  
         cgisrv = (FcgiSrv *)cgimsg->srv;
-        cgicon = http_fcgisrv_con_get(cgisrv, cgimsg->conid);
  
-        if (!tcp_connected(iodev_fd(pcon->pdev)) /*||
-            (cgicon && !tcp_connected(iodev_fd(cgicon->pdev))) */
-           ) {
-           http_fcgicon_close(cgicon);
-           http_con_close(pcon);
+        if (!tcp_connected(iodev_fd(pcon->pdev))) {
+           http_fcgicon_close(cgisrv, cgimsg->conid);
+           http_con_close(mgmt, conid);
            return -100;
         }
  
@@ -119,10 +139,10 @@ int http_cli_recv_cc (void * vcon)
 }
 
 
-int http_cli_send_cc (void * vcon)
+int http_cli_send_cc (void * vmgmt, ulong conid)
 {
-    HTTPCon    * pcon = (HTTPCon *)vcon;
-    HTTPMgmt   * mgmt = NULL;
+    HTTPMgmt   * mgmt = (HTTPMgmt *)vmgmt;
+    HTTPCon    * pcon = NULL;
     HTTPMsg    * msg = NULL;
     HTTPMsg    * srvmsg = NULL;
     HTTPCon    * srvcon = NULL;
@@ -130,11 +150,11 @@ int http_cli_send_cc (void * vcon)
     FcgiMsg    * cgimsg = NULL;
     FcgiCon    * cgicon = NULL;
  
-    if (!pcon) return -1;
- 
-    mgmt = (HTTPMgmt *)pcon->mgmt;
-    if (!mgmt) return -2;
- 
+    if (!mgmt) return -1;
+
+    pcon = http_mgmt_con_get(mgmt, conid);
+    if (!pcon) return -2;
+
     /* as the congestion of connection to client, data from peer side are piled up.
        after sending to client successfully, peer connection should be monitored for
        event notification.
@@ -148,7 +168,7 @@ int http_cli_send_cc (void * vcon)
         iodev_add_notify(srvcon->pdev, RWF_READ);
         srvcon->read_ignored = 0;
  
-        http_srv_recv(srvcon);
+        http_srv_recv(mgmt, pcon->tunnelconid);
         return 1;
     }
 
@@ -164,7 +184,7 @@ int http_cli_send_cc (void * vcon)
             iodev_add_notify(srvcon->pdev, RWF_READ);
             srvcon->read_ignored = 0;
  
-            http_srv_recv(srvcon);
+            http_srv_recv(mgmt, srvmsg->conid);
             return 2;
         }
     }
@@ -183,7 +203,7 @@ int http_cli_send_cc (void * vcon)
             iodev_add_notify(cgicon->pdev, RWF_READ);
             cgicon->read_ignored = 0;
 
-            http_fcgi_recv(cgicon);
+            http_fcgi_recv(cgisrv, cgimsg->conid);
             return 3;
         }
     }
@@ -192,20 +212,20 @@ int http_cli_send_cc (void * vcon)
 }
 
 
-int http_srv_recv_cc (void * vcon)
+int http_srv_recv_cc (void * vmgmt, ulong conid)
 {
-    HTTPCon    * pcon = (HTTPCon *)vcon;
-    HTTPMgmt   * mgmt = NULL;
+    HTTPMgmt   * mgmt = (HTTPMgmt *)vmgmt;
+    HTTPCon    * pcon = NULL;
     HTTPMsg    * msg = NULL;
     HTTPMsg    * climsg = NULL;
     HTTPCon    * clicon = NULL;
  
-    if (!pcon) return -1;
- 
-    mgmt = (HTTPMgmt *)pcon->mgmt;
-    if (!mgmt) return -2;
- 
-    if ((clicon = pcon->tunnelcon) && frameL(pcon->rcvstream) >= mgmt->proxy_buffer_size) {
+    if (!mgmt) return -1;
+
+    pcon = http_mgmt_con_get(mgmt, conid);
+    if (!pcon) return -2;
+
+    if (pcon->httptunnel == 2 && frameL(pcon->rcvstream) >= mgmt->proxy_buffer_size) {
         /* As the tunnel connection of client request, if server-side
            receiving speed is greater than client-side sending speed,
            large data will be piled up in rcvstream. Limiting receiving
@@ -216,8 +236,8 @@ int http_srv_recv_cc (void * vcon)
         pcon->read_ignored++;
  
         if (!tcp_connected(iodev_fd(pcon->pdev))) {
-           http_con_close(pcon->tunnelcon);
-           http_con_close(pcon);
+           http_con_close(mgmt, pcon->tunnelconid);
+           http_con_close(mgmt, conid);
            return -100;
         }
  
@@ -229,7 +249,11 @@ int http_srv_recv_cc (void * vcon)
     }
  
     msg = http_con_msg_first(pcon);
-    if (msg && msg->proxied == 2 && (climsg = msg->proxymsg) && !climsg->cacheon &&
+    if (msg && msg->workerid != iodev_workerid(pcon->pdev))
+        msg->workerid = iodev_workerid(pcon->pdev);
+
+    if (msg && msg->proxied == 2 && (climsg = msg->proxymsg) && climsg->proxied == 1 &&
+            climsg->proxymsg == msg && !climsg->cacheon &&
             chunk_rest_size(climsg->res_body_chunk, 0) >= mgmt->proxy_buffer_size)
     {
         /* congestion control: by neglecting the read-ready event,
@@ -243,8 +267,8 @@ int http_srv_recv_cc (void * vcon)
         if (!tcp_connected(iodev_fd(pcon->pdev)) ||
             (clicon && !tcp_connected(iodev_fd(clicon->pdev)))
            ) {
-           http_con_close(climsg->pcon);
-           http_con_close(pcon);
+           http_con_close(mgmt, climsg->conid);
+           http_con_close(mgmt, conid);
            return -100;
         }
  
@@ -258,19 +282,19 @@ int http_srv_recv_cc (void * vcon)
     return 0;
 }
 
-int http_srv_send_cc (void * vcon)
+int http_srv_send_cc (void * vmgmt, ulong conid)
 {
-    HTTPCon    * pcon = (HTTPCon *)vcon;
-    HTTPMgmt   * mgmt = NULL;
+    HTTPMgmt   * mgmt = (HTTPMgmt *)vmgmt;
+    HTTPCon    * pcon = NULL;
     HTTPMsg    * msg = NULL;
     HTTPMsg    * climsg = NULL;
     HTTPCon    * clicon = NULL;
  
-    if (!pcon) return -1;
- 
-    mgmt = (HTTPMgmt *)pcon->mgmt;
-    if (!mgmt) return -2;
- 
+    if (!mgmt) return -1;
+
+    pcon = http_mgmt_con_get(mgmt, conid);
+    if (!pcon) return -2;
+
     /* as the congestion of connection to server, data from peer side are piled up.
        after sending to server successfully, peer connection should be monitored for
        event notification.
@@ -284,7 +308,7 @@ int http_srv_send_cc (void * vcon)
         iodev_add_notify(clicon->pdev, RWF_READ);
         clicon->read_ignored = 0;
  
-        http_cli_recv(clicon);
+        http_cli_recv(mgmt, pcon->tunnelconid);
         return 1;
     }
 
@@ -292,7 +316,7 @@ int http_srv_send_cc (void * vcon)
 
     msg = http_con_msg_first(pcon);
     if (msg && msg->proxied == 2 && (climsg = msg->proxymsg)) {
-        clicon = climsg->pcon;
+        clicon = http_mgmt_con_get(mgmt, climsg->conid);
 
         if (clicon && clicon->read_ignored > 0 && 
             chunk_rest_size(msg->req_body_chunk, 0) < mgmt->proxy_buffer_size)
@@ -300,7 +324,7 @@ int http_srv_send_cc (void * vcon)
             iodev_add_notify(clicon->pdev, RWF_READ);
             clicon->read_ignored = 0;
  
-            http_cli_recv(clicon);
+            http_cli_recv(mgmt, climsg->conid);
             return 2;
         }
     }
@@ -309,16 +333,20 @@ int http_srv_send_cc (void * vcon)
 }
 
 
-int http_fcgi_recv_cc (void * vcon)
+int http_fcgi_recv_cc (void * vsrv, ulong conid)
 {
-    FcgiCon    * pcon = (FcgiCon *)vcon;
-    FcgiMsg    * msg = NULL;
-    HTTPMsg    * httpmsg = NULL;
-    HTTPCon    * httpcon = NULL;
-    HTTPMgmt   * mgmt = NULL;
+    FcgiSrv  * srv = (FcgiSrv *)vsrv;
+    FcgiCon  * pcon = NULL;
+    FcgiMsg  * msg = NULL;
+    HTTPMsg  * httpmsg = NULL;
+    HTTPCon  * httpcon = NULL;
+    HTTPMgmt * mgmt = NULL;
  
-    if (!pcon) return -1;
+    if (!srv) return -1;
  
+    pcon = http_fcgisrv_con_get(srv, conid);
+    if (!pcon) return -2;
+
     msg = http_fcgicon_msg_first(pcon);
     if (msg) httpmsg = msg->httpmsg;
     if (httpmsg) mgmt = httpmsg->httpmgmt;
@@ -333,13 +361,11 @@ int http_fcgi_recv_cc (void * vcon)
         iodev_del_notify(pcon->pdev, RWF_READ);
         pcon->read_ignored++;
  
-        httpcon = httpmsg->pcon;
+        httpcon = http_mgmt_con_get(mgmt, httpmsg->conid);
  
-        if (/*!tcp_connected(iodev_fd(pcon->pdev)) ||*/
-            (httpcon && !tcp_connected(iodev_fd(httpcon->pdev)))
-           ) {
-           http_con_close(httpmsg->pcon);
-           http_fcgicon_close(pcon);
+        if ((httpcon && !tcp_connected(iodev_fd(httpcon->pdev)))) {
+           http_con_close(mgmt, httpmsg->conid);
+           http_fcgicon_close(srv, conid);
            return -100;
         }
  
@@ -353,22 +379,25 @@ int http_fcgi_recv_cc (void * vcon)
     return 0;
 }
 
-int http_fcgi_send_cc (void * vcon)
+int http_fcgi_send_cc (void * vsrv, ulong conid)
 {
-    FcgiCon    * pcon = (FcgiCon *)vcon;
-    FcgiMsg    * msg = NULL;
-    HTTPMsg    * httpmsg = NULL;
-    HTTPCon    * httpcon = NULL;
-    HTTPMgmt   * mgmt = NULL;
+    FcgiSrv  * srv = (FcgiSrv *)vsrv;
+    FcgiCon  * pcon = NULL;
+    FcgiMsg  * msg = NULL;
+    HTTPMsg  * httpmsg = NULL;
+    HTTPCon  * httpcon = NULL;
+    HTTPMgmt * mgmt = NULL;
  
-    if (!pcon) return -1;
+    if (!srv) return -1;
+ 
+    pcon = http_fcgisrv_con_get(srv, conid);
+    if (!pcon) return -2;
+
+    mgmt = gp_httpmgmt;
  
     msg = http_fcgicon_msg_first(pcon);
     if (msg && (httpmsg = msg->httpmsg) && httpmsg->fastcgi == 1) {
-        httpcon = httpmsg->pcon;
- 
-        mgmt = (HTTPMgmt *)httpmsg->httpmgmt;
-        if (!mgmt) mgmt = gp_httpmgmt;
+        httpcon = http_mgmt_con_get(mgmt, httpmsg->conid);
  
         /* read the blocked data in server-side kernel socket for
            client-side congestion control */
@@ -378,7 +407,7 @@ int http_fcgi_send_cc (void * vcon)
             iodev_add_notify(httpcon->pdev, RWF_READ);
             httpcon->read_ignored = 0;
 
-            http_cli_recv(httpcon);
+            http_cli_recv(mgmt, httpmsg->conid);
 
             return 1;
         }

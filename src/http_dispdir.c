@@ -1,13 +1,38 @@
 /*
- * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2024 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
+ *
+ * #####################################################
+ * #                       _oo0oo_                     #
+ * #                      o8888888o                    #
+ * #                      88" . "88                    #
+ * #                      (| -_- |)                    #
+ * #                      0\  =  /0                    #
+ * #                    ___/`---'\___                  #
+ * #                  .' \\|     |// '.                #
+ * #                 / \\|||  :  |||// \               #
+ * #                / _||||| -:- |||||- \              #
+ * #               |   | \\\  -  /// |   |             #
+ * #               | \_|  ''\---/''  |_/ |             #
+ * #               \  .-\__  '-'  ___/-. /             #
+ * #             ___'. .'  /--.--\  `. .'___           #
+ * #          ."" '<  `.___\_<|>_/___.'  >' "" .       #
+ * #         | | :  `- \`.;`\ _ /`;.`/ -`  : | |       #
+ * #         \  \ `_.   \_ __\ /__ _/   .-` /  /       #
+ * #     =====`-.____`.___ \_____/___.-`___.-'=====    #
+ * #                       `=---='                     #
+ * #     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   #
+ * #               浣涘姏鍔犳寔      浣涘厜鏅収              #
+ * #  Buddha's power blessing, Buddha's light shining  #
+ * #####################################################
  */
 
 #include "adifall.ext"
+ 
 #include "http_msg.h"
 #include "http_mgmt.h"
 #include "http_header.h"
-#include "http_listen.h"
+//#include "http_resloc.h"
 #include "http_cgi.h"
  
 #ifdef UNIX
@@ -51,9 +76,40 @@ typedef struct diritem_ {
     char     user[48];
     char     group[48];
     time_t   filetm;
+    size_t   size;
     char     sizestr[16];
     char     name[280];
 } DirItem;
+
+int dir_cmp_by_time (void * a, void * b)
+{
+    DirItem * dira = *(DirItem **)a;
+    DirItem * dirb = *(DirItem **)b;
+
+    if (dira->filetm > dirb->filetm) return 1;
+    if (dira->filetm < dirb->filetm) return -1;
+    return 0;
+}
+
+int dir_cmp_by_name (void * a, void * b)
+{
+    DirItem * dira = *(DirItem **)a;
+    DirItem * dirb = *(DirItem **)b;
+
+    return strcasecmp(dira->name, dirb->name);
+}
+
+int dir_cmp_by_size (void * a, void * b)
+{
+    DirItem * dira = *(DirItem **)a;
+    DirItem * dirb = *(DirItem **)b;
+
+    if (dira->size > dirb->size) return 1;
+    if (dira->size < dirb->size) return -1;
+    return strcasecmp(dira->name, dirb->name);
+}
+
+
 
 static int read_dir_list (char * path, char * curpath, frame_p frame)
 {
@@ -88,7 +144,6 @@ static int read_dir_list (char * path, char * curpath, frame_p frame)
         if (strcmp(pent->d_name, ".") == 0 ||
             strcmp(pent->d_name, "..") == 0)
             goto nextfile;
-        //if (pent->d_name[0] == '.') goto nextfile;
  
         sprintf(tmpstr, "%s%s", path, pent->d_name);
         memset(&filest, 0, sizeof(filest));
@@ -129,6 +184,7 @@ static int read_dir_list (char * path, char * curpath, frame_p frame)
         item->filetm = filest.st_mtime;
  
         if (S_ISREG(filest.st_mode)) {
+            item->size = filest.st_size;
             sprintf(item->sizestr, "%ld", filest.st_size);
             len = str_len((char *)item->sizestr);
             if (sizestr_len < len) sizestr_len = len;
@@ -136,6 +192,7 @@ static int read_dir_list (char * path, char * curpath, frame_p frame)
             filetotal++;
 
         } else if (S_ISDIR(filest.st_mode)) {
+            item->size = 0;
             item->isdir = 1;
             if (sizestr_len < 5) sizestr_len = 5;
             dirtotal++;
@@ -168,6 +225,8 @@ nextfile:
     }
     free(ppent);
  
+    arr_sort_by(itemlist, dir_cmp_by_name);
+
     for (i = 0; i < arr_num(itemlist); i++) {
         item = arr_value(itemlist, i);
         if (!item) continue;
@@ -187,7 +246,7 @@ nextfile:
         if (grouplen - len > 0) frame_append_nbytes(frame, ' ', grouplen - len);
         frame_append(frame, "  ");
  
-        str_datetime(NULL, tmpstr, sizeof(tmpstr), 0);
+        str_datetime(&item->filetm, tmpstr, sizeof(tmpstr), 0);
         frame_append(frame, tmpstr);
         frame_append(frame, "   ");
  
@@ -213,7 +272,7 @@ nextfile:
             frame_appendf(frame, "\">%s</A><br>", item->name);
         }
     }
-    frame_appendf(frame, " 目录总数: %d &nbsp;&nbsp;文件总数: %d<br>", dirtotal, filetotal);
+    frame_appendf(frame, " 鐩綍鎬绘暟: %d &nbsp;&nbsp;鏂囦欢鎬绘暟: %d<br>", dirtotal, filetotal);
  
     arr_pop_kfree(itemlist);
     return 0;
@@ -295,7 +354,7 @@ static int read_dir_list (char * path, char * curpath, frame_p frame)
     } while(FindNextFile(hFind, &filest));
  
     FindClose(hFind);
-    frame_appendf(frame, " 目录总数: %d &nbsp;&nbsp;文件总数: %d<br>", dirtotal, filetotal);
+    frame_appendf(frame, " 鐩綍鎬绘暟: %d &nbsp;&nbsp;鏂囦欢鎬绘暟: %d<br>", dirtotal, filetotal);
     return 0;
 }
 #endif
@@ -312,7 +371,6 @@ int DisplayDirectory (void * vmsg)
     char             curpath[512];
     char             realpath[512];
     frame_p          frame = NULL;
-    char           * pbgn, * pend, * poct;
     int              dotdot = 0;
     int              i, ret;
  
@@ -326,7 +384,7 @@ int DisplayDirectory (void * vmsg)
 
     root_path = GetRootPath(msg);
     if (!root_path) return -4;
-
+ 
     len = GetRealFile(msg, path, sizeof(path));
     if (file_is_dir(path)) {
  
@@ -395,7 +453,7 @@ int DisplayDirectory (void * vmsg)
         return -200;
     }
  
-    frame = GetFrame(msg);
+    frame = frame_alloc(8192, msg->alloctype, msg->kmemblk);
  
     frame_append(frame, "<html>");
     frame_append(frame, "<head>\n");
@@ -405,40 +463,25 @@ int DisplayDirectory (void * vmsg)
  
     frame_append(frame, "</head>\n<body><H1>");
     frame_put_nlast(frame, msg->req_host, msg->req_hostlen);
-    //frame_appendf(frame, " - %s</H1><br>\n", realpath);
     frame_appendf(frame, " - %s</H1><br>\n", curpath);
  
     frame_append(frame, "<hr>\n");
     frame_append(frame, "\n");
     frame_append(frame, "<pre>\n");
  
-    if (len == 1 && curpath[0] == '/') {
-        frame_append(frame, "[Root Directory]<br><br>\n");
-    } else {
-        pbgn = &curpath[0];
-        pend = &curpath[len-1];
-        pend = rskipOver(pend, pend-pbgn+1, "/", 1);
-        poct = rskipTo(pend, pend-pbgn+1, "/", 1);
- 
-        frame_append(frame, "<A HREF=\"");
-        if (poct >= pbgn) {
-            //frame_put_nlast(frame, pbgn, poct-pbgn+1);
-            frame_uri_encode(frame, pbgn, poct-pbgn+1, NULL);
-        }
-        frame_append(frame, "\">[To Parent Directory]</A><br><br>\n");
-    }
- 
     read_dir_list(path, curpath, frame);
- 
+
     frame_append(frame, "</pre><hr></body>\n");
     frame_append(frame, "</html>");
  
     AddResContent(msg, frameP(frame), frameL(frame));
+
+    frame_free(frame);
+
     SetStatus(msg, 200, NULL);
     SetResContentType (msg, "text/html", 9);
     Reply(msg);
  
-    if (frame) RecycleFrame(msg, frame);
     return 0;
 }
 

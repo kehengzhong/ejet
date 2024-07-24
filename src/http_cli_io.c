@@ -1,6 +1,30 @@
 /*
- * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2024 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
+ *
+ * #####################################################
+ * #                       _oo0oo_                     #
+ * #                      o8888888o                    #
+ * #                      88" . "88                    #
+ * #                      (| -_- |)                    #
+ * #                      0\  =  /0                    #
+ * #                    ___/`---'\___                  #
+ * #                  .' \\|     |// '.                #
+ * #                 / \\|||  :  |||// \               #
+ * #                / _||||| -:- |||||- \              #
+ * #               |   | \\\  -  /// |   |             #
+ * #               | \_|  ''\---/''  |_/ |             #
+ * #               \  .-\__  '-'  ___/-. /             #
+ * #             ___'. .'  /--.--\  `. .'___           #
+ * #          ."" '<  `.___\_<|>_/___.'  >' "" .       #
+ * #         | | :  `- \`.;`\ _ /`;.`/ -`  : | |       #
+ * #         \  \ `_.   \_ __\ /__ _/   .-` /  /       #
+ * #     =====`-.____`.___ \_____/___.-`___.-'=====    #
+ * #                       `=---='                     #
+ * #     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   #
+ * #               佛力加持      佛光普照              #
+ * #  Buddha's power blessing, Buddha's light shining  #
+ * #####################################################
  */
 
 #include "adifall.ext"
@@ -10,7 +34,7 @@
 #include "http_mgmt.h"
 #include "http_pump.h"
 #include "http_cli_io.h"
-#include "http_listen.h"
+#include "http_resloc.h"
 #include "http_request.h"
 #include "http_handle.h"
 #include "http_proxy.h"
@@ -28,10 +52,11 @@
 #include "http_fcgi_io.h"
 
 
-int http_cli_con_crash (void * vcon, int closelad)
+//int http_cli_con_crash (void * vmgmt, ulong conid, int closelad)
+int http_cli_con_crash_dbg (void * vmgmt, ulong conid, int closelad, char * file, int line)
 {
-    HTTPCon  * clicon = (HTTPCon *)vcon;
-    HTTPMgmt * mgmt = NULL;
+    HTTPMgmt * mgmt = (HTTPMgmt *)vmgmt;
+    HTTPCon  * clicon = NULL;
     HTTPMsg  * climsg = NULL;
     HTTPMsg  * srvmsg = NULL;
     HTTPCon  * srvcon = NULL;
@@ -39,33 +64,36 @@ int http_cli_con_crash (void * vcon, int closelad)
     FcgiMsg  * cgimsg = NULL;
     FcgiCon  * cgicon = NULL;
 
-    if (!clicon) return -1;
+    if (!mgmt) return -1;
 
-    mgmt = (HTTPMgmt *)clicon->mgmt;
-    if (!mgmt) return -2;
+    clicon = http_mgmt_con_get(mgmt, conid);
+    if (!clicon) return -2;
 
     climsg = http_con_msg_first(clicon);
-    if (!closelad || !climsg)
-        return http_con_close(clicon);
 
-    if (climsg->proxied == 1 && (srvmsg = climsg->proxymsg)) {
-        srvcon = http_mgmt_con_get(mgmt, srvmsg->conid);
-        if (srvcon)
-            http_con_close(srvcon);
+    if (closelad && clicon->httptunnel == 1 && clicon->tunnelcon) {
+        http_con_close_dbg(mgmt, clicon->tunnelconid, file, line);
     }
 
-    else if (climsg->fastcgi == 1 && (cgimsg = climsg->fcgimsg)) {
+    else if (climsg && climsg->proxied == 1 && (srvmsg = http_msg_mgmt_get(mgmt, climsg->proxymsgid))) {
+        srvcon = http_mgmt_con_get(mgmt, srvmsg->conid);
+        if (srvcon) {
+            if (closelad) http_con_close_dbg(mgmt, srvmsg->conid, file, line);
+        } else { //srvmsg not yet bound to HTTPCon
+            http_msg_close_dbg(srvmsg, file, line);
+        }
+    }
+
+    else if (climsg && climsg->fastcgi == 1 && (cgimsg = climsg->fcgimsg)) {
         cgisrv = (FcgiSrv *)cgimsg->srv;
         cgicon = http_fcgisrv_con_get(cgisrv, cgimsg->conid);
-        if (cgicon)
-            http_fcgicon_close(cgicon);
+        if (cgicon) {
+            if (closelad) http_fcgicon_close(cgisrv, cgimsg->conid);
+        } else
+            http_fcgimsg_close(cgimsg);
     }
 
-    else if (clicon->httptunnel && clicon->tunnelcon) {
-        http_con_close(clicon->tunnelcon);
-    }
-
-    return http_con_close(clicon);
+    return http_con_close_dbg(mgmt, conid, file, line);
 }
 
 int http_cli_accept (void * vmgmt, void * listendev)
@@ -82,28 +110,26 @@ int http_cli_accept (void * vmgmt, void * listendev)
     if (!hl) return -2;
 
     while (1) {
-        pdev = eptcp_accept(mgmt->pcore, listendev, 
-                            (void *)NULL, &ret, 
-                            http_pump, mgmt, BIND_NONE);
+        pdev = eptcp_accept(mgmt->pcore, listendev, NULL,
+                            (void *)NULL, http_pump, mgmt,
+                            BIND_NONE, 0, &ret);
         if (pdev == NULL) {
             return 0;
         }
 
         pcon = http_con_fetch(mgmt);
         if (!pcon) {
-            iodev_close(pdev);
+            iodev_close_by(mgmt->pcore, iodev_id(pdev));
             return -100;
         }
 
         pcon->pdev = pdev;
+        pcon->devid = iodev_id(pdev);
         iodev_para_set(pdev, (void *)pcon->conid);
  
         pcon->hl = hl;
 
         pcon->casetype = HTTP_SERVER;
-        pcon->reqdiag = hl->reqdiag;
-        pcon->reqdiagobj = hl->reqdiagobj;
-
         pcon->ssl_link = hl->ssl_link;
 
         str_cpy(pcon->srcip, iodev_rip(pcon->pdev));
@@ -124,56 +150,81 @@ int http_cli_accept (void * vmgmt, void * listendev)
             pcon->rcv_state = HTTP_CON_SSL_HANDSHAKING;
         }
 #endif
-        
-        if (pcon->life_timer)
-            iotimer_stop(pcon->life_timer);
 
-        /* the upcoming R/W events from pcon and the timeout event of life_timer will
-           pipelined to delivered to current thread. it seems to degrade the efficiency
-           of multiple CPU concurrent execution. but it lowers the risk of blocking/contention
-           from locks */
+        http_connection_accepted(mgmt, 1);
+        http_mgmt_acceptcon_add(mgmt, pcon);
+
+        if (pcon->life_timer)
+            iotimer_stop(mgmt->pcore, pcon->life_timer);
+
+        iodev_bind_epump(pdev, BIND_ONE_EPUMP, 0, 1);  //bind but not start polling
+
+        /* The upcoming read/write event from pcon and the timeout event of life_timer
+           will be pipelined to the current thread. It seems to degrade the efficiency
+           of multi-CPU concurrent execution. But it reduces the risk of lock blocking/contention */
 
         pcon->life_timer = iotimer_start(mgmt->pcore,
                                   mgmt->conn_check_interval * 1000,
                                   t_http_cli_con_life, (void *)pcon->conid,
-                                  http_pump, mgmt);
+                                  http_pump, mgmt, iodev_epumpid(pdev));
  
-        iodev_bind_epump(pdev, BIND_CURRENT_EPUMP, NULL);
+        iodev_set_poll(pdev);
     }
 
     return 0;
 }
 
 
-int http_cli_recv (void * vcon)
+int http_cli_recv (void * vmgmt, ulong conid)
 {
-    HTTPCon    * pcon = (HTTPCon *)vcon;
-    HTTPMgmt   * mgmt = NULL;
+    HTTPMgmt   * mgmt = (HTTPMgmt *)vmgmt;
+    HTTPCon    * pcon = NULL;
     HTTPMsg    * msg = NULL;
-    ulong        conid = 0;
-    int          ret = 0, num = 0;
-    int          err = 0;
+    HTTPMsg    * imsg = NULL;
+    int          i, ret = 0, num = 0;
+    int          rcvnum = 0, err = 0;
 
-    if (!pcon) return -1;
+    if (!mgmt) return -1;
 
-    mgmt = (HTTPMgmt *)pcon->mgmt;
-    if (!mgmt) return -2;
+    pcon = http_mgmt_con_get(mgmt, conid);
+    if (!pcon) return -2;
 
-    /* If the receiving speed of client side is greater than the sending  
-       speed of server side, a great deal of data will be piled up in memory.
-       Congestion control should be activated by neglecting the read-ready event.
-       After that, receving buffer of underlying TCP will be full soon.
-       TCP stack will start congestion control mechanism */
-    if (http_cli_recv_cc(pcon) > 0)
+    if (pcon->workerid == 0) 
+        pcon->workerid = iodev_workerid(pcon->pdev);
+
+    /* If the speed of receiving client data is faster than that of sending
+       to the server, a large amount of data will accumulate in the memory,
+       which will eventually lead to memory exhaustion and collapse. Congestion
+       control should be activated by ignoring the read-ready event in the ePump
+       framework. After that, the receiving buffer of the underlying TCP protocol
+       stack will soon be full. TCP stack will start congestion control mechanism */
+    if (http_cli_recv_cc(mgmt, conid) > 0)
         return 0;
 
-    conid = pcon->conid;
+#if defined(_WIN32) || defined(_WIN64)
+    EnterCriticalSection(&pcon->rcvCS);
+#else
+    if (TryEnterCriticalSection(&pcon->rcvCS) != 0) { //already locked
+        tolog(1, "TryLock: [%lu %lu/%d %s:%d %d] WkerID=%lu CurThID=%lu DevEPumpID=%lu DevWkerID=%lu\n",
+              pcon->conid, iodev_id(pcon->pdev), iodev_fd(pcon->pdev),
+              pcon->srcip, pcon->srcport, pcon->casetype, pcon->workerid,
+          get_threadid(), iodev_epumpid(pcon->pdev), iodev_workerid(pcon->pdev));
+        return 0;
+    }
+#endif
 
     while (1) {
 
-        ret = http_con_read(pcon, pcon->rcvstream, &num, &err);
+        ret = http_con_read(pcon, pcon->rcvstream, &rcvnum, &err);
+
+        if (rcvnum > 0) {
+            http_overhead_recv(mgmt, rcvnum);
+            pcon->total_recv += rcvnum;
+        }
+
         if (ret < 0) {
-            http_cli_con_crash(pcon, 1);
+            http_cli_con_crash(mgmt, conid, 1);
+            LeaveCriticalSection(&pcon->rcvCS);
             return -100;
         }
 
@@ -181,53 +232,91 @@ int http_cli_recv (void * vcon)
         if (pcon->read_ignored > 0)
             pcon->read_ignored = 0;
 
-        if (num > 0) {
-            http_overhead_recv(mgmt, num);
-        } else if (frameL(pcon->rcvstream) <= 0) {
+        num = frameL(pcon->rcvstream);
+        if (rcvnum <= 0 && num <= 0) {
             /* no data in socket and rcvstream, just return and
                wait for Read-Ready notify */
+            LeaveCriticalSection(&pcon->rcvCS);
             return 0;
         }
  
-        num = frameL(pcon->rcvstream);
-
-        if (pcon->httptunnel && pcon->tunnelself == 0) {
+        if (pcon->httptunnel == 1 && pcon->tunnelself == 0) {
             ret = http_tunnel_srv_send(pcon, pcon->tunnelcon);
             if (ret < 0) {
-               http_con_close(pcon->tunnelcon);
-               http_con_close(pcon);
+               http_con_close(mgmt, pcon->tunnelconid);
+               http_con_close(mgmt, conid);
             }
+            LeaveCriticalSection(&pcon->rcvCS);
             return ret;
         }
 
-        ret = http_cli_recv_parse(pcon);
-        if (ret < 0) {
-            http_cli_con_crash(pcon, 1);
-            return ret;
-
-        } else if (ret == 0) {
-            return 0;
-
-        } else {
-            /* pcon->msg stores current receiving msg instance.
-               pcon may have multiple msg instances being handled by 
-               callback function before the msg.
-             */
-            /* msg = http_con_msg_last(pcon); */
-            msg = pcon->msg;
-            pcon->msg = NULL;
-
-            if (!msg) continue;
-
-            if (msg && msg->proxied == 0) {
-                http_msg_handle(pcon, msg);
-
-                if (http_mgmt_con_get(mgmt, conid) != pcon)
-                    return 0;
+        /* Multiple HTTP requests may be sent on a connection, so it is necessary to
+           handle all requests circularly as soon as possible to avoid resource accumulation. */
+        while (1) {
+            if (http_mgmt_con_get(mgmt, conid) != pcon) {
+                LeaveCriticalSection(&pcon->rcvCS);
+                return 0;
             }
-        }
+
+            if (frameL(pcon->rcvstream) < 10) break;
+
+            ret = http_cli_recv_parse(pcon);
+            if (ret < 0) {
+                http_cli_con_crash(mgmt, conid, 1);
+                LeaveCriticalSection(&pcon->rcvCS);
+                return ret;
+
+            } else if (ret == 0) { //need to wait for more data
+                LeaveCriticalSection(&pcon->rcvCS);
+                return 0;
+
+            } else if (ret >= 100) { //Proxy HTTPMsg or FastCGIMsg
+                continue; 
+
+            } else {
+                /* pcon->msg stores last receiving msg instance.
+                   pcon may have multiple msg instances being handled by 
+                   callback function before the msg.  */
+                msg = pcon->msg;
+                pcon->msg = NULL;
+
+                if (!msg) continue;
+    
+                num = http_con_msg_num(pcon);
+                if (num > 4) { 
+                    //may be malicious request when over 5 HTTPMsgs are sent on one connection at the same time
+                    http_con_msg_del(pcon, msg);
+                    http_msg_close(msg);
+                    msg = NULL;
+                    break;
+                }
+
+                for (i = 0; num > 1 && i < num - 1; i++) {
+                    imsg = arr_value(pcon->msg_list, i);
+                    if (!imsg || imsg == msg) continue;
+                    if (imsg->urihash == msg->urihash || (imsg->pathhash == msg->pathhash && num > 2)) {
+                        http_con_msg_del(pcon, msg);
+                        http_msg_close(msg);
+                        msg = NULL;
+                        break;
+                    }
+                }
+                if (!msg) continue;
+
+                /* If the current msg is the first message on the connection,
+                   process the message, otherwise, do nothing, and wait for
+                   the previous message to be processed. */
+                if (msg && msg == http_con_msg_first(pcon))
+                    http_msg_dispatch(pcon, msg);
+            }
+        } //end while(num > 10)
+
+        if (rcvnum <= 0) break;
+        if (http_mgmt_con_get(mgmt, conid) != pcon) break;
 
     } //end while (1)
+
+    LeaveCriticalSection(&pcon->rcvCS);
 
     return 0;
 }
@@ -243,9 +332,14 @@ int http_cli_recv (void * vcon)
  *   -106 : parse reqest header failed while waiting header
  *   -107 : parsing body failed while waiting header
  *   -108 : HTTPMsg body-flag invalid or error
+ *   -109 : current HTTPMsg is proxied or fastcgi message, but server-side HTTPMsg/FastCGIMsg not exist
+ *   -110 : transferring body to proxy HTTPMsg failed
+ *   -111 : transferring body to FastCGIMsg failed
  *    0 : only partial request got, need to wait for more data
  *    1 : complete HTTP-Request with body data parsed successfully
  *    2 : complete HTTP-Request without body data parsed successfully
+ *    100 : handled by proxied HTTPMsg successfully
+ *    101 : handled by FastCGIMsg successfully
  */
 int http_cli_recv_parse (void * vcon)
 {
@@ -277,8 +371,6 @@ int http_cli_recv_parse (void * vcon)
     }
 
     if (pcon->rcv_state == HTTP_CON_WAITING_BODY) {
-        /* msg assignments as following 2 methods are right */
-        /* msg = http_con_msg_first(pcon); */
         msg = pcon->msg;
         if (!msg) {
             return -101;
@@ -287,21 +379,58 @@ int http_cli_recv_parse (void * vcon)
         msg->stamp = time(0);
 
         /* if the msg is proxied for the client msg, call proxy_srv_send */
-        if (msg->proxied) {
-            proxymsg = msg->proxymsg;
+        if (msg == http_con_msg_first(pcon)) {
+            if (msg->proxied) {
+                if (msg->proxymsgid > 0 && (proxymsg = http_msg_mgmt_get(mgmt, msg->proxymsgid)) != NULL) {
+                    if (http_proxy_srv_send(proxymsg->pcon, proxymsg) < 0) 
+                        return -110;
+                    return 100;
+                } else {
+                    if (msg->res_encoded && msg->res_status > 0) {
+                        /* proxied HTTPMsg has been closed for some failure, current HTTPMsg also been
+                           handled to reply error code. subsequent request body just descarded. */
+                        return 0;
+                    }
 
-            if (proxymsg && proxymsg->pcon)
-                http_proxy_srv_send(proxymsg->pcon, proxymsg);
+                    str_secpy(buf, sizeof(buf)-1, msg->req_line, msg->req_line_len);
+                    tolog(1, "Panic: Msg[%lu %s] proxymsgid=%lu bodystream=%d has no proxymsg,"
+                             " but %ld bytes coming. BodyFlag=%d BodyLen=%ld ioLen=%ld streamRcv=%ld"
+                             " ResStatus=%d ResEncoded=%d ProxyMsg=%p"
+                             " Con[%lu %s:%d num-req/res=%d/%d]\n",
+                          msg->msgid, buf, msg->proxymsgid, frameL(msg->req_body_stream), num,
+                          msg->req_body_flag, msg->req_body_length, msg->req_body_iolen, msg->req_stream_recv,
+                          msg->res_status, msg->res_encoded, msg->proxymsg,
+                          pcon->conid, pcon->srcip, pcon->srcport, pcon->reqnum, pcon->resnum);
 
-            return 0;
+                    if (frameL(msg->req_body_stream) > 2048*1024)
+                        return -109;
+                }
+    
+            } else if (msg->fastcgi) {
+                if ((cgimsg = msg->fcgimsg) != NULL) {
+                    if (http_fcgi_srv_send(cgimsg->pcon, cgimsg) < 0) return -111;
+                    return 101;
+                } else {
+                    if (msg->res_encoded && msg->res_status > 0) {
+                        /* FastCGIMsg has been closed for some failure, current HTTPMsg also
+                           been handled to reply error code. subsequent request body just descarded. */
+                        return 0;
+                    }
 
-        } else if (msg->fastcgi) {
-            cgimsg = msg->fcgimsg;
+                    str_secpy(buf, sizeof(buf)-1, msg->req_line, msg->req_line_len);
+                    tolog(1, "Panic: Msg[%lu %s] bodystream=%d has no fastcgi-msg,"
+                             " but %ld bytes coming. BodyFlag=%d BodyLen=%ld ioLen=%ld streamRcv=%ld"
+                             " ResStatus=%d ResEncoded=%d ProxyMsg=%p"
+                             " Con[%lu %s:%d num-req/res=%d/%d]\n",
+                          msg->msgid, buf, frameL(msg->req_body_stream), num,
+                          msg->req_body_flag, msg->req_body_length, msg->req_body_iolen, msg->req_stream_recv,
+                          msg->res_status, msg->res_encoded, msg->proxymsg,
+                          pcon->conid, pcon->srcip, pcon->srcport, pcon->reqnum, pcon->resnum);
 
-            if (cgimsg && cgimsg->pcon)
-                http_fcgi_srv_send(cgimsg->pcon, cgimsg);
-
-            return 0;
+                    if (frameL(msg->req_body_stream) > 2048*1024)
+                        return -109;
+                }
+            }
         }
 
         switch (msg->req_body_flag) {
@@ -328,7 +457,7 @@ int http_cli_recv_parse (void * vcon)
         pbgn = frameP(pcon->rcvstream);
 
         /* determine if http header got completely */
-        pbyte = kmp_find_bytes(pbgn, num, "\r\n\r\n", 4, NULL);
+        pbyte = sun_find_bytes(pbgn, num, "\r\n\r\n", 4, NULL);
         if (!pbyte) {
             if (num > mgmt->cli_max_header_size) {
                 /* request header is too large, possibly a malicious attack */
@@ -347,10 +476,13 @@ int http_cli_recv_parse (void * vcon)
 
         msg->msgtype = 1; //receiving request
 
+        msg->workerid = iodev_workerid(pcon->pdev);
+
         pcon->reqnum++;
         msg->pcon = pcon;
-        msg->hl = pcon->hl;
         msg->conid = pcon->conid;
+        msg->hl = pcon->hl;
+        msg->hc = NULL;
         strcpy(msg->srcip, pcon->srcip);
         strcpy(msg->dstip, pcon->dstip);
         msg->srcport = pcon->srcport;
@@ -363,29 +495,35 @@ int http_cli_recv_parse (void * vcon)
         msg->req_header_length = hdrlen;
         if (hdrlen > 0) {
             /* remove the last 2 trailer "\r\n" */
-            frame_put_nlast(msg->req_header_stream, pbgn, hdrlen-2); 
+            frame_put_nlastp(&msg->req_header_stream, pbgn, hdrlen-2); 
             frame_del_first(pcon->rcvstream, hdrlen);
         }
         msg->req_stream_recv += hdrlen;
 
+        /* add to the msg queue of current HTTPCon for pipeline handling or tracing */
+        http_con_msg_add(pcon, msg);
+
         ret = http_req_parse_header(msg);
+
         if (ret < 0) return -106;
 
         /* request-line contains path/query only, uri doesn't include scheme/host
          * adjust it from Host header to form one complete uri */
-        http_req_set_absuri(msg);
-
-        /* add to the msg queue of current HTTPCon for pipeline handling or tracing */
-        http_con_msg_add(pcon, msg);
+        if (msg->req_url_type == 0) //0-relative uri  1-absolute uri  2-connect uri
+            http_req_set_absuri(msg);
 
         pcon->keepalive = msg->req_conn_keepalive;
+
+        if (arr_num(pcon->msg_list) == 1 && msg->req_methind == HTTP_METHOD_CONNECT) {
+            pcon->tunnel_state = HTTP_TUNNEL_DNSING;
+        }
 
         if (http_req_verify(msg) < 0) {
             return -116;
         }
 
         /* set DocURI and match the request path with configured Host and Location */
-        if (msg->req_url_type == 0 && msg->req_methind != HTTP_METHOD_CONNECT) { //CONNECT method
+        if (msg->req_url_type == 0 && msg->req_methind != HTTP_METHOD_CONNECT) { //exclude CONNECT method
             http_req_set_docuri(msg, frameP(msg->uri->uri), frameL(msg->uri->uri), 0, 0);
         }
 
@@ -403,17 +541,22 @@ int http_cli_recv_parse (void * vcon)
             pcon->rcv_state = HTTP_CON_WAITING_BODY;
         } else {
             pcon->rcv_state = HTTP_CON_READY;
+            msg->req_gotall_body = 1;
         }
 
-#if defined _DEBUG
-  print_request(msg, stdout);
-#endif
+        /* Multiple HTTP requests may be received on the TCP connection. If the first
+           HTTP request message is still being processed, subsequent messages need to
+           be queued for its processing */
+        if (msg == http_con_msg_first(pcon)) {
+            if (http_proxy_handle(msg) >= 0)
+                return 100;
 
-        if (http_proxy_handle(msg) >= 0)
-            return 0;
- 
-        if (http_fcgi_handle(msg) >= 0)
-            return 0;
+            if (http_fcgi_handle(msg) >= 0)
+                return 101;
+        } else {
+            if (msg && http_proxy_examine(msg) < 0)
+                http_fcgi_examine(msg);
+        }
 
         return http_reqbody_handle(msg);
     }
@@ -463,6 +606,7 @@ int http_reqbody_handle (void * vmsg)
     case BC_TUNNEL:
     default:
         pcon->rcv_state = HTTP_CON_READY;
+        msg->req_gotall_body = 1;
         return 2;
         break;
     }
@@ -486,6 +630,8 @@ int http_cli_reqbody_parse (void * vcon, void * vmsg)
     mgmt = (HTTPMgmt *)msg->httpmgmt;
     if (!mgmt) return -3;
 
+    if (msg->req_gotall_body) return 1;
+
     pbody = frameP(pcon->rcvstream);
     bodylen = frameL(pcon->rcvstream);
      
@@ -494,6 +640,11 @@ int http_cli_reqbody_parse (void * vcon, void * vmsg)
     case BC_CONTENT_LENGTH: 
 
         restlen = msg->req_body_length - msg->req_body_iolen;
+        if (restlen <= 0) {
+            msg->req_gotall_body = 1;
+            return 1;
+        }
+
         if (bodylen >= restlen)
             bodylen = restlen;
 
@@ -509,16 +660,25 @@ int http_cli_reqbody_parse (void * vcon, void * vmsg)
             }
         }
 
+        msg->req_body_iolen += bodylen;
+        msg->req_stream_recv += bodylen;
+
         if (msg->req_file_cache && msg->req_file_handle) {
-            native_file_write(msg->req_file_handle, pbody, bodylen);
+            if (msg->fastcgi) 
+                fcgimsg_stdin_encode(pbody, bodylen, NULL, 0, NULL, msg->req_file_handle, NULL);
+            else
+                native_file_write(msg->req_file_handle, pbody, bodylen);
 
         } else {
-            frame_put_nlast(msg->req_body_stream, pbody, bodylen);
+            if (msg->req_body_stream == NULL)
+                msg->req_body_stream = frame_alloc(bodylen + 256, msg->alloctype, msg->kmemblk);
+            if (msg->fastcgi) 
+                fcgimsg_stdin_encode(pbody, bodylen, NULL, 0, msg->req_body_stream, NULL, NULL);
+            else
+                frame_put_nlastp(&msg->req_body_stream, pbody, bodylen);
         }
 
         frame_del_first(pcon->rcvstream, bodylen);
-        msg->req_body_iolen += bodylen;
-        msg->req_stream_recv += bodylen;
 
         if (msg->req_body_iolen >= msg->req_body_length) {
             goto gotallbody;
@@ -539,13 +699,18 @@ int http_cli_reqbody_parse (void * vcon, void * vmsg)
          * .....               #one more HTTP headers with trailing CRLF
          * CRLF
          */
-        if (http_chunk_gotall(msg->req_chunk))
+        if (msg->req_chunk == NULL)
+            msg->req_chunk = http_chunk_alloc(msg->alloctype, msg->kmemblk);
+
+        if (http_chunk_gotall(msg->req_chunk)) {
+            msg->req_gotall_body = 1; 
             return 1;
+        }
    
         ret = http_chunk_add_bufptr(msg->req_chunk, pbody, bodylen, &rmlen);
         if (ret < 0) return -30;
 
-        msg->req_chunk_iolen += chunk_rest_size(http_chunk_obj(msg->req_chunk), 0);
+        msg->req_body_iolen += chunk_rest_size(http_chunk_obj(msg->req_chunk), 0);
         msg->req_body_length += chunk_rest_size(http_chunk_obj(msg->req_chunk), 0);
 
         if (mgmt->cli_body_cache && 
@@ -561,10 +726,18 @@ int http_cli_reqbody_parse (void * vcon, void * vmsg)
         }
 
         if (msg->req_file_handle) {
-            chunk_readto_file(http_chunk_obj(msg->req_chunk), native_file_fd(msg->req_file_handle), 0, -1, 0);
+            if (msg->fastcgi) 
+                fcgimsg_stdin_encode(pbody, rmlen, NULL, 0, NULL, msg->req_file_handle, NULL);
+            else
+                chunk_write_file(http_chunk_obj(msg->req_chunk), native_file_fd(msg->req_file_handle), 0, -1, 0);
 
         } else {
-            chunk_readto_frame(http_chunk_obj(msg->req_chunk), msg->req_body_stream, 0, -1, 0);
+            if (msg->req_body_stream == NULL)
+                msg->req_body_stream = frame_alloc(rmlen, msg->alloctype, msg->kmemblk);
+            if (msg->fastcgi) 
+                fcgimsg_stdin_encode(pbody, rmlen, NULL, 0, msg->req_body_stream, NULL, NULL);
+            else
+                chunk_write_framep(http_chunk_obj(msg->req_chunk), &msg->req_body_stream, 0, -1, 0);
         }
 
         chunk_remove(http_chunk_obj(msg->req_chunk), msg->req_body_length, 0); 
@@ -586,6 +759,7 @@ int http_cli_reqbody_parse (void * vcon, void * vmsg)
     return 0;
 
 gotallbody:
+    msg->req_gotall_body = 1;
 
     if (msg->req_file_handle) {
         chunk_add_filefd(msg->req_body_chunk,
@@ -597,8 +771,10 @@ gotallbody:
                          frameL(msg->req_body_stream), NULL, NULL);
     }
 
-    http_form_multipart_parse(msg, NULL);
+    chunk_set_end(msg->req_body_chunk);
 
+    if (msg->proxied || msg->fastcgi) return 1;
+ 
     if (msg->req_content_type && msg->req_contype_len > 0) {
         if (str_ncasecmp(msg->req_content_type, "application/x-www-form-urlencoded", 33) == 0) {
             if (!msg->req_form_kvobj) {
@@ -616,6 +792,8 @@ gotallbody:
             chunk_ptr(msg->req_body_chunk, 0, NULL, (void **)&pbody, &restlen);
             json_decode(msg->req_form_json, pbody, restlen, 1, 0);
     
+        } else if (str_ncasecmp(msg->req_content_type, "multipart/form-data", 19) == 0) {
+            http_form_multipart_parse(msg, NULL);
         }
     }
 
@@ -623,13 +801,17 @@ gotallbody:
 }
 
 
-int http_cli_send_probe (void * vcon)
+int http_cli_send_probe (void * vmgmt, ulong conid)
 {
-    HTTPCon  * pcon = (HTTPCon *)vcon;
+    HTTPMgmt * mgmt = (HTTPMgmt *)vmgmt;
+    HTTPCon  * pcon = NULL;
     HTTPMsg  * msg = NULL;
     int        num = 0;
  
-    if (!pcon) return -1;
+    if (!mgmt) return -1;
+
+    pcon = http_mgmt_con_get(mgmt, conid);
+    if (!pcon) return -2;
  
     if (pcon->snd_state < HTTP_CON_SEND_READY) return -100;
  
@@ -641,7 +823,7 @@ int http_cli_send_probe (void * vcon)
     }
  
     msg = (HTTPMsg *)arr_value(pcon->msg_list, 0);
-    if (!msg || msg->issued <= 0) {
+    if (!msg || msg->res_encoded == 0) {
         if (pcon->snd_state == HTTP_CON_FEEDING)
             pcon->snd_state = HTTP_CON_SEND_READY;
         return 0;
@@ -657,10 +839,10 @@ int http_cli_send_probe (void * vcon)
 }
 
  
-int http_cli_send (void * vcon)
+int http_cli_send (void * vmgmt, ulong conid)
 {
-    HTTPCon     * pcon = (HTTPCon *)vcon;
-    HTTPMgmt    * mgmt = NULL;
+    HTTPMgmt    * mgmt = (HTTPMgmt *)vmgmt;
+    HTTPCon     * pcon = NULL;
     HTTPMsg     * msg = NULL;
  
     void        * chunk = NULL;
@@ -675,15 +857,15 @@ int http_cli_send (void * vcon)
     uint8         shutdown = 0;
     uint8         closecon = 0;
  
-    if (!pcon) return -1;
- 
-    mgmt = (HTTPMgmt *)pcon->mgmt;
-    if (!mgmt) return -2;
- 
+    if (!mgmt) return -1;
+
+    pcon = http_mgmt_con_get(mgmt, conid);
+    if (!pcon) return -2;
+
     if (pcon->snd_state < HTTP_CON_SEND_READY)
         return -100;
  
-    if (pcon->httptunnel && pcon->tunnelself == 0 && arr_num(pcon->msg_list) <= 0) 
+    if (pcon->httptunnel == 1 && pcon->tunnelself == 0 && arr_num(pcon->msg_list) <= 0) 
         return http_tunnel_cli_send(pcon->tunnelcon, pcon);
 
     if (pcon->snd_state == HTTP_CON_FEEDING)
@@ -701,22 +883,28 @@ int http_cli_send (void * vcon)
             break;
         }
  
-        if (msg->proxied && (!msg->cacheon || !msg->res_cache_info)) {
-            httpchunk = 0;
-        } else {
-            httpchunk = msg->res_body_flag == BC_TE ? 1 : 0;
+        if (msg->res_encoded == 0) {
+            /* If the callback of the current HTTP request has not yet completed
+               processing, just return and do nothing */
+            pcon->snd_state = HTTP_CON_SEND_READY;
+
+            http_msg_dispatch(pcon, msg);
+
+            return 0;
         }
+ 
+        httpchunk = msg->res_body_flag == BC_TE ? 1 : 0;
 
         chunk = msg->res_body_chunk;
         filepos = msg->res_stream_sent;
 
-        if (msg->issued <= 0 || chunk_get_end(chunk, filepos, httpchunk)) {
-            /* when the callback of http request not finished handling,
-               or the reponse has been sent to client, just do nothing and return */
-            pcon->snd_state = HTTP_CON_SEND_READY;
-            return 0;
+        if (filepos > 0 && chunk_get_end(chunk, filepos, httpchunk)) {
+            /* response of current HTTPMsg has been successfully sent to the client, release the msg */
+            http_con_msg_del(pcon, msg);
+            http_msg_close(msg);
+            continue;
         }
- 
+
         if (chunk_has_file(chunk) > 0) {
             if (iodev_tcp_nodelay(pcon->pdev) == TCP_NODELAY_SET) {
                 iodev_tcp_nodelay_set(pcon->pdev, TCP_NODELAY_UNSET);
@@ -731,9 +919,10 @@ int http_cli_send (void * vcon)
  
             memset(&iovec, 0, sizeof(iovec));
             ret = chunk_vec_get(chunk, filepos, &iovec, httpchunk);
+ 
             if (ret < 0 || (iovec.size > 0 && iovec.vectype != 1 && iovec.vectype != 2)) {
                 pcon->snd_state = HTTP_CON_IDLE;
-                http_cli_con_crash(pcon, 1);
+                http_cli_con_crash(mgmt, conid, 1);
                 return ret;
             }
  
@@ -741,13 +930,13 @@ int http_cli_send (void * vcon)
                 /* no available data to send, waiting for more data... */
                 pcon->snd_state = HTTP_CON_SEND_READY;
 
-                /* all octets in buffer are sent to client and de-congesting process 
-                   should be started. connection of server-side is checked to add Read notification
-                   if it's removed before */
-                http_cli_send_cc(pcon);
+                /* After all the octets in the buffer are sent to the client, the uncongestion
+                   process will be initiated. The connection on the server side is checked: if
+                   its read event notification mechanism was previously removed, re-add it now. */
+                http_cli_send_cc(mgmt, conid);
 
                 if (msg->cacheon && msg->res_cache_info) {
-                    /* read cache file again, if no data in cache file, request it from origin */
+                    /* read the cache file again. if no data in it, request the origin server for more */ 
                     return http_proxy_cli_cache_send(pcon, msg);
                 }
 
@@ -756,6 +945,7 @@ int http_cli_send (void * vcon)
 
             err = 0;
             if (iovec.vectype == 2) { //sendfile
+
 #if defined(_WIN32) || defined(_WIN64)
                 ret = http_con_sendfile(pcon, (int)iovec.filefd, iovec.fpos, iovec.size , &num, &err);
 #else
@@ -767,6 +957,7 @@ int http_cli_send (void * vcon)
  
             } else if (iovec.vectype == 1) { //mem buffer, writev
                 ret = http_con_writev(pcon, iovec.iovs, iovec.iovcnt, &num, &err);
+
                 if (ret < 0) {
                     shutdown = 1;
                 }
@@ -778,10 +969,15 @@ int http_cli_send (void * vcon)
  
             http_overhead_sent(pcon->mgmt, num);
             msg->stamp = time(&pcon->stamp);
+
+            /* When HTTP connection serves as a tunnel, data sent to the client
+               is not counted in the connection */
+            if (pcon->httptunnel != 1 && pcon->httptunnel != 2)
+                pcon->total_sent += num;
  
             /* remove the sent ChunkEntity-es in msg->res_body_chunk.
-               release the already sent frame objects holding received data from 
-               origin server for zero-copy purpose. */
+               release the sent frame objects for zero-copy purposes to hold received
+               data from origin server. */
             http_cli_send_final(msg);
 
             if (shutdown) break;
@@ -796,11 +992,11 @@ int http_cli_send (void * vcon)
                 pcon->snd_state = HTTP_CON_SEND_READY;
                 iodev_add_notify(pcon->pdev, RWF_WRITE);
 
-                /* all octets in buffer are sent to client and de-congesting process 
-                   should be started. connection of server-side is checked to add Read notification
-                   if it's removed before */
+                /* After all the octets in the buffer are sent to the client, the uncongestion
+                   process will be initiated. The connection on the server side is checked: if
+                   its read event notification mechanism was previously removed, re-add it now. */
                 if (sentnum > 0)
-                    http_cli_send_cc(pcon);
+                    http_cli_send_cc(mgmt, conid);
 
                 return 0;
             }
@@ -813,10 +1009,14 @@ int http_cli_send (void * vcon)
             if (msg->req_ver_major < 1 || (msg->req_ver_major == 1 && msg->req_ver_minor == 0))
                 closecon++;
 
+            if (msg->req_conn_keepalive == 0)
+                closecon++;
+
             /* send response to client successfully */
             http_con_msg_del(pcon, msg);
             http_msg_close(msg);
 
+            pcon->resnum++;
             pcon->transbgn = time(NULL);
 
             /* go on sending another HTTPMsg */
@@ -824,7 +1024,7 @@ int http_cli_send (void * vcon)
  
         if (shutdown) {
             pcon->snd_state = HTTP_CON_IDLE;
-            http_cli_con_crash(pcon, 1);
+            http_cli_con_crash(mgmt, conid, 1);
             return ret;
         }
 
@@ -832,7 +1032,7 @@ int http_cli_send (void * vcon)
  
     if (closecon) {
         pcon->snd_state = HTTP_CON_IDLE;
-        http_cli_con_crash(pcon, 1);
+        http_cli_con_crash(mgmt, conid, 1);
         return ret;
     }
 
@@ -840,7 +1040,7 @@ int http_cli_send (void * vcon)
  
     /* the response has been sent to client. the current HTTPCon
      * should send the next HTTPMsg in the FIFO queue. */
-    if (arr_num(pcon->msg_list) > 0) {
+    if ((msg = http_con_msg_first(pcon)) && msg->res_encoded) {
         iodev_add_notify(pcon->pdev, RWF_WRITE);
     }
  
@@ -854,15 +1054,17 @@ int http_cli_send_final (void * vmsg)
     frame_p    frm = NULL;
     int        i, num;
     int        fnum = 0;
+    uint8      httpchunk = 0;
  
     if (!msg) return -1;
  
     mgmt = (HTTPMgmt *)msg->httpmgmt;
     if (!mgmt) return -2;
 
-    fnum = chunk_remove(msg->res_body_chunk,
-                        msg->res_stream_sent,
-                        msg->res_body_flag == BC_TE ? 1 : 0);
+    httpchunk = msg->res_body_flag == BC_TE ? 1 : 0;
+
+    fnum = chunk_remove(msg->res_body_chunk, msg->res_stream_sent, httpchunk);
+ 
     if (fnum <= 0)
         return 0;
  
@@ -873,8 +1075,9 @@ int http_cli_send_final (void * vmsg)
         fnum = chunk_bufptr_porig_find(msg->res_body_chunk, frm);
         if (fnum <= 0) {
             arr_delete(msg->res_rcvs_list, i);
-            frame_free(frm);
             i--; num--;
+
+            frame_free(frm);
         }
     }
  
@@ -882,24 +1085,24 @@ int http_cli_send_final (void * vmsg)
 }
 
 
-int http_cli_con_lifecheck (void * vcon)
+int http_cli_con_lifecheck (void * vmgmt, ulong conid)
 {
-    HTTPCon  * pcon = (HTTPCon *)vcon;
-    HTTPMgmt * mgmt = NULL;
+    HTTPMgmt * mgmt = (HTTPMgmt *)vmgmt;
+    HTTPCon  * pcon = NULL;
     time_t     curt = 0;
     int        num = 0;
 
-    if (!pcon) return -1;
+    if (!mgmt) return -1;
 
-    mgmt = (HTTPMgmt *)pcon->mgmt;
-    if (!mgmt) return -2;
+    pcon = http_mgmt_con_get(mgmt, conid);
+    if (!pcon) return -2;
 
     num = arr_num(pcon->msg_list);
     time(&curt);
 
-    if (pcon->httptunnel) {
+    if (pcon->httptunnel == 1) {
         if (curt > pcon->stamp && curt - pcon->stamp >= mgmt->tunnel_keepalive_time) {
-            return http_con_close(pcon);
+            return http_con_close(mgmt, conid);
         }
         goto starttimer;
     }
@@ -914,38 +1117,38 @@ int http_cli_con_lifecheck (void * vcon)
                     if (curt > pcon->stamp && curt - pcon->stamp >= mgmt->cli_keepalive_time) {
                         /* send/recv one or more requests, now no request coming
                            for keepalive time */
-                        return http_con_close(pcon);
+                        return http_con_close(mgmt, conid);
                     }
 
                 } else {
                     /* send/recv one or more requests, now close connection
                        while no keepalive */
-                    return http_con_close(pcon);
+                    return http_con_close(mgmt, conid);
                 }
 
             } else if (curt > pcon->stamp && curt - pcon->stamp >= mgmt->cli_conn_idle_time) {
                 /* built connection, no request comes in */
-                return http_con_close(pcon);
+                return http_con_close(mgmt, conid);
             }
 
         } else if (pcon->rcv_state == HTTP_CON_SSL_HANDSHAKING) {
             if (curt > pcon->stamp && curt - pcon->stamp >= mgmt->cli_header_time) {
                 /* SSL handshaking in process, it last too long */
-                return http_con_close(pcon);
+                return http_con_close(mgmt, conid);
             }
 
         } else if (pcon->rcv_state == HTTP_CON_WAITING_HEADER) {
             /* has got partial HTTP-request header */
             if (curt > pcon->stamp && curt - pcon->stamp >= mgmt->cli_header_idletime) {
                 /* after got partial request header, no byte send out for sometime */
-                return http_con_close(pcon);
+                return http_con_close(mgmt, conid);
 
             } else if (pcon->stamp > pcon->transbgn && 
                        pcon->stamp - pcon->transbgn >= mgmt->cli_header_time)
             {
                 /* not got one full request header, from first byte to now, 
                    close it when exceeding max waiting time */
-                return http_con_close(pcon);
+                return http_con_close(mgmt, conid);
             }
         }
 
@@ -953,15 +1156,15 @@ int http_cli_con_lifecheck (void * vcon)
 
         if (curt > pcon->stamp && curt - pcon->stamp >= mgmt->cli_request_handle_time) {
             /* after received header, waiting for proxy and upper layer callback handling */
-            return http_con_close(pcon);
+            return http_con_close(mgmt, conid);
         }
     }
 
 starttimer:
     pcon->life_timer = iotimer_start(mgmt->pcore,
                                   mgmt->conn_check_interval * 1000,
-                                  t_http_cli_con_life, (void *)pcon->conid,
-                                  http_pump, mgmt);
+                                  t_http_cli_con_life, (void *)conid,
+                                  http_pump, mgmt, iodev_epumpid(pcon->pdev));
     return 0;
 }
 

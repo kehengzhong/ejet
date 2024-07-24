@@ -1,6 +1,30 @@
 /*
- * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2024 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
+ *
+ * #####################################################
+ * #                       _oo0oo_                     #
+ * #                      o8888888o                    #
+ * #                      88" . "88                    #
+ * #                      (| -_- |)                    #
+ * #                      0\  =  /0                    #
+ * #                    ___/`---'\___                  #
+ * #                  .' \\|     |// '.                #
+ * #                 / \\|||  :  |||// \               #
+ * #                / _||||| -:- |||||- \              #
+ * #               |   | \\\  -  /// |   |             #
+ * #               | \_|  ''\---/''  |_/ |             #
+ * #               \  .-\__  '-'  ___/-. /             #
+ * #             ___'. .'  /--.--\  `. .'___           #
+ * #          ."" '<  `.___\_<|>_/___.'  >' "" .       #
+ * #         | | :  `- \`.;`\ _ /`;.`/ -`  : | |       #
+ * #         \  \ `_.   \_ __\ /__ _/   .-` /  /       #
+ * #     =====`-.____`.___ \_____/___.-`___.-'=====    #
+ * #                       `=---='                     #
+ * #     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   #
+ * #               佛力加持      佛光普照              #
+ * #  Buddha's power blessing, Buddha's light shining  #
+ * #####################################################
  */
 
 #include "adifall.ext"
@@ -10,12 +34,15 @@
 #include "http_header.h"
 #include "http_cookie.h"
 
-void * http_cookie_alloc ()
+void * http_cookie_alloc (int alloctype, void * mpool)
 {
     cookie_t * ckie = NULL;
 
-    ckie = kzalloc(sizeof(*ckie));
+    ckie = k_mem_zalloc(sizeof(*ckie), alloctype, mpool);
     if (!ckie) return NULL;
+
+    ckie->alloctype = alloctype;
+    ckie->mpool = mpool;
 
     ckie->createtime = time(0);
 
@@ -29,36 +56,40 @@ void http_cookie_free  (void * vckie)
     if (!ckie) return;
 
     if (ckie->name) {
-        kfree(ckie->name);
+        k_mem_free(ckie->name, ckie->alloctype, ckie->mpool);
         ckie->name = NULL;
     }
 
     if (ckie->value) {
-        kfree(ckie->value);
+        k_mem_free(ckie->value, ckie->alloctype, ckie->mpool);
         ckie->name = NULL;
     }
 
     if (ckie->path) {
-        kfree(ckie->path);
+        k_mem_free(ckie->path, ckie->alloctype, ckie->mpool);
         ckie->path = NULL;
     }
 
     if (ckie->domain) {
-        kfree(ckie->domain);
+        k_mem_free(ckie->domain, ckie->alloctype, ckie->mpool);
         ckie->domain = NULL;
     }
 
-    kfree(ckie);
+    k_mem_free(ckie, ckie->alloctype, ckie->mpool);
 }
 
-void * cookie_path_alloc ()
+
+void * cookie_path_alloc (int alloctype, void * mpool)
 {
     cookie_path_t * ckpath = NULL;
 
-    ckpath = kzalloc(sizeof(*ckpath));
+    ckpath = k_mem_zalloc(sizeof(*ckpath), alloctype, mpool);
     if (!ckpath) return NULL;
 
-    ckpath->cookie_list = arr_new(4);
+    ckpath->alloctype = alloctype;
+    ckpath->mpool = mpool;
+
+    ckpath->cookie_list = arr_alloc(4, alloctype, mpool);
 
     return ckpath;
 }
@@ -74,20 +105,23 @@ void cookie_path_free  (void * vpath)
         ckpath->cookie_list = NULL;
     }
 
-    kfree(ckpath);
+    k_mem_free(ckpath, ckpath->alloctype, ckpath->mpool);
 }
 
 
-void * cookie_domain_alloc () 
+void * cookie_domain_alloc (int alloctype, void * mpool) 
 {
     cookie_domain_t * ckdomain = NULL;
  
-    ckdomain = kzalloc(sizeof(*ckdomain));
+    ckdomain = k_mem_zalloc(sizeof(*ckdomain), alloctype, mpool);
     if (!ckdomain) return NULL;
  
-    ckdomain->cookie_path_trie = actrie_init(128, NULL, 0);
+    ckdomain->alloctype = alloctype;
+    ckdomain->mpool = mpool;
 
-    ckdomain->cookie_path_list = arr_new(4);
+    ckdomain->cookie_path_trie = actrie_alloc(NULL, 0, alloctype, mpool);
+
+    ckdomain->cookie_path_list = arr_alloc(4, alloctype, mpool);
  
     return ckdomain;
 }
@@ -108,7 +142,7 @@ void cookie_domain_free  (void * vdomain)
         ckdomain->cookie_path_list = NULL;
     }
  
-    kfree(ckdomain);
+    k_mem_free(ckdomain, ckdomain->alloctype, ckdomain->mpool);
 }
 
 int cookie_domain_cmp_name (void * a, void * b)
@@ -172,19 +206,25 @@ void * cookie_domain_path_get (void * vdom, char * path, int pathlen)
 void * cookie_mgmt_alloc (void * vhttpmgmt, char * ckiefile)
 {
     CookieMgmt * mgmt = NULL;
+    HTTPMgmt   * httpmgmt = (HTTPMgmt *)vhttpmgmt;
 
-    mgmt = kzalloc(sizeof(*mgmt));
+    if (!httpmgmt) return NULL;
+
+    mgmt = k_mem_zalloc(sizeof(*mgmt), 2, httpmgmt->fragmem_kempool);
     if (!mgmt) return NULL;
+
+    mgmt->alloctype = 2;
+    mgmt->mpool = httpmgmt->fragmem_kempool;
 
     mgmt->httpmgmt = vhttpmgmt;
 
     InitializeCriticalSection(&mgmt->cookieCS);
 
-    mgmt->domain_trie = actrie_init(128, NULL, 1);
-    mgmt->domain_table = ht_new(128, cookie_domain_cmp_name);
+    mgmt->domain_trie = actrie_alloc(NULL, 1, mgmt->alloctype, mgmt->mpool);
+    mgmt->domain_table = ht_alloc(512, cookie_domain_cmp_name, mgmt->alloctype, mgmt->mpool);
     ht_set_hash_func(mgmt->domain_table, cookie_domain_hash);
 
-    mgmt->cookie_list = arr_new(4);
+    mgmt->cookie_list = arr_alloc(4, mgmt->alloctype, mgmt->mpool);
 
     mgmt->cookie_file = ckiefile;
     cookie_mgmt_read(mgmt, ckiefile);
@@ -198,8 +238,12 @@ void * cookie_mgmt_alloc (void * vhttpmgmt, char * ckiefile)
 void cookie_mgmt_free (void * vmgmt)
 {
     CookieMgmt * mgmt = (CookieMgmt *)vmgmt;
+    HTTPMgmt   * httpmgmt = NULL;
 
     if (!mgmt) return;
+
+    httpmgmt = (HTTPMgmt *)mgmt->httpmgmt;
+    if (!httpmgmt) return;
 
     DeleteCriticalSection(&mgmt->cookieCS);
 
@@ -219,11 +263,11 @@ void cookie_mgmt_free (void * vmgmt)
     }
 
     if (mgmt->scan_timer) {
-        iotimer_stop(mgmt->scan_timer);
+        iotimer_stop(httpmgmt->pcore, mgmt->scan_timer);
         mgmt->scan_timer = NULL;
     }
 
-    kfree(mgmt);
+    k_mem_free(mgmt, mgmt->alloctype, mgmt->mpool);
     tolog(1, "eJet - Cookie resource freed.\n");
 }
  
@@ -290,7 +334,7 @@ int cookie_mgmt_read  (void * vmgmt, char * cookiefile)
         if (len <= 0 || *p == '#')
             continue;
 
-        cookie_mgmt_parse(mgmt, p, len, "", 0);
+        cookie_mgmt_parse(mgmt, p, len, "", 0, 0);
     }
 
     if (fp) fclose(fp);
@@ -318,7 +362,7 @@ int cookie_mgmt_write (void * vmgmt, char * cookiefile)
     fp = fopen(cookiefile, "w");
     if (!fp) return -3;
 
-    frm = frame_new(4096);
+    frm = frame_alloc(4096, mgmt->alloctype, mgmt->mpool);
 
     EnterCriticalSection(&mgmt->cookieCS);
 
@@ -432,7 +476,7 @@ int cookie_mgmt_scan (void * vmgmt)
                                      10*60*1000,
                                      t_http_cookie_scan,
                                      NULL,
-                                     cookie_callback, mgmt);
+                                     cookie_callback, mgmt, 0);
 
     return rmnum;
 }
@@ -458,7 +502,7 @@ int cookie_mgmt_add (void * vmgmt, void * vckie)
     /* get the domain object, if not existing, create it */
     ckdomain = cookie_mgmt_domain_get(mgmt, ckie->domain, ckie->domainlen);
     if (!ckdomain) {
-        ckdomain = cookie_domain_alloc();
+        ckdomain = cookie_domain_alloc(mgmt->alloctype, mgmt->mpool);
         if (!ckdomain) {
             LeaveCriticalSection(&mgmt->cookieCS);
 
@@ -474,7 +518,7 @@ int cookie_mgmt_add (void * vmgmt, void * vckie)
     /* get the path object of the domain, if not existing, create it */
     ckpath = cookie_domain_path_get(ckdomain, ckie->path, ckie->pathlen);
     if (!ckpath) {
-        ckpath = cookie_path_alloc();
+        ckpath = cookie_path_alloc(mgmt->alloctype, mgmt->mpool);
         if (!ckdomain) {
            LeaveCriticalSection(&mgmt->cookieCS);
 
@@ -498,8 +542,8 @@ int cookie_mgmt_add (void * vmgmt, void * vckie)
         if (strncasecmp(iter->name, ckie->name, iter->namelen) == 0) {
             if (iter->valuelen != ckie->valuelen ||
                 strncasecmp(iter->value, ckie->value, iter->valuelen) != 0) {
-                if (iter->value) kfree(iter->value);
-                iter->value = str_dup(ckie->value, ckie->valuelen);
+                if (iter->value) k_mem_free(iter->value, mgmt->alloctype, mgmt->mpool);
+                iter->value = k_mem_str_dup(ckie->value, ckie->valuelen, mgmt->alloctype, mgmt->mpool);
                 iter->valuelen = ckie->valuelen;
             }
 
@@ -532,7 +576,7 @@ int cookie_mgmt_add (void * vmgmt, void * vckie)
                                      10*60*1000,
                                      t_http_cookie_scan,
                                      NULL,
-                                     cookie_callback, mgmt);
+                                     cookie_callback, mgmt, 0);
 
     return 1;
 }
@@ -664,7 +708,7 @@ int cookie_mgmt_set  (void * vmgmt, char * ckname, int cknlen, char * ckvalue, i
     if (pathlen < 0) pathlen = strlen(path);
     if (pathlen <= 0) return -3;
 
-    ckie = http_cookie_alloc();
+    ckie = http_cookie_alloc(mgmt->alloctype, mgmt->mpool);
     if (!ckie) return -100;
 
     ckie->name = ckname;
@@ -692,7 +736,7 @@ int cookie_mgmt_set  (void * vmgmt, char * ckname, int cknlen, char * ckvalue, i
     return 0;
 }
  
-int cookie_mgmt_parse (void * vmgmt, char * pbyte, int bytelen, char * defdom, int defdomlen)
+int cookie_mgmt_parse (void * vmgmt, char * pbyte, int bytelen, char * defdom, int defdomlen, int needwrite)
 {
     CookieMgmt * mgmt = (CookieMgmt *)vmgmt;
     cookie_t   * ckie = NULL;
@@ -731,7 +775,7 @@ int cookie_mgmt_parse (void * vmgmt, char * pbyte, int bytelen, char * defdom, i
     num = string_tokenize(pbyte, bytelen, ";", 1, (void **)plist, plen, 32);
     if (num <= 0) return -100;
 
-    cklist = arr_new(4);
+    cklist = arr_alloc(4, mgmt->alloctype, mgmt->mpool);
 
     for (i = 0; i < num; i++) {
         pend = plist[i] + plen[i];
@@ -750,8 +794,8 @@ int cookie_mgmt_parse (void * vmgmt, char * pbyte, int bytelen, char * defdom, i
             data = NULL;
             datalen = 0;
         } else {
-            data = pkv[1]; pend = data + kvlen[1];
-            p = rskipOver(pend-1, pend-data, " \t\r\n;=", 6);
+            data = pkv[1]; pend = plist[i] + plen[i];
+            p = rskipOver(pend-1, pend-data, " \t\r\n;", 5);
             if (p < data) datalen = 0;
             else datalen = p - data + 1;
         }
@@ -791,10 +835,10 @@ int cookie_mgmt_parse (void * vmgmt, char * pbyte, int bytelen, char * defdom, i
                 createtime = strtoull(data, NULL, 10);
 
         } else {
-            ckie = http_cookie_alloc();
-            ckie->name = str_dup(key, keylen);
+            ckie = http_cookie_alloc(mgmt->alloctype, mgmt->mpool);
+            ckie->name = k_mem_str_dup(key, keylen, mgmt->alloctype, mgmt->mpool);
             ckie->namelen = keylen;
-            ckie->value = str_dup(data, datalen);
+            ckie->value = k_mem_str_dup(data, datalen, mgmt->alloctype, mgmt->mpool);
             ckie->valuelen = datalen;
 
             arr_push(cklist, ckie);
@@ -811,9 +855,9 @@ int cookie_mgmt_parse (void * vmgmt, char * pbyte, int bytelen, char * defdom, i
         ckie = arr_value(cklist, i);
         if (!ckie) continue;
 
-        ckie->path = str_dup(path, pathlen);
+        ckie->path = k_mem_str_dup(path, pathlen, mgmt->alloctype, mgmt->mpool);
         ckie->pathlen = pathlen;
-        ckie->domain = str_dup(domain, domainlen);
+        ckie->domain = k_mem_str_dup(domain, domainlen, mgmt->alloctype, mgmt->mpool);
         ckie->domainlen = domainlen;
         ckie->expire = expire;
         ckie->maxage = maxage;
@@ -844,7 +888,7 @@ int cookie_mgmt_parse (void * vmgmt, char * pbyte, int bytelen, char * defdom, i
 
     arr_free(cklist);
 
-    if (num > 0)
+    if (num > 0 && needwrite)
         cookie_mgmt_write(mgmt, mgmt->cookie_file);
 
     return 0;
@@ -882,7 +926,9 @@ int http_cookie_add (void * vmsg)
     HeaderUnit * unit = NULL;
     frame_t    * frm = NULL;
     int          ret = 0;
-    int          i, num;
+    int          i, num, total = 0;
+    char       * pbgn = NULL;
+    char       * pend = NULL;
 
     if (!msg) return -1;
 
@@ -892,35 +938,42 @@ int http_cookie_add (void * vmsg)
     ckiemgmt = (CookieMgmt *)httpmgmt->cookiemgmt;
     if (!ckiemgmt) return -3;
 
-    ret = cookie_mgmt_mget(ckiemgmt, msg->req_host, msg->req_hostlen,
-                           msg->req_path, msg->req_pathlen, &cklist);
-    if (ret <= 0 || !cklist) return -100;
-
-    frm = frame_new(4096);
+    frm = frame_alloc(256, msg->alloctype, msg->kmemblk);
 
     unit = http_header_get(msg, 0, "Cookie", -1);
     if (unit && unit->valuelen > 0) {
         frame_put_nfirst(frm, HUValue(unit), unit->valuelen);
     }
+    
+    pbgn = msg->req_host;
+    pend = pbgn + msg->req_hostlen;
 
-    num = arr_num(cklist);
-
-    for (i = 0, ret = 0; i < num; i++) {
-        ckie = arr_value(cklist, i);
-        if (!ckie) continue;
-
-        frame_appendf(frm, "%s%s=%s", frameL(frm) > 0 ? "; " : "", ckie->name, ckie->value);
-        ret++;
+    for ( ; pbgn < pend; pbgn = skipTo(pbgn+1, pend-pbgn-1, ". \t", 3)) {
+        ret = cookie_mgmt_mget(ckiemgmt, pbgn, pend-pbgn,
+                               msg->req_path, msg->req_pathlen, &cklist);
+        if (ret <= 0 || !cklist) {
+            break;
+        }
+    
+        num = arr_num(cklist);
+    
+        for (i = 0; i < num; i++) {
+            ckie = arr_value(cklist, i);
+            if (!ckie) continue;
+    
+            frame_appendf(frm, "%s%s=%s", frameL(frm) > 0 ? "; " : "", ckie->name, ckie->value);
+            total++;
+        }
     }
 
-    if (ret > 0) {
+    if (total > 0) {
         http_header_del(msg, 0, "Cookie", -1);
         http_header_append(msg, 0, "Cookie", -1, frameP(frm), frameL(frm));
     }
-
+    
     frame_free(frm);
 
-    return 0;
+    return total;
 }
 
 int http_set_cookie_parse (void * vmsg)
@@ -941,7 +994,7 @@ int http_set_cookie_parse (void * vmsg)
 
     unit = http_header_get(msg, 1, "Set-Cookie", -1);
     while (unit && unit->valuelen > 0) {
-        ret = cookie_mgmt_parse(ckiemgmt, HUValue(unit), unit->valuelen, msg->req_host, msg->req_hostlen);
+        ret = cookie_mgmt_parse(ckiemgmt, HUValue(unit), unit->valuelen, msg->req_host, msg->req_hostlen, 1);
         unit = unit->next;
     }
 

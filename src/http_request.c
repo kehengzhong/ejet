@@ -1,6 +1,30 @@
 /*
- * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2024 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
+ *
+ * #####################################################
+ * #                       _oo0oo_                     #
+ * #                      o8888888o                    #
+ * #                      88" . "88                    #
+ * #                      (| -_- |)                    #
+ * #                      0\  =  /0                    #
+ * #                    ___/`---'\___                  #
+ * #                  .' \\|     |// '.                #
+ * #                 / \\|||  :  |||// \               #
+ * #                / _||||| -:- |||||- \              #
+ * #               |   | \\\  -  /// |   |             #
+ * #               | \_|  ''\---/''  |_/ |             #
+ * #               \  .-\__  '-'  ___/-. /             #
+ * #             ___'. .'  /--.--\  `. .'___           #
+ * #          ."" '<  `.___\_<|>_/___.'  >' "" .       #
+ * #         | | :  `- \`.;`\ _ /`;.`/ -`  : | |       #
+ * #         \  \ `_.   \_ __\ /__ _/   .-` /  /       #
+ * #     =====`-.____`.___ \_____/___.-`___.-'=====    #
+ * #                       `=---='                     #
+ * #     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   #
+ * #               佛力加持      佛光普照              #
+ * #  Buddha's power blessing, Buddha's light shining  #
+ * #####################################################
  */
 
 #include "adifall.ext"
@@ -12,8 +36,7 @@
 #include "http_con.h"
 #include "http_request.h"
 #include "http_cookie.h"
-#include "http_sndpxy.h"
-#include "http_listen.h"
+#include "http_resloc.h"
 #include "http_cgi.h"
 
 
@@ -47,7 +70,7 @@ int http_req_addcookie (void * vmsg, char * name, int namelen,
         }
     }
 
-    punit = bpool_fetch(mgmt->header_unit_pool);
+    punit = mpool_fetch(mgmt->header_unit_pool);
     if (!punit) { return -5; }
 
     punit->frame = msg->req_header_stream;
@@ -67,6 +90,32 @@ int http_req_addcookie (void * vmsg, char * name, int namelen,
     return 0;
 }
 
+int http_req_delcookie (void * vmsg, char * name, int namelen)
+{
+    HTTPMsg    * msg = (HTTPMsg *)vmsg;
+    HTTPMgmt   * mgmt = NULL;
+    HeaderUnit * phu = NULL;
+    HeaderUnit * punit = NULL;
+
+    if (!msg) return -1;
+    if (!name) return -2;
+    if (namelen < 0) namelen = strlen(name);
+    if (namelen <= 0) return -3;
+
+    mgmt = msg->httpmgmt;
+
+    phu = hunit_del (msg->req_cookie_table, name, namelen);
+    while (phu) {
+        punit = phu; phu = phu->next;
+        mpool_recycle(mgmt->header_unit_pool, punit);
+    }
+
+    if (punit) return 0;
+
+    return -100;
+}
+
+
 int http_req_delallcookie (void * vmsg)
 {
     HTTPMsg    * msg = (HTTPMsg *)vmsg;
@@ -80,11 +129,11 @@ int http_req_delallcookie (void * vmsg)
     mgmt = msg->httpmgmt;
 
     num = ht_num(msg->req_cookie_table);
-    for (i=0; i<num; i++) {
+    for (i = 0; i < num; i++) {
         uiter = ht_value(msg->req_cookie_table, i);
         while (uiter != NULL) {
             unit = uiter; uiter = uiter->next;
-            bpool_recycle(mgmt->header_unit_pool, unit);
+            mpool_recycle(mgmt->header_unit_pool, unit);
         }
     }
     ht_zero(msg->req_cookie_table);
@@ -154,13 +203,19 @@ int http_req_parse_cookie (void * vmsg)
  */
 int http_req_reqline_decode (void * vmsg, char * pline, int linelen)
 {
-    HTTPMsg * msg = (HTTPMsg *)vmsg;
-    char    * pval = NULL;
-    char    * pend = NULL;
-    char    * poct = NULL;
+    HTTPMsg  * msg = (HTTPMsg *)vmsg;
+    HTTPMgmt * mgmt = NULL;
+    char     * pval = NULL;
+    char     * pend = NULL;
+    char     * poct = NULL;
+    char     * p = NULL;
+    int        ret = 0;
 
     if (!msg) return -1;
     if (!pline || linelen <= 0) return -2;
+
+    mgmt = msg->httpmgmt;
+    if (!mgmt) return -3;
 
     msg->req_line = pline;
     msg->req_line_len = linelen - 1;
@@ -179,6 +234,11 @@ int http_req_reqline_decode (void * vmsg, char * pline, int linelen)
     if (pval >= pend) return -200;
     poct = skipTo(pval, pend-pval, " \t\r", 3);
 
+    p = skipTo(pval, poct-pval, "?", 1);
+
+    msg->pathhash = murmur_hash2_64(pval, p-pval, mgmt->startup_time);
+    msg->urihash = murmur_hash2_64(pval, poct-pval, mgmt->startup_time);
+
     if (msg->req_methind == HTTP_METHOD_CONNECT) { //CONNECT method
         /* A CONNECT method requests that a proxy establish a tunnel connection
            on its behalf. The Request-URI portion of the Request-Line is always
@@ -191,11 +251,13 @@ int http_req_reqline_decode (void * vmsg, char * pline, int linelen)
  
            https://www.ietf.org/rfc/rfc2817 */
 
-        http_req_set_uri(msg, pval, poct-pval, 0);
+        ret = http_req_set_uri(msg, pval, poct-pval, 0);
+        if (ret < 0) return ret;
 
     } else {
-        if (http_req_set_uri(msg, pval, poct-pval, 0) > 0)
-            msg->req_url_type = 1;
+        ret = http_req_set_uri(msg, pval, poct-pval, 0);
+        if (ret < 0) return ret;
+        if (ret > 0) msg->req_url_type = 1;
     }
 
     /* parse for the field Request HTTP Version */
@@ -339,7 +401,7 @@ int http_req_set_absuri (void * vmsg)
         frame_put_nlast(msg->absuri->uri, msg->req_query, msg->req_querylen);
     }
 
-    ret = http_uri_parse(msg->absuri);
+    ret = http_uri_parse(msg->absuri, NULL, 0);
     if (ret >= 0) {
         msg->req_scheme = msg->absuri->scheme;
         msg->req_schemelen = msg->absuri->schemelen;
@@ -371,7 +433,7 @@ int http_req_set_docuri (void * vmsg, char * puri, int urilen, int decode, int i
     /* new DocURI is completely same as original one, just return */
     if (frameL(msg->docuri->uri) == urilen &&
         strncasecmp(frameS(msg->docuri->uri), puri, urilen) == 0)
-        return 0;
+        goto doinst;
 
     ret = http_uri_set(msg->docuri, puri, urilen, decode);
     if (ret < 0) return ret;
@@ -381,7 +443,7 @@ int http_req_set_docuri (void * vmsg, char * puri, int urilen, int decode, int i
     msg->req_query = msg->docuri->query;
     msg->req_querylen = msg->docuri->querylen;
  
-    if (msg->uri->type > 0) {
+    if (msg->uri->type > 0) { //0-relative 1-absolute  2-connect uri
         msg->ssl_link = msg->docuri->ssl_link;
  
         msg->req_scheme = msg->docuri->scheme;
@@ -391,11 +453,12 @@ int http_req_set_docuri (void * vmsg, char * puri, int urilen, int decode, int i
         msg->req_port = msg->docuri->port;
     }
 
+doinst:
     if (instbrk) return 0;
 
     http_loc_instance(msg);
 
-    /* if real file of request after intantiated is a directory,
+    /* if real file of request after instantiated is a directory,
        check if its index files exists or not. if exists, set new doc-uri */
 
     if (msg->req_methind != HTTP_METHOD_GET)
@@ -409,7 +472,6 @@ int http_req_set_docuri (void * vmsg, char * puri, int urilen, int decode, int i
 
     /* only directory request needs to append its index file */
     if (msg->GetLocFile(msg, NULL, 0, NULL, 0, udoc, sizeof(udoc)-1) == 2) {
-
         return http_req_set_docuri(msg, udoc, strlen(udoc), 0, 0);
     }
 
@@ -428,11 +490,16 @@ int http_req_set_uri (void * vmsg, char * puri, int urilen, int decode)
     ret = http_uri_set(msg->uri, puri, urilen, decode);
     if (ret < 0) return ret;
 
+    /* For the httpmsg that sends the request, if the docuri is empty, set it to uri.
+       The received httpmsg does not apply to this. */
+    if (msg->msgtype == 0 && frameL(msg->docuri->uri) == 0)
+        http_uri_set(msg->docuri, puri, urilen, decode);
+
     msg->req_url_type = msg->uri->type;
     if (msg->req_methind == HTTP_METHOD_CONNECT) {
         /* It's an URL of CONNECT method.
            eg. CONNECT content-autofill.googleapis.com:443 */
-        msg->req_url_type = 0;
+        msg->req_url_type = 2;
 
         msg->req_host = msg->uri->host;
         msg->req_hostlen = msg->uri->hostlen;
@@ -579,6 +646,7 @@ int http_req_parse_header (void * vmsg)
     int          namelen, valuelen;
 
     if (!msg) return -1;
+    if (!msg->req_header_stream) return 0;
 
     poct = frameP(msg->req_header_stream);
     pover = poct + frameL(msg->req_header_stream);
@@ -590,7 +658,7 @@ int http_req_parse_header (void * vmsg)
     if (!pend) return -100;  /* has no line-terminal char */
 
     ret = http_req_reqline_decode (msg, poct, pend-poct);
-    if (ret < 0) return -110;
+    if (ret < 0) return ret;
 
     for (poct = pend + 1; poct < pover; poct = pend + 1) {
         pend = memchr(poct, '\n', pover - poct);
@@ -727,12 +795,13 @@ int http_req_parse_header (void * vmsg)
         kvpair_decode(msg->req_query_kvobj, msg->req_query, msg->req_querylen);
     }
 
-    return 0;
+    return 1;
 }
 
 int http_req_verify (void * vmsg)
 {
-    HTTPMsg    * msg = (HTTPMsg *)vmsg;
+    HTTPMsg * msg = (HTTPMsg *)vmsg;
+    HTTPCon * pcon = NULL;
 
     if (!msg) return -1;
 
@@ -756,6 +825,38 @@ int http_req_verify (void * vmsg)
         }
     }
 
+    if (msg->req_methind < 1 || msg->req_methind > 10) {
+        msg->SetStatus(msg, 405, NULL);
+        msg->Reply(msg);
+        return -103;
+    }
+
+    if (msg->req_url_type == 1 && msg->ssl_link && (pcon = msg->pcon) && !pcon->ssl_link) {
+        msg->SetStatus(msg, 403, NULL);
+        msg->Reply(msg);
+        return -104;
+    }
+
+    if (msg->req_url_type == 1 && msg->req_schemelen > 0 && str_ncasecmp(msg->req_scheme, "HTTP", 4) != 0) {
+        msg->SetStatus(msg, 400, NULL);
+        msg->Reply(msg);
+        return -105;
+    }
+
+    if (msg->req_url_type == 1 && (!msg->req_host || msg->req_hostlen == 0 || 
+                              msg->req_port == 0 || !msg->req_path || msg->req_pathlen == 0))
+    {
+        msg->SetStatus(msg, 400, NULL);
+        msg->Reply(msg);
+        return -106;
+    }
+
+    if (msg->req_methind == HTTP_METHOD_CONNECT && frameL(msg->uri->uri) > 1024) {
+        msg->SetStatus(msg, 414, NULL);
+        msg->Reply(msg);
+        return -107;
+    }
+
     return 0;
 }
 
@@ -773,15 +874,19 @@ int http_req_encoding (void * vmsg, int encode)
 
     mgmt = msg->httpmgmt;
 
-    frame_empty(msg->req_stream);
+    if (msg->req_stream == NULL)
+        msg->req_stream = frame_alloc(256, msg->alloctype, msg->kmemblk);
 
-    /* check if set proxy addr for next request. if it does, set dstip/dstport */
-    http_send_proxy_check(msg);
+    /* remove the encoded request from req_body_chunk prepended before */
+    if (frameL(msg->req_stream) > 0)
+        chunk_remove_bufptr(msg->req_body_chunk, frameP(msg->req_stream));
+
+    frame_empty(msg->req_stream);
 
     /* re-validate the Host header */
     http_header_del(msg, 0, "Host", 4);
 
-    str_secpy(buf, sizeof(buf)-1, msg->req_host, msg->req_hostlen);
+    str_secpy(buf, sizeof(buf)-7, msg->req_host, msg->req_hostlen);
 
     if (!msg->ssl_link && msg->req_port != 80) {
         sprintf(buf + strlen(buf), ":%d", msg->req_port);
@@ -797,50 +902,46 @@ int http_req_encoding (void * vmsg, int encode)
     /* building request line */
     frame_append(msg->req_stream, msg->req_meth);
     frame_put_last(msg->req_stream, ' ');
-    if (msg->proxy) {
-        if (encode)
+
+    if (msg->req_methind == HTTP_METHOD_CONNECT) {
+        frame_put_nlast(msg->req_stream, msg->req_host, msg->req_hostlen);
+        frame_appendf(msg->req_stream, ":%d", msg->req_port);
+
+    } else if (msg->proxy && !msg->ssl_link) {
+        if (uri_uncoded_char(frameP(msg->uri->uri), frameL(msg->uri->uri)) > 0)
             frame_uri_encode(msg->req_stream, frameP(msg->uri->uri), frameL(msg->uri->uri), NULL);
         else
             frame_put_nlast(msg->req_stream, frameP(msg->uri->uri), frameL(msg->uri->uri));
-        frame_put_last(msg->req_stream, ' ');
-
-        if (strlen(msg->req_ver) > 0)
-            frame_append(msg->req_stream, msg->req_ver);//mgmt->httpver1);
-        else
-            frame_append(msg->req_stream, mgmt->httpver1);
-
-        frame_put_nlast(msg->req_stream, "\r\n", 2);
 
     } else {
         if (msg->req_pathlen > 0 && msg->req_path) {
-            if (encode)
+            if (uri_uncoded_char(msg->req_path, msg->req_pathlen) > 0)
                 frame_uri_encode(msg->req_stream, msg->req_path, msg->req_pathlen, NULL);
             else
                 frame_put_nlast(msg->req_stream, msg->req_path, msg->req_pathlen);
         } else {
-            frame_append(msg->req_stream, "/");
+            frame_put_last(msg->req_stream, '/');
         }
 
         if (msg->req_querylen > 0 && msg->req_query) {
             frame_put_last(msg->req_stream, '?');
 
-            if (encode)
+            if (uri_uncoded_char(msg->req_query, msg->req_querylen) > 0)
                 frame_uri_encode(msg->req_stream, msg->req_query, msg->req_querylen, NULL);
             else
                 frame_put_nlast(msg->req_stream, msg->req_query, msg->req_querylen);
         }
-
-        frame_put_last(msg->req_stream, ' ');
-        if (strlen(msg->req_ver) > 0)
-            frame_append(msg->req_stream, msg->req_ver);//mgmt->httpver1);
-        else
-            frame_append(msg->req_stream, mgmt->httpver1);
-
-        frame_append(msg->req_stream, "\r\n");
     }
 
+    frame_put_last(msg->req_stream, ' ');
+    if (strlen(msg->req_ver) > 0)
+        frame_append(msg->req_stream, msg->req_ver);//mgmt->httpver1);
+    else
+        frame_append(msg->req_stream, mgmt->httpver1);
+    frame_put_nlast(msg->req_stream, "\r\n", 2);
+
+
     if (msg->msgtype == 0) { //HTTPMsg is sending request to origin
-        msg->req_line = frameP(msg->req_stream);
         msg->req_line_len = frameL(msg->req_stream) - 2;
     }
 
@@ -852,9 +953,14 @@ int http_req_encoding (void * vmsg, int encode)
         }
     }
 
-    http_header_del(msg, 0, "Proxy-Connection", 16);
-    //http_header_del(msg, 0, "If-Modified-Since", 17);
-    //http_header_del(msg, 0, "If-None-Match", 13);
+    if (msg->proxied) {
+        punit = http_header_get(msg, 0, "Proxy-Connection", 16);
+        if (punit) {
+            str_secpy(buf, sizeof(buf)-1, HUValue(punit), punit->valuelen);
+            http_header_del(msg, 0, "Proxy-Connection", 16);
+            http_header_append(msg, 0, "Connection", 10, buf, str_len(buf));
+        }
+    }
 
     if (msg->req_body_flag == BC_NONE && msg->proxied == 0) {
         /* when Proxy mode, do not remove the body format such as 
@@ -893,6 +999,10 @@ int http_req_encoding (void * vmsg, int encode)
     /* append the trailer line of the http request header: a blank line */
     frame_append(msg->req_stream, "\r\n");
 
+    if (msg->msgtype == 0) { //HTTPMsg is sending request to origin
+        msg->req_line = frameP(msg->req_stream);
+    }
+
     msg->req_header_length = frameL(msg->req_stream);
 
     msg->reqsent = 0;
@@ -902,6 +1012,17 @@ int http_req_encoding (void * vmsg, int encode)
                          frameL(msg->req_stream), NULL, NULL, 1);
 
     return 0;
+}
+
+int http_req_build (void * vmsg, int encode)
+{
+    HTTPMsg      * msg = (HTTPMsg *)vmsg;
+
+    if (!msg) return -1;
+
+    http_loc_instance(msg);
+
+    return http_req_encoding(msg, encode);
 }
 
 

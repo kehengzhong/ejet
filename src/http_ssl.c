@@ -1,6 +1,30 @@
 /*
- * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2024 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
+ *
+ * #####################################################
+ * #                       _oo0oo_                     #
+ * #                      o8888888o                    #
+ * #                      88" . "88                    #
+ * #                      (| -_- |)                    #
+ * #                      0\  =  /0                    #
+ * #                    ___/`---'\___                  #
+ * #                  .' \\|     |// '.                #
+ * #                 / \\|||  :  |||// \               #
+ * #                / _||||| -:- |||||- \              #
+ * #               |   | \\\  -  /// |   |             #
+ * #               | \_|  ''\---/''  |_/ |             #
+ * #               \  .-\__  '-'  ___/-. /             #
+ * #             ___'. .'  /--.--\  `. .'___           #
+ * #          ."" '<  `.___\_<|>_/___.'  >' "" .       #
+ * #         | | :  `- \`.;`\ _ /`;.`/ -`  : | |       #
+ * #         \  \ `_.   \_ __\ /__ _/   .-` /  /       #
+ * #     =====`-.____`.___ \_____/___.-`___.-'=====    #
+ * #                       `=---='                     #
+ * #     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   #
+ * #               佛力加持      佛光普照              #
+ * #  Buddha's power blessing, Buddha's light shining  #
+ * #####################################################
  */
 
 #include "adifall.ext"
@@ -8,8 +32,9 @@
 
 #include "http_mgmt.h"
 #include "http_msg.h"
+#include "http_srv.h"
 #include "http_con.h"
-#include "http_listen.h"
+#include "http_resloc.h"
 #include "http_cli_io.h"
 #include "http_srv_io.h"
 #include "http_ssl.h"
@@ -29,8 +54,10 @@ int http_ssl_library_init ()
         return -1;
     }
 
+    SSL_load_error_strings();
+    ERR_load_BIO_strings();
+
     OpenSSL_add_ssl_algorithms();
-    SSL_load_error_strings ();
 
     ssl_conn_index = SSL_get_ex_new_index(0, NULL, NULL, NULL, NULL);
     if (ssl_conn_index == -1) {
@@ -56,7 +83,7 @@ void * http_ssl_server_ctx_init (char * cert, char * prikey, char * cacert)
     if (!prikey || file_stat(prikey, &stkey) < 0)
         return NULL;
 
-    ctx = SSL_CTX_new(SSLv23_method());
+    ctx = SSL_CTX_new(SSLv23_server_method());
     if (!ctx) return NULL;
 
     /* load certificate and private key, verify the cert with private key */
@@ -97,7 +124,7 @@ retctx:
         tolog(1, "eJet - SSL: select servername by TLSEXT SNI failed.\n");
     }
 
-    tolog(1, "eJet - SSL server load Cert <%s> PriKey <%s> CACert <%s> successfully\n", cert, prikey, cacert);
+    tolog(1, "eJet - SSL server load Cert:<%s> PriKey:<%s> CACert:<%s> successfully\n", cert, prikey, cacert);
     return ctx;
 }
 
@@ -281,22 +308,26 @@ int http_ssl_servername_select (SSL * ssl, int * ad, void * arg)
 #endif
 
 
-int http_ssl_accept (void * vcon)
+int http_ssl_accept (void * vmgmt, ulong conid)
 {
-    HTTPCon    * pcon = (HTTPCon *)vcon;
+    HTTPMgmt * mgmt = (HTTPMgmt *)vmgmt;
+    HTTPCon  * pcon = NULL;
 
 #ifdef HAVE_OPENSSL
 
     int          acret = 0;
     int          ret;
 
-    if (!pcon) return -1;
+    if (!mgmt) return -1;
+
+    pcon = http_mgmt_con_get(mgmt, conid);
+    if (!pcon) return -2;
 
     if (!pcon->ssl_link || !pcon->ssl)
-        return http_cli_recv(pcon);
+        return http_cli_recv(mgmt, conid);
 
     if (pcon->ssl_handshaked) {
-        return http_cli_recv(pcon);
+        return http_cli_recv(mgmt, conid);
     }
 
     time(&pcon->stamp);
@@ -311,7 +342,7 @@ int http_ssl_accept (void * vcon)
         tolog(1, "eJet - SSL accept %s:%d successfully. Using cipher: %s\n",
               pcon->srcip, pcon->srcport, SSL_get_cipher(pcon->ssl));
 
-        return http_cli_recv(pcon);
+        return http_cli_recv(mgmt, conid);
     }
 
     ret = SSL_get_error(pcon->ssl, acret);
@@ -326,11 +357,24 @@ int http_ssl_accept (void * vcon)
         return 0;
 
     case SSL_ERROR_SSL:
-    case SSL_ERROR_SYSCALL:
-    default:
-        tolog(1, "eJet - SSL accept %s:%d but handshake failed!\n", pcon->srcip, pcon->srcport);
+        tolog(1, "eJet - SSL accept %s:%d but handshake failed! SSL_ERROR_SSL ret=%d\n",
+              pcon->srcip, pcon->srcport, ret);
 
-        http_con_close(pcon);
+        http_con_close(mgmt, conid);
+        break;
+
+    case SSL_ERROR_SYSCALL:
+        tolog(1, "eJet - SSL accept %s:%d but handshake failed! SSL_ERROR_SYSCALL ret=%d\n",
+              pcon->srcip, pcon->srcport, ret);
+
+        http_con_close(mgmt, conid);
+        break;
+
+    default:
+        tolog(1, "eJet - SSL accept %s:%d but handshake failed! ret=%d\n",
+              pcon->srcip, pcon->srcport, ret);
+
+        http_con_close(mgmt, conid);
         break;
     }
 
@@ -338,28 +382,32 @@ int http_ssl_accept (void * vcon)
 
 #else
 
-    return http_cli_recv(pcon);
+    return http_cli_recv(mgmt, conid);
 
 #endif
 }
 
 
-int http_ssl_connect (void * vcon)
+int http_ssl_connect (void * vmgmt, ulong conid)
 {
-    HTTPCon    * pcon = (HTTPCon *)vcon;
+    HTTPMgmt * mgmt = (HTTPMgmt *)vmgmt;
+    HTTPCon  * pcon = NULL;
  
 #ifdef HAVE_OPENSSL
  
     int          conret = 0;
     int          ret;
  
-    if (!pcon) return -1;
- 
+    if (!mgmt) return -1;
+
+    pcon = http_mgmt_con_get(mgmt, conid);
+    if (!pcon) return -2;
+
     if (!pcon->ssl_link || !pcon->ssl)
-        return http_srv_send(pcon);
+        return http_srv_send(mgmt, conid);
  
     if (pcon->ssl_handshaked) {
-        return http_srv_send(pcon);
+        return http_srv_send(mgmt, conid);
     }
  
     time(&pcon->stamp);
@@ -374,7 +422,7 @@ int http_ssl_connect (void * vcon)
         tolog(1, "eJet - SSL connect %s:%d successfully! Using cipher: %s\n",
               pcon->dstip, pcon->dstport, SSL_get_cipher(pcon->ssl));
  
-        return http_srv_send(pcon);
+        return http_srv_send(mgmt, conid);
     }
  
     ret = SSL_get_error(pcon->ssl, conret);
@@ -393,7 +441,7 @@ int http_ssl_connect (void * vcon)
     default:
         tolog(1, "eJet - SSL connect %s:%d but handshake failed!\n", pcon->srcip, pcon->srcport);
  
-        http_con_close(pcon);
+        http_con_close(mgmt, conid);
         break;
     }
  
@@ -401,7 +449,7 @@ int http_ssl_connect (void * vcon)
  
 #else
  
-    return http_srv_send(pcon);
+    return http_srv_send(mgmt, conid);
  
 #endif
 }
@@ -410,6 +458,7 @@ int http_ssl_connect (void * vcon)
 int http_con_read (void * vcon, frame_p frm, int * num, int * err)
 {
     HTTPCon * pcon = (HTTPCon *)vcon;
+    HTTPSrv * srv = NULL;
 #ifdef HAVE_OPENSSL
     uint8     buf[524288];
     int       size = sizeof(buf);
@@ -421,7 +470,7 @@ int http_con_read (void * vcon, frame_p frm, int * num, int * err)
 
 #ifdef HAVE_OPENSSL
 
-    if (!pcon->ssl_link)
+    if (!pcon->ssl_link || ((srv = pcon->srv) && srv->proxied && srv->proxyhost && !pcon->tunnel_built))
         return frame_tcp_nbzc_recv(pcon->rcvstream, iodev_fd(pcon->pdev), num, err);
 
     if (!pcon->ssl) return -2;
@@ -487,6 +536,7 @@ int http_con_read (void * vcon, frame_p frm, int * num, int * err)
 int http_con_writev (void * vcon, void * piov, int iovcnt, int * num, int * err)
 {
     HTTPCon      * pcon = (HTTPCon *)vcon;
+    HTTPSrv      * srv = NULL;
 #ifdef HAVE_OPENSSL
     struct iovec * iov = (struct iovec *)piov;
     void         * pbyte;
@@ -507,7 +557,7 @@ int http_con_writev (void * vcon, void * piov, int iovcnt, int * num, int * err)
 
     if (!iov || iovcnt <= 0) return 0;
 
-    if (!pcon->ssl_link)
+    if (!pcon->ssl_link || ((srv = pcon->srv) && srv->proxied && srv->proxyhost && !pcon->tunnel_built))
         return tcp_writev(iodev_fd(pcon->pdev), piov, iovcnt, num, err);
 
     if (!pcon->ssl) return -2;
@@ -580,6 +630,7 @@ int http_con_writev (void * vcon, void * piov, int iovcnt, int * num, int * err)
 int http_con_sendfile (void * vcon, int filefd, int64 pos, int64 size, int * num, int * err)
 {
     HTTPCon      * pcon = (HTTPCon *)vcon;
+    HTTPSrv      * srv = NULL;
 #ifdef HAVE_OPENSSL
     static int     mmapsize = 8192 * 1024;
     void         * pbyte = NULL;
@@ -606,7 +657,7 @@ int http_con_sendfile (void * vcon, int filefd, int64 pos, int64 size, int * num
  
 #ifdef HAVE_OPENSSL
  
-    if (!pcon->ssl_link)
+    if (!pcon->ssl_link || ((srv = pcon->srv) && srv->proxied && srv->proxyhost && !pcon->tunnel_built))
         return tcp_sendfile(iodev_fd(pcon->pdev), filefd, pos, size, num, err);
  
     if (!pcon->ssl) return -2;
@@ -630,7 +681,11 @@ int http_con_sendfile (void * vcon, int filefd, int64 pos, int64 size, int * num
                 continue;
             }
 
+#ifdef UNIX
             munmap(pmap, maplen);
+#elif defined(_WIN32) || defined(_WIN64)
+            file_munmap(hmap, pmap);
+#endif
 
             if (num) *num = wlen;
 
@@ -675,7 +730,11 @@ int http_con_sendfile (void * vcon, int filefd, int64 pos, int64 size, int * num
 
         } //end for (wbytes = 0; wbytes < onelen; )
 
+#ifdef UNIX
         munmap(pmap, maplen);
+#elif defined(_WIN32) || defined(_WIN64)
+        file_munmap(hmap, pmap);
+#endif
     }
 
     if (num) *num = wlen;

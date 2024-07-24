@@ -1,6 +1,30 @@
 /*
- * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2024 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
+ *
+ * #####################################################
+ * #                       _oo0oo_                     #
+ * #                      o8888888o                    #
+ * #                      88" . "88                    #
+ * #                      (| -_- |)                    #
+ * #                      0\  =  /0                    #
+ * #                    ___/`---'\___                  #
+ * #                  .' \\|     |// '.                #
+ * #                 / \\|||  :  |||// \               #
+ * #                / _||||| -:- |||||- \              #
+ * #               |   | \\\  -  /// |   |             #
+ * #               | \_|  ''\---/''  |_/ |             #
+ * #               \  .-\__  '-'  ___/-. /             #
+ * #             ___'. .'  /--.--\  `. .'___           #
+ * #          ."" '<  `.___\_<|>_/___.'  >' "" .       #
+ * #         | | :  `- \`.;`\ _ /`;.`/ -`  : | |       #
+ * #         \  \ `_.   \_ __\ /__ _/   .-` /  /       #
+ * #     =====`-.____`.___ \_____/___.-`___.-'=====    #
+ * #                       `=---='                     #
+ * #     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   #
+ * #               佛力加持      佛光普照              #
+ * #  Buddha's power blessing, Buddha's light shining  #
+ * #####################################################
  */
 
 #include "adifall.ext"
@@ -13,11 +37,12 @@
 #include "pcre.h"
 #endif
 
-#include "http_listen.h"
+#include "http_resloc.h"
 #include "http_msg.h"
 #include "http_mgmt.h"
 #include "http_header.h"
 #include "http_variable.h"
+#include "http_cache.h"
 #include "http_script.h"
 
 typedef char * ScriptParser (void * vhsc, char * p, int slen);
@@ -525,8 +550,8 @@ static int script_if_objcmp (void * vhsc, char * avar, int avarlen, char * cmpsy
             if (aival64 == bival64) return 1;
             return 0;
         } else if (valtypea == 2 && valtypeb == 2) {
-            adval = strtoll(pa, NULL, 10);
-            bdval = strtoll(pb, NULL, 10);
+            adval = strtod(pa, NULL);
+            bdval = strtod(pb, NULL);
             if (adval == bdval) return 1;
             return 0;
         }
@@ -541,8 +566,8 @@ static int script_if_objcmp (void * vhsc, char * avar, int avarlen, char * cmpsy
             if (aival64 > bival64) return 1;
             return 0;
         } else if (valtypea == 2 && valtypeb == 2) {
-            adval = strtoll(pa, NULL, 10);
-            bdval = strtoll(pb, NULL, 10);
+            adval = strtod(pa, NULL);
+            bdval = strtod(pb, NULL);
             if (adval > bdval) return 1;
             return 0;
         }
@@ -557,8 +582,8 @@ static int script_if_objcmp (void * vhsc, char * avar, int avarlen, char * cmpsy
             if (aival64 >= bival64) return 1;
             return 0;
         } else if (valtypea == 2 && valtypeb == 2) {
-            adval = strtoll(pa, NULL, 10);
-            bdval = strtoll(pb, NULL, 10);
+            adval = strtod(pa, NULL);
+            bdval = strtod(pb, NULL);
             if (adval >= bdval) return 1;
             return 0;
         }
@@ -573,8 +598,8 @@ static int script_if_objcmp (void * vhsc, char * avar, int avarlen, char * cmpsy
             if (aival64 < bival64) return 1;
             return 0;
         } else if (valtypea == 2 && valtypeb == 2) {
-            adval = strtoll(pa, NULL, 10);
-            bdval = strtoll(pb, NULL, 10);
+            adval = strtod(pa, NULL);
+            bdval = strtod(pb, NULL);
             if (adval < bdval) return 1;
             return 0;
         }
@@ -589,8 +614,8 @@ static int script_if_objcmp (void * vhsc, char * avar, int avarlen, char * cmpsy
             if (aival64 <= bival64) return 1;
             return 0;
         } else if (valtypea == 2 && valtypeb == 2) {
-            adval = strtoll(pa, NULL, 10);
-            bdval = strtoll(pb, NULL, 10);
+            adval = strtod(pa, NULL);
+            bdval = strtod(pb, NULL);
             if (adval <= bdval) return 1;
             return 0;
         }
@@ -605,8 +630,8 @@ static int script_if_objcmp (void * vhsc, char * avar, int avarlen, char * cmpsy
             if (aival64 != bival64) return 1;
             return 0;
         } else if (valtypea == 2 && valtypeb == 2) {
-            adval = strtoll(pa, NULL, 10);
-            bdval = strtoll(pb, NULL, 10);
+            adval = strtod(pa, NULL);
+            bdval = strtod(pb, NULL);
             if (adval != bdval) return 1;
             return 0;
         }
@@ -931,6 +956,7 @@ int script_if_condition_parse (void * vhsc, char * cond, int condlen, char ** pt
     return condval;
 }
 
+
 char * script_if_parse (void * vhsc, char * p, int slen)
 {
     HTTPScript * hsc = (HTTPScript *)vhsc;
@@ -1108,7 +1134,10 @@ char * script_assignment_parse (void * vhsc, char * p, int len)
     poct = goto_symbol_end(pbgn, pexpend - pbgn);
     get_var_value(hsc, pbgn, poct-pbgn, value, sizeof(value)-1, 1);
 
-    http_msg_var_set(hsc->msg, varname, value, strlen(value));
+    if (http_var_value_set(hsc->msg, varname, value, strlen(value)) == -100) {
+        /* return value 100 indicates that it's not the system-defined variable */
+        http_msg_var_set(hsc->msg, varname, value, strlen(value));
+    }
 
     return pexpend;
 }
@@ -1144,6 +1173,9 @@ char * script_set_parse (void * vhsc, char * p, int len)
     if (strncasecmp(pbgn, "set", 3) != 0) return pexpend;
     pbgn += 3;
 
+    /* if keyword not followed by white character */
+    if (isalnum(*pbgn)) return pexpend;
+
     pbgn = skipOver(pbgn, pexpend-pbgn, " \t\r\n\f\v", 6);
     if (pbgn >= pexpend) return pexpend;
  
@@ -1158,7 +1190,10 @@ char * script_set_parse (void * vhsc, char * p, int len)
     poct = goto_symbol_end(pbgn, pexpend - pbgn);
     get_var_value(hsc, pbgn, poct-pbgn, value, sizeof(value)-1, 1);
  
-    http_msg_var_set(hsc->msg, varname, value, strlen(value));
+    if (http_var_value_set(hsc->msg, varname, value, strlen(value)) == -100) {
+        /* return value 100 indicates that it's not the system-defined variable */
+        http_msg_var_set(hsc->msg, varname, value, strlen(value));
+    }
  
     return pexpend;
 }
@@ -1192,6 +1227,9 @@ char * script_return_parse (void * vhsc, char * p, int len)
  
     if (strncasecmp(pbgn, "return", 6) != 0) return pexpend;
     pbgn += 6;
+
+    /* if keyword not followed by white character */
+    if (isalnum(*pbgn)) return pexpend;
 
     pbgn = skipOver(pbgn, pexpend-pbgn, " \t\r\n\f\v", 6);
     if (pbgn >= pexpend) return pexpend;
@@ -1259,6 +1297,9 @@ char * script_reply_parse (void * vhsc, char * p, int len)
     if (strncasecmp(pbgn, "reply", 5) != 0) return pexpend;
     pbgn += 5;
  
+    /* if keyword not followed by white character */
+    if (isalnum(*pbgn)) return pexpend;
+
     pbgn = skipOver(pbgn, pexpend-pbgn, " \t\r\n\f\v", 6);
     if (pbgn >= pexpend) return pexpend;
  
@@ -1379,6 +1420,9 @@ char * script_rewrite_parse (void * vhsc, char * p, int len)
     if (strncasecmp(pbgn, "rewrite", 7) != 0) return pexpend;
     pbgn += 7;
  
+    /* if keyword not followed by white character */
+    if (isalnum(*pbgn)) return pexpend;
+
     pbgn = skipOver(pbgn, pexpend-pbgn, " \t\r\n\f\v", 6);
     if (pbgn >= pexpend) return pexpend;
  
@@ -1492,7 +1536,7 @@ char * script_rewrite_parse (void * vhsc, char * p, int len)
                   pmatstr, matnum, hsc->vname, hsc->vtype);
     if ((dstlen = strlen(dsturi)) <= 0) return pexpend;
 
-    if (dsturi[dstlen - 1] != '?') {
+    if (dsturi[dstlen - 1] != '?' && msg->req_querylen > 0) {
         if (memchr(dsturi, '?', dstlen) == NULL) 
             strcat(dsturi, "?");
         else
@@ -1502,7 +1546,7 @@ char * script_rewrite_parse (void * vhsc, char * p, int len)
                   msg->req_query, msg->req_querylen);
         dstlen = strlen(dsturi);
 
-    } else{
+    } else if (dsturi[dstlen - 1] == '?') {
         dsturi[dstlen - 1] = '\0';
         dstlen--;
     }
@@ -1536,8 +1580,8 @@ char * script_rewrite_parse (void * vhsc, char * p, int len)
         msg->SetDocURL(msg, dsturi, dstlen, 0, 1);
 
     } else { //no flag
-        /* do not re-intantiate location after setting DocURI.
-           when all scripts executed, re-intantizte location at last */
+        /* do not re-instantiate location after setting DocURI.
+           when all scripts executed, re-instantizte location at last */
         msg->SetDocURL(msg, dsturi, dstlen, 0, 1);
         hsc->reloc = 1;
     }
@@ -1580,6 +1624,9 @@ char * script_add_req_header_parse (void * vhsc, char * p, int len)
     if (strncasecmp(pbgn, "addReqHeader", 12) != 0) return pexpend;
     pbgn += 12;
  
+    /* if keyword not followed by white character */
+    if (isalnum(*pbgn)) return pexpend;
+
     pbgn = skipOver(pbgn, pexpend-pbgn, " \t\r\n\f\v", 6);
     if (pbgn >= pexpend) return pexpend;
  
@@ -1634,6 +1681,9 @@ char * script_add_res_header_parse (void * vhsc, char * p, int len)
     if (strncasecmp(pbgn, "addResHeader", 12) != 0) return pexpend;
     pbgn += 12;
  
+    /* if keyword not followed by white character */
+    if (isalnum(*pbgn)) return pexpend;
+
     pbgn = skipOver(pbgn, pexpend-pbgn, " \t\r\n\f\v", 6);
     if (pbgn >= pexpend) return pexpend;
  
@@ -1687,6 +1737,9 @@ char * script_del_req_header_parse (void * vhsc, char * p, int len)
     if (strncasecmp(pbgn, "delReqHeader", 12) != 0) return pexpend;
     pbgn += 12;
  
+    /* if keyword not followed by white character */
+    if (isalnum(*pbgn)) return pexpend;
+
     pbgn = skipOver(pbgn, pexpend-pbgn, " \t\r\n\f\v", 6);
     if (pbgn >= pexpend) return pexpend;
  
@@ -1776,10 +1829,13 @@ char * script_add_res_body_parse (void * vhsc, char * p, int len)
     if (pbgn >= pend) return pbgn;
 
     pexpend = skipQuoteTo(pbgn, pend-pbgn, ";", 1);
-    if (pexpend - pbgn < 12) return pexpend;
+    if (pexpend - pbgn < 10) return pexpend;
 
     if (strncasecmp(pbgn, "addResBody", 10) != 0) return pexpend;
     pbgn += 10;
+
+    /* if keyword not followed by white character */
+    if (isalnum(*pbgn)) return pexpend;
 
     pbgn = skipOver(pbgn, pexpend-pbgn, " \t\r\n\f\v", 6);
     if (pbgn >= pexpend) return pexpend;
@@ -1852,10 +1908,13 @@ char * script_append_res_body_parse (void * vhsc, char * p, int len)
     if (pbgn >= pend) return pbgn;
 
     pexpend = skipQuoteTo(pbgn, pend-pbgn, ";", 1);
-    if (pexpend - pbgn < 12) return pexpend;
+    if (pexpend - pbgn < 13) return pexpend;
 
     if (strncasecmp(pbgn, "appendResBody", 13) != 0) return pexpend;
     pbgn += 13;
+
+    /* if keyword not followed by white character */
+    if (isalnum(*pbgn)) return pexpend;
 
     pbgn = skipOver(pbgn, pexpend-pbgn, " \t\r\n\f\v", 6);
     if (pbgn >= pexpend) return pexpend;
@@ -1892,8 +1951,6 @@ char * script_append_res_body_parse (void * vhsc, char * p, int len)
                 http_header_append(msg, 1, "Transfer-Encoding", 17, "chunked", 7);
             }
         }
-
-        if (poct) kfree(poct);
     }
 
     return pexpend;
@@ -1932,10 +1989,13 @@ char * script_add_file_to_res_body_parse (void * vhsc, char * p, int len)
     if (pbgn >= pend) return pbgn;
 
     pexpend = skipQuoteTo(pbgn, pend-pbgn, ";", 1);
-    if (pexpend - pbgn < 12) return pexpend;
+    if (pexpend - pbgn < 15) return pexpend;
 
     if (strncasecmp(pbgn, "addFile2ResBody", 15) != 0) return pexpend;
     pbgn += 15;
+
+    /* if keyword not followed by white character */
+    if (isalnum(*pbgn)) return pexpend;
 
     pbgn = skipOver(pbgn, pexpend-pbgn, " \t\r\n\f\v", 6);
     if (pbgn >= pexpend) return pexpend;
@@ -2017,11 +2077,14 @@ char * script_append_file_to_res_body_parse (void * vhsc, char * p, int len)
     if (pbgn >= pend) return pbgn;
  
     pexpend = skipQuoteTo(pbgn, pend-pbgn, ";", 1);
-    if (pexpend - pbgn < 12) return pexpend;
+    if (pexpend - pbgn < 18) return pexpend;
  
     if (strncasecmp(pbgn, "appendFile2ResBody", 18) != 0) return pexpend;
     pbgn += 18;
  
+    /* if keyword not followed by white character */
+    if (isalnum(*pbgn)) return pexpend;
+
     pbgn = skipOver(pbgn, pexpend-pbgn, " \t\r\n\f\v", 6);
     if (pbgn >= pexpend) return pexpend;
  
@@ -2104,10 +2167,13 @@ char * script_try_files_parse (void * vhsc, char * p, int len)
     if (pbgn >= pend) return pbgn;
 
     pexpend = skipQuoteTo(pbgn, pend-pbgn, ";", 1);
-    if (pexpend - pbgn < 12) return pexpend;
+    if (pexpend - pbgn < 9) return pexpend;
 
     if (strncasecmp(pbgn, "try_files", 9) != 0) return pexpend;
     pbgn += 9;
+
+    /* if keyword not followed by white character */
+    if (isalnum(*pbgn)) return pexpend;
 
     while (pbgn < pend) {
         pbgn = skipOver(pbgn, pexpend-pbgn, " \t\r\n\f\v", 6);
@@ -2166,6 +2232,88 @@ char * script_try_files_parse (void * vhsc, char * p, int len)
 
     return pexpend;
 }
+
+
+char * script_closecache_parse (void * vhsc, char * p, int len)
+{
+    HTTPScript * hsc = (HTTPScript *)vhsc;
+    HTTPMsg    * msg = NULL;
+    char       * pbgn = NULL;
+    char       * pend = NULL;
+    char       * pexpend = NULL;
+
+    if (!hsc) return p;
+
+    msg = (HTTPMsg *)hsc->msg;
+    if (!msg) return p;
+
+    if (!p) return NULL;
+    if (len < 0) len = strlen(p);
+    if (len <= 2) return p;
+
+    /* closecache; */
+
+    pbgn = p;
+    pend = p + len;
+
+    pbgn = skipOver(pbgn, len, " \t\r\n\f\v", 6);
+    if (pbgn >= pend) return pbgn;
+
+    pexpend = skipQuoteTo(pbgn, pend-pbgn, ";", 1);
+    if (pexpend - pbgn < 10) return pexpend;
+
+    if (strncasecmp(pbgn, "closecache", 10) != 0) return pexpend;
+    pbgn += 10;
+
+    /* if keyword closecache not followed by white character */
+    if (isalnum(*pbgn)) return pexpend;
+
+    cache_info_close(msg->res_cache_info);
+    msg->res_cache_info = NULL;
+
+    return pexpend;
+}
+
+char * script_removecache_parse (void * vhsc, char * p, int len)
+{
+    HTTPScript * hsc = (HTTPScript *)vhsc;
+    HTTPMsg    * msg = NULL;
+    char       * pbgn = NULL;
+    char       * pend = NULL;
+    char       * pexpend = NULL;
+
+    if (!hsc) return p;
+
+    msg = (HTTPMsg *)hsc->msg;
+    if (!msg) return p;
+
+    if (!p) return NULL;
+    if (len < 0) len = strlen(p);
+    if (len <= 2) return p;
+
+    /* removecache; */
+
+    pbgn = p;
+    pend = p + len;
+
+    pbgn = skipOver(pbgn, len, " \t\r\n\f\v", 6);
+    if (pbgn >= pend) return pbgn;
+
+    pexpend = skipQuoteTo(pbgn, pend-pbgn, ";", 1);
+    if (pexpend - pbgn < 11) return pexpend;
+
+    if (strncasecmp(pbgn, "removecache", 11) != 0) return pexpend;
+    pbgn += 11;
+
+    /* if keyword removecache not followed by white character */
+    if (isalnum(*pbgn)) return pexpend;
+
+    cache_info_remove(msg->res_cache_info);
+    msg->res_cache_info = NULL;
+
+    return pexpend;
+}
+
 
 int http_script_parse_exec (void * vhsc, char * sc, int sclen)
 {
@@ -2260,11 +2408,12 @@ int http_script_segment_exec (void * vmsg, char * psc, int sclen,
     char       * pend = NULL;
     char       * poct = NULL;
     int          ret = 0;
+    int          exelen = sclen;
 
     if (pval) *pval = NULL;
     if (vallen) *vallen = 0;
 
-    if (!msg) return -1;
+    if (!msg) return 0;
 
     pbgn = psc;
     pend = psc + sclen;
@@ -2273,7 +2422,10 @@ int http_script_segment_exec (void * vmsg, char * psc, int sclen,
     if (poct) {
         pbgn = poct + 8;
         poct = sun_find_string(pbgn, pend-pbgn, "</script>", 9, NULL);
-        if (poct) pend = poct;
+        if (poct) {
+            pend = poct;
+            exelen = poct + 9 - psc;
+        }
     }
 
     http_script_init(&hsc, msg, pbgn, pend-pbgn, 0, vname, vtype);
@@ -2287,32 +2439,41 @@ int http_script_segment_exec (void * vmsg, char * psc, int sclen,
 
     http_script_free(&hsc);
 
-    return 0;
+    return exelen;
 }
 
 
 int http_script_exec (void * vmsg)
 {
-    HTTPMsg    * msg = (HTTPMsg *)vmsg;
-    HTTPScript   hsc;
-    HTTPListen * hl = NULL;
-    HTTPHost   * host = NULL;
-    HTTPLoc    * ploc = NULL;
-    int          i, num;
-    ckstr_t    * psc = NULL;
-    uint8        reloc = 0;
-    uint8        replied = 0;
+    HTTPMsg     * msg = (HTTPMsg *)vmsg;
+    HTTPScript    hsc;
+    HTTPListen  * hl = NULL;
+    HTTPConnect * hc = NULL;
+    HTTPHost    * host = NULL;
+    HTTPLoc     * ploc = NULL;
+    int           i, num;
+    ckstr_t     * psc = NULL;
+    uint8         reloc = 0;
+    uint8         replied = 0;
+    arr_t       * arlist = NULL;
 
     if (!msg) return -1;
 
     memset(&hsc, 0, sizeof(hsc));
 
-    hl = (HTTPListen *)msg->hl;
-    if (hl) {
-        num = arr_num(hl->script_list);
+    if (msg->msgtype) {
+        hl = (HTTPListen *)msg->hl;
+        if (hl) arlist = hl->script_list;
+    } else {
+        hc = (HTTPConnect *)msg->hc;
+        if (hc) arlist = hc->script_list;
+    }
+
+    if (arlist) {
+        num = arr_num(arlist);
  
         for (i = 0; i < num; i++) {
-            psc = arr_value(hl->script_list, i);
+            psc = arr_value(arlist, i);
             if (!psc || !psc->p || psc->len <= 0)
                 continue;
  
@@ -2390,24 +2551,32 @@ int http_script_exec (void * vmsg)
 
 int http_reply_script_exec (void * vmsg)
 {
-    HTTPMsg    * msg = (HTTPMsg *)vmsg;
-    HTTPScript   hsc;
-    HTTPListen * hl = NULL;
-    HTTPHost   * host = NULL;
-    HTTPLoc    * ploc = NULL;
-    int          i, num;
-    ckstr_t    * psc = NULL;
+    HTTPMsg     * msg = (HTTPMsg *)vmsg;
+    HTTPScript    hsc;
+    HTTPListen  * hl = NULL;
+    HTTPConnect * hc = NULL;
+    HTTPHost    * host = NULL;
+    HTTPLoc     * ploc = NULL;
+    int           i, num;
+    ckstr_t     * psc = NULL;
+    arr_t       * arlist = NULL;
 
     if (!msg) return -1;
 
     memset(&hsc, 0, sizeof(hsc));
 
-    hl = (HTTPListen *)msg->hl;
-    if (hl) {
-        num = arr_num(hl->reply_script_list);
+    if (msg->msgtype) {
+        hl = (HTTPListen *)msg->hl;
+        if (hl) arlist = hl->reply_script_list;
+    } else {
+        hc = (HTTPConnect *)msg->hc;
+        if (hc) arlist = hc->reply_script_list;
+    }
 
+    if (arlist) {
+        num = arr_num(arlist);
         for (i = 0; i < num; i++) {
-            psc = arr_value(hl->reply_script_list, i);
+            psc = arr_value(arlist, i);
             if (!psc || !psc->p || psc->len <= 0)
                 continue;
 
@@ -2456,6 +2625,78 @@ int http_reply_script_exec (void * vmsg)
     return 1;
 }
 
+int http_cache_check_script_exec (void * vmsg)
+{
+    HTTPMsg     * msg = (HTTPMsg *)vmsg;
+    HTTPScript    hsc;
+    HTTPListen  * hl = NULL;
+    HTTPConnect * hc = NULL;
+    HTTPHost    * host = NULL;
+    HTTPLoc     * ploc = NULL;
+    int           i, num;
+    ckstr_t     * psc = NULL;
+    arr_t       * arlist = NULL;
+
+    if (!msg) return -1;
+
+    memset(&hsc, 0, sizeof(hsc));
+
+    if (msg->msgtype) {
+        hl = (HTTPListen *)msg->hl;
+        if (hl) arlist = hl->cache_check_script_list;
+    } else {
+        hc = (HTTPConnect *)msg->hc;
+        if (hc) arlist = hc->cache_check_script_list;
+    }
+
+    if (arlist) {
+        num = arr_num(arlist);
+
+        for (i = 0; i < num; i++) {
+            psc = arr_value(arlist, i);
+            if (!psc || !psc->p || psc->len <= 0)
+                continue;
+
+            http_script_init(&hsc, msg, psc->p, psc->len, 1, NULL, 0);
+            http_script_parse_exec(&hsc, psc->p, psc->len);
+            http_script_free(&hsc);
+        }
+    }
+
+    host = (HTTPHost *)msg->phost;
+    if (host) {
+        num = arr_num(host->cache_check_script_list);
+
+        for (i = 0; i < num; i++) {
+            psc = arr_value(host->cache_check_script_list, i);
+            if (!psc || !psc->p || psc->len <= 0)
+                continue;
+
+            http_script_init(&hsc, msg, psc->p, psc->len, 2, NULL, 0);
+            http_script_parse_exec(&hsc, psc->p, psc->len);
+            http_script_free(&hsc);
+        }
+    }
+
+    ploc = (HTTPLoc *)msg->ploc;
+    if (ploc) {
+        num = arr_num(ploc->cache_check_script_list);
+
+        for (i = 0; i < num; i++) {
+            psc = arr_value(ploc->cache_check_script_list, i);
+            if (!psc || !psc->p || psc->len <= 0)
+                continue;
+
+            http_script_init(&hsc, msg, psc->p, psc->len, 3, NULL, 0);
+            http_script_parse_exec(&hsc, psc->p, psc->len);
+            http_script_free(&hsc);
+        }
+    }
+
+    return 1;
+}
+
+
 void script_parser_init ()
 {
     int i, num;
@@ -2475,7 +2716,9 @@ void script_parser_init ()
         { "appendResBody",      13, script_append_res_body_parse },
         { "addFile2ResBody",    15, script_add_file_to_res_body_parse },
         { "appendFile2ResBody", 18, script_append_file_to_res_body_parse },
-        { "try_files",          9,  script_try_files_parse }
+        { "try_files",          9,  script_try_files_parse },
+        { "closecache",         10, script_closecache_parse },
+        { "removecache",        11, script_removecache_parse }
     };
 
     if (script_parser_table) return;

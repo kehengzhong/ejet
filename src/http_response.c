@@ -1,6 +1,30 @@
 /*
- * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2024 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
+ *
+ * #####################################################
+ * #                       _oo0oo_                     #
+ * #                      o8888888o                    #
+ * #                      88" . "88                    #
+ * #                      (| -_- |)                    #
+ * #                      0\  =  /0                    #
+ * #                    ___/`---'\___                  #
+ * #                  .' \\|     |// '.                #
+ * #                 / \\|||  :  |||// \               #
+ * #                / _||||| -:- |||||- \              #
+ * #               |   | \\\  -  /// |   |             #
+ * #               | \_|  ''\---/''  |_/ |             #
+ * #               \  .-\__  '-'  ___/-. /             #
+ * #             ___'. .'  /--.--\  `. .'___           #
+ * #          ."" '<  `.___\_<|>_/___.'  >' "" .       #
+ * #         | | :  `- \`.;`\ _ /`;.`/ -`  : | |       #
+ * #         \  \ `_.   \_ __\ /__ _/   .-` /  /       #
+ * #     =====`-.____`.___ \_____/___.-`___.-'=====    #
+ * #                       `=---='                     #
+ * #     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   #
+ * #               佛力加持      佛光普照              #
+ * #  Buddha's power blessing, Buddha's light shining  #
+ * #####################################################
  */
 
 #include "adifall.ext"
@@ -11,11 +35,9 @@
 #include "http_response.h"
 #include "http_status.h"
 #include "http_request.h"
-#include "http_listen.h"
+#include "http_resloc.h"
 #include "http_con.h"
 #include "http_script.h"
-//#include "zlibgzip.h"
-//#include "xml.h"
 
 extern HTTPMgmt * gp_httpmgmt;
 
@@ -40,42 +62,28 @@ int http_res_status_decode (void * vmsg, char * pline, int linelen)
     if (!msg) return -1;
     if (!pline || linelen <= 0) return -2;
 
-    frame_empty(msg->res_line);
-    frame_put_nlast(msg->res_line, pline, linelen);
-
-    poct = frameP(msg->res_line); pend = poct + linelen;
+    poct = pline; pend = poct + linelen;
 
     /* parse for the field Response HTTP Version */
     pval = skipOver(poct, pend-poct, " \t\r\n", 4);
     if (pval >= pend) return -100;
     poct = skipTo(pval, pend-pval, " \t\r", 3);
-    if (poct - pval > sizeof(msg->res_ver)-1) {
-        memcpy(msg->res_ver, pval, sizeof(msg->res_ver) - 1);
-        msg->res_ver[sizeof(msg->res_ver) - 1] = '\0';
-    } else {
-        memcpy(msg->res_ver, pval, poct-pval);
-        msg->res_ver[poct-pval] = '\0';
-    }
-    msg->res_verloc = pval - frameS(msg->res_line);
-    msg->res_verlen = poct - pval;
+
+    str_secpy(msg->res_ver, sizeof(msg->res_ver)-1, pval, poct - pval);
 
     /* parse for the field Response Status Code */
     pval = skipOver(poct, pend-poct, " \t\r\n", 4);
     if (pval >= pend) return -200;
     poct = skipTo(pval, pend-pval, " \t\r", 3);
-    msg->res_statusloc = pval - frameS(msg->res_line);
-    msg->res_statuslen = poct - pval;
-    for (msg->res_status=0; isdigit(*pval) && pval<poct; pval++) {
-        msg->res_status *= 10;
-        msg->res_status += *pval - '0';
-    }
+
+    str_atoi(pval, poct - pval, &msg->res_status);
 
     /* parse for the field Response Reason Phrase */
     pval = skipOver(poct, pend-poct, " \t\r\n", 4);
     if (pval >= pend) return -300;
     poct = skipTo(pval, pend-pval, "\r\n", 2);
-    msg->res_reasonloc = pval - frameS(msg->res_line);
-    msg->res_reasonlen = poct - pval;
+
+    str_secpy(msg->res_reason, sizeof(msg->res_reason)-1, pval, poct - pval);
 
     return 0;
 }
@@ -84,18 +92,11 @@ int http_res_status_decode (void * vmsg, char * pline, int linelen)
 int http_res_status_encode (void * vmsg, frame_p frame)
 {
     HTTPMsg  * msg = (HTTPMsg *)vmsg;
-    uint8    * pb = NULL;
 
     if (!msg) return -1;
     if (!frame) return -5;
 
-    pb = frameP(msg->res_line);
-    frame_put_nlast(frame, pb + msg->res_verloc, msg->res_verlen);
-    frame_put_nlast(frame, " ", 1);
-    frame_put_nlast(frame, pb + msg->res_statusloc, msg->res_statuslen);
-    frame_put_nlast(frame, " ", 1);
-    frame_put_nlast(frame, pb + msg->res_reasonloc, msg->res_reasonlen);
-    frame_put_nlast(frame, "\r\n", 2);
+    frame_appendf(frame, "%s %d %s\r\n", msg->res_ver, msg->res_status, msg->res_reason);
 
     return 0;
 }
@@ -105,7 +106,6 @@ int http_res_statusline_set (void * vmsg, char * ver, int verlen, int status, ch
 {
     HTTPMsg  * msg = (HTTPMsg *)vmsg;
     HTTPMgmt * mgmt = NULL;
-    char       strst[32];
     int        ret = 0;
     char     * reason = NULL;
 
@@ -118,32 +118,18 @@ int http_res_statusline_set (void * vmsg, char * ver, int verlen, int status, ch
         verlen = strlen(mgmt->httpver1);
     }
 
-    frame_empty(msg->res_line);
-
-    msg->res_verloc = frameL(msg->res_line);
-    frame_put_nlast(msg->res_line, ver, verlen);
-    msg->res_verlen = verlen;
+    str_secpy(msg->res_ver, sizeof(msg->res_ver)-1, ver, verlen);
 
     ret = http_get_status2(mgmt, status, &reason);
 
     msg->res_status = status;
-    sprintf(strst, "%d", status);
-    msg->res_statusloc = frameL(msg->res_line);
-    frame_put_nlast(msg->res_line, strst, strlen(strst));
-    msg->res_statuslen = strlen(strst);
 
-    msg->res_reasonloc = frameL(msg->res_line);
     if (defreason && strlen(defreason) > 0) {
-        frame_put_nlast(msg->res_line, defreason, strlen(defreason));
-        msg->res_reasonlen = strlen(defreason);
-
+        str_secpy(msg->res_reason, sizeof(msg->res_reason)-1, defreason, strlen(defreason));
     } else if (ret < 0 || !reason || strlen(reason) <= 0) { /* unknown status code */
-        frame_put_nlast(msg->res_line, "unknown", 6);
-        msg->res_reasonlen = 6;
-
+        str_cpy(msg->res_reason, "unknown");
     } else {
-        frame_put_nlast(msg->res_line, reason, strlen(reason));
-        msg->res_reasonlen = strlen(reason);
+        str_secpy(msg->res_reason, sizeof(msg->res_reason)-1, reason, strlen(reason));
     }
 
     return 0;
@@ -165,6 +151,7 @@ int http_res_parse_header (void * vmsg, int has_statusline)
     int          namelen, valuelen;
 
     if (!msg) return -1;
+    if (!msg->res_header_stream) return 0;
 
     poct = frameP(msg->res_header_stream);
     pover = poct + frameL(msg->res_header_stream);
@@ -245,7 +232,7 @@ int http_res_parse_header (void * vmsg, int has_statusline)
     /* determine if the response connection is keep-alive */
     punit = http_header_get(msg, 1, "Connection", -1);
     if (punit) {
-        if (punit->valuelen == 10 && strncasecmp("keep-alive", HUValue(punit), 10) != 0) {
+        if (punit->valuelen == 10 && strncasecmp("keep-alive", HUValue(punit), 10) == 0) {
             msg->res_conn_keepalive = 1;
         } else {
             msg->res_conn_keepalive = 0;
@@ -254,162 +241,19 @@ int http_res_parse_header (void * vmsg, int has_statusline)
         msg->res_conn_keepalive = 0;
     }
 
-    return 0;
+    /* set content-type value of HTTPMsg instance */
+    punit = http_header_get(msg, 1, "Content-Type", -1);
+    if (punit) {
+        mime_type_get_by_mime(http_msg_get_mimemgmt(msg), HUValue(punit), NULL, &msg->res_mimeid, NULL);
+        mime_type_get_by_mimeid(http_msg_get_mimemgmt(msg), msg->res_mimeid, &msg->res_mime, NULL, NULL);
+    }
+
+    return 1;
 }
-
-
-#if 0
-/* the meaning of return value 
- * 0   - no conversion occured
- * >0  - conversion occured
- * <0  - error case */
-int http_res_charset_conv (void * vmsg, HeaderUnit * phu, char * type, int typelen)
-{
-    HTTPMsg      * msg = (HTTPMsg *)vmsg;
-    HTTPMgmt     * mgmt = NULL;
-    char           charset[64];
-    int            i, ret=0;
-    char         * p = NULL;
-    char         * pend = NULL;
-    char         * acc = NULL;
-    int            acclen = 0;
-    XMLDoc       * xmldoc = NULL;
-
-    if (!msg) return -1;
-    if (!phu) return -2;
-    if (!type || typelen <= 0) return -3;
-
-    mgmt = msg->httpmgmt;
-
-    for (i = 0; i < typelen; i++) {
-        type[i] = tolower(type[i]);
-    }
-
-    pend = type + typelen;
-    p = kmp_find_bytes(type, typelen, "text/vnd.wap.wml", 16, NULL);
-    if (!p) return 0;
-
-    memset(charset, 0, sizeof(charset));
-
-    ret = xml_get_charset(frameP(msg->res_body_stream), 
-                          frameL(msg->res_body_stream), charset);
-    if (ret < 0) {
-        p = kmp_find_bytes(type, typelen, "charset", 7, NULL);
-        if (p) {
-            p = skipTo(p, pend-p, "=", 1);
-            if (p < pend) p = skipOver(p+1, pend-p-1, " \t", 2);
-            if (p < pend) {
-                memcpy(charset, p, pend-p);
-                ret = 0;
-            }
-        }
-    }
-    if (ret < 0)
-        strcpy(charset, "utf-8");
-
-    ret = strlen(charset);
-    for (i = 0; i < ret; i++) charset[i] = tolower(charset[i]);
-
-    while (!phu) {
-        acc = HUValue(phu); acclen = phu->valuelen;
-        for (i = 0; i < acclen; i++) {
-            acc[i] = tolower(acc[i]);
-        }
-        /* if current charset is supported by client, just return */
-        if (kmp_find_bytes(acc, acclen, charset, strlen(charset), NULL) != NULL)
-            return 100;
-
-        phu = phu->next;
-    }
-
-    if (strncasecmp(charset, "BIG5", 4) == 0) {
-        xmldoc = xml_analyze(mgmt->xmlmgmt, 
-                             frameP(msg->res_body_stream), 
-                             frameL(msg->res_body_stream), 
-                             charset, "GB2312");
-        if (!xmldoc) return -1000;
-    } else if (strncasecmp(charset, "UCS-2", 5) == 0 || 
-               strncasecmp(charset, "ISO-10646-UCS-2", 15) == 0) 
-    {
-        xmldoc = xml_analyze(mgmt->xmlmgmt, 
-                             frameP(msg->res_body_stream), 
-                             frameL(msg->res_body_stream), 
-                             charset, "GB2312");
-        if (!xmldoc) return -1000;
-    } else return 0;
-
-    frame_empty(msg->res_body_stream);
-
-    xmldoc_display(xmldoc, &msg->res_body_stream);
-    xmldoc_recycle(xmldoc);
-
-    return 0;
-}
-#endif
 
 
 int http_res_body_compress (void * vmsg, char * zipstr, int zipstrlen)
 {
-#if 0
-    HTTPMsg      * msg = (HTTPMsg *)vmsg;
-    HTTPMgmt     * mgmt = NULL;
-    frame_p      frame = NULL;
-    int            i, ret=0;
-    uint8          ziptype = 0;
-
-    if (!msg) return -1;
-    if (!zipstr) return -2;
-    if (zipstrlen < 0) zipstrlen = strlen(zipstr);
-    if (zipstrlen <= 0) return -3;
-
-    mgmt = msg->httpmgmt;
-    
-    for (i = 0; i < zipstrlen; i++) {
-        zipstr[i] = tolower(zipstr[i]);
-    }
-
-    if (kmp_find_string(zipstr, zipstrlen, "deflate", 7, NULL) != NULL) {
-        ziptype = 10;  /* deflate */
-    } else if (kmp_find_string(zipstr, zipstrlen, "gzip", 4, NULL) != NULL) {
-        ziptype = 20;  /* zip */
-    } else return 0;
-
-    i = 0;
-    frame = bpool_fetch(mgmt->frame_pool, &i);
-    if (i || !frame) return 0;
-    frame_empty(frame);
-
-    if (frame_size(frame) < frameL(msg->res_body_stream))
-        frameGrowTo(&frame, frameL(msg->res_body_stream));
-
-    i = frame_size(frame);
-    if (ziptype == 10) {
-        ret = compress_deflate(mgmt->hzip, 
-                         frameP(msg->res_body_stream), 
-                         frameL(msg->res_body_stream),
-                         frameP(frame),
-                         (uint32 *)&i);
-        if (ret >= 0 && i > 0) {
-            frame_empty(msg->res_body_stream);
-            frame_put_nlast(msg->res_body_stream, frameP(frame), i);
-            http_header_append(msg, 1, "Content-Encoding", 16, "deflate", 7);
-        }
-
-    } else {
-        ret = compress_gzip(mgmt->hzip,
-                         frameP(msg->res_body_stream),
-                         frameL(msg->res_body_stream),
-                         frameP(frame),
-                         (uint32 *)&i);
-        if (ret >= 0 && i > 0) {
-            frame_empty(msg->res_body_stream);
-            frame_put_nlast(msg->res_body_stream, frameP(frame), i);
-            http_header_append(msg, 1, "Content-Encoding", 16, "gzip", 7);
-        }
-    }
-
-    bpool_recycle(mgmt->frame_pool, frame);
-#endif
     return 0;
 }
 
@@ -460,7 +304,7 @@ int http_res_errpage (void * vmsg)
         http_get_status2(msg->httpmgmt, msg->res_status, &reason);
         if (!reason) reason = "";
 
-        frm = frame_new(512);
+        frm = frame_alloc(512, msg->alloctype, msg->kmemblk);
         frame_append(frm, "<html>\n<head><title>");
 
         switch (msg->res_status) {
@@ -519,7 +363,8 @@ int http_res_errpage (void * vmsg)
         frame_appendf(frm, "</title></head>\n<body bgcolor=\"white\">\n<center><h1>");
         frame_appendf(frm, "%d %s", msg->res_status, reason);
         frame_appendf(frm, "</h1></center>\n<p align=center>");
-        frame_appendf(frm, "The requested URL <font color=blue>%s</font>", frameS(msg->absuri->uri));
+        frame_appendf(frm, "The requested URL <font color=blue>%s</font>",
+                       msg->absuri ? frameS(msg->absuri->uri): "NUL");
         frame_appendf(frm, "%s", desc);
 
         frame_appendf(frm, ".</p>\n<hr><center>eJet/%s<br><i>", g_http_version);
@@ -527,10 +372,11 @@ int http_res_errpage (void * vmsg)
         frame_append(frm, "</i></center>\n</body>\n</html>");
 
         msg->AddResContent(msg, frameP(frm), frameL(frm));
-        msg->SetResContentType(msg, "text/html", -1);
-        msg->SetResContentLength(msg, frameL(frm));
 
         frame_free(frm);
+
+        msg->SetResContentType(msg, "text/html", -1);
+        msg->SetResContentLength(msg, frameL(frm));
     }
 
     return 0;
@@ -545,7 +391,6 @@ int http_res_encoding (void * vmsg)
     HTTPHost     * phost = NULL;
     char           buf[2048];
     int            i, num;
-    int            ret = 0;
     time_t         gmtval;
 
     if (!msg) return -1;
@@ -554,7 +399,10 @@ int http_res_encoding (void * vmsg)
     if (!mgmt) mgmt = gp_httpmgmt;
     if (!mgmt) return -2;
 
-    frame_empty(msg->res_stream);
+    if (msg->res_stream == NULL)
+        msg->res_stream = frame_alloc(256, msg->alloctype, msg->kmemblk);
+    else
+        frame_empty(msg->res_stream);
 
     if (mgmt->res_check) {
         msg->GetRealFile(msg, buf, sizeof(buf)-1);
@@ -574,25 +422,9 @@ int http_res_encoding (void * vmsg)
     }
 
     /* building response line */
-    ret = http_res_status_encode(msg, msg->res_stream);
-    if (ret < 0) return ret;
+    frame_appendfp(&msg->res_stream, "%s %d %s\r\n", msg->res_ver, msg->res_status, msg->res_reason);
 
     if (msg->res_body_flag == BC_CONTENT_LENGTH || msg->res_body_flag == BC_TE) {
-#if 0
-        if (msg->proxied && mgmt->charset_conv && msg->res_status == 200) {
-            /* character set conversion */
-            /* check the response content type */
-            punit = http_header_get(msg, 1, "Content-Type", 12);
-            if (!punit || strncasecmp(HUValue(punit), "text/", 5)) 
-                goto go_on_execute;
-
-            acchu = http_header_get(msg, 0, "Accept-Charset", 14);
-            if (!acchu) goto go_on_execute;
-
-            http_res_charset_conv (msg, acchu, HUValue(punit), punit->valuelen);
-        }
-#endif
-
         phost = msg->phost;
  
         if (msg->proxied && phost && phost->gzip > 0 && msg->res_status == 200) {
@@ -659,10 +491,6 @@ go_on_execute:
     chunk_prepend_bufptr(msg->res_body_chunk, frameP(msg->res_stream),
                          frameL(msg->res_stream), NULL, NULL, 1);
 
-#if defined _DEBUG
-print_response(msg, stderr);
-#endif
-
     return 0;
 }
 
@@ -683,17 +511,9 @@ int print_response (void * vmsg, FILE * fp)
                     "srcaddr=%s:%d ---------------\n",
                http_con_id(msg->pcon), http_con_reqnum(msg->pcon), msg->msgid,
                iodev_fd(http_con_iodev(msg->pcon)), msg->srcip, msg->srcport);
-    //fprintf(fp, "%s\n", frameString(msg->res_line));
-
-    poct = frameP(msg->res_line);
 
     /* print res_line:  HTTP/1.1 200 OK */
-    str_secpy(buf, sizeof(buf)-1, poct + msg->res_verloc, msg->res_verlen);
-    str_secat(buf, sizeof(buf)-1-strlen(buf), " ", 1);
-    str_secat(buf, sizeof(buf)-1-strlen(buf), poct + msg->res_statusloc, msg->res_statuslen);
-    str_secat(buf, sizeof(buf)-1-strlen(buf), " ", 1);
-    str_secat(buf, sizeof(buf)-1-strlen(buf), poct + msg->res_reasonloc, msg->res_reasonlen);
-    fprintf(fp, "  %s\n", buf);
+    fprintf(fp, "  %s %d %s\n", msg->res_ver, msg->res_status, msg->res_reason);
 
     /* printf the response header */
     num = arr_num(msg->res_header_list);
@@ -721,15 +541,8 @@ int print_response (void * vmsg, FILE * fp)
         chunk_read_ptr(msg->res_body_chunk, msg->res_header_length, -1, (void **)&poct, &sndlen, 0);
         fprintf(fp, "response body %lld bytes, chunk len=%lld:\n", msg->res_body_length, sndlen);
 
-        /*unit = http_header_get(msg, 1, "Content-Type", 12);
-        if (unit && (strncasecmp(HUValue(unit), "text/", 5)==0 ||
-            strncasecmp(HUValue(unit), "application/json", 16)==0))
-        {
-            fprintf(fp, "%s\n", poct);
-        } else {*/
-            if (sndlen > 256) sndlen = 256;
-            printOctet(fp, poct, 0, sndlen, 2);
-        //}
+        if (sndlen > 256) sndlen = 256;
+        printOctet(fp, poct, 0, sndlen, 2);
     }
 
     if (msg->res_file_cache > 0) {

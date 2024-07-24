@@ -1,6 +1,30 @@
 /*
- * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2024 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
+ *
+ * #####################################################
+ * #                       _oo0oo_                     #
+ * #                      o8888888o                    #
+ * #                      88" . "88                    #
+ * #                      (| -_- |)                    #
+ * #                      0\  =  /0                    #
+ * #                    ___/`---'\___                  #
+ * #                  .' \\|     |// '.                #
+ * #                 / \\|||  :  |||// \               #
+ * #                / _||||| -:- |||||- \              #
+ * #               |   | \\\  -  /// |   |             #
+ * #               | \_|  ''\---/''  |_/ |             #
+ * #               \  .-\__  '-'  ___/-. /             #
+ * #             ___'. .'  /--.--\  `. .'___           #
+ * #          ."" '<  `.___\_<|>_/___.'  >' "" .       #
+ * #         | | :  `- \`.;`\ _ /`;.`/ -`  : | |       #
+ * #         \  \ `_.   \_ __\ /__ _/   .-` /  /       #
+ * #     =====`-.____`.___ \_____/___.-`___.-'=====    #
+ * #                       `=---='                     #
+ * #     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   #
+ * #               佛力加持      佛光普照              #
+ * #  Buddha's power blessing, Buddha's light shining  #
+ * #####################################################
  */
 
 #include "adifall.ext"
@@ -15,8 +39,9 @@
 #include "http_pump.h"
 #include "http_status.h"
 #include "http_cgi.h"
-#include "http_listen.h"
+#include "http_resloc.h"
 #include "http_cli_io.h"
+#include "http_variable.h"
 
 extern HTTPMgmt * gp_httpmgmt;
 
@@ -64,7 +89,7 @@ frame_p GetFrame (void * vmsg)
     mgmt = (HTTPMgmt *)msg->httpmgmt;
     if (!mgmt) return NULL;
 
-    frame = bpool_fetch(mgmt->frame_pool);
+    frame = mpool_fetch(mgmt->frame_pool);
     frame_empty(frame);
 
     return frame;
@@ -81,7 +106,7 @@ int RecycleFrame (void * vmsg, frame_p frame)
     mgmt = (HTTPMgmt *)msg->httpmgmt;
     if (!mgmt) return -3;
 
-    bpool_recycle(mgmt->frame_pool, frame);
+    mpool_recycle(mgmt->frame_pool, frame);
     return 0;
 }
 
@@ -256,7 +281,6 @@ int GetReqPath (void * vmsg, char * path, int pathlen)
     if (!path || pathlen <= 0) return -2;
 
     return uri_decode(msg->req_path, msg->req_pathlen, path, pathlen);
-    //return str_secpy(path, pathlen, msg->req_path, msg->req_pathlen);
 }
 
 char * GetRootPath (void * vmsg)
@@ -283,6 +307,7 @@ char * GetRootPath (void * vmsg)
 int GetRealPath (void * vmsg, char * path, int len)
 {
     HTTPMsg    * msg = (HTTPMsg *)vmsg;
+    HTTPLoc    * ploc = NULL;
     char       * root = NULL;
     int          slen = 0;
     int          retlen = 0;
@@ -293,18 +318,36 @@ int GetRealPath (void * vmsg, char * path, int len)
     root = GetRootPath(msg);
     retlen = str_len(root);
  
-    if (path && len > 0)
+    ploc = msg->ploc;
+    if (ploc && (ploc->matchtype == MATCH_REGEX_CASE || ploc->matchtype == MATCH_REGEX_NOCASE)) {
+        /* when matching type is regex matching, subsitude
+           $num with matching substring */
+
+        retlen = http_var_copy(msg, root, retlen, path, len, msg->matchstr, msg->matchnum, "root", 4);
+
+    } else if (ploc && ploc->matchtype == MATCH_PREFIX) {
+        /* if matching type is prefix matching, remove the matching
+           substring of req_path and append the rest of req_path to path */
+
+        str_secpy(path, len, root, retlen);
+        if (msg->matchnum > 0 && msg->matchstr[0].p == msg->docuri->path && msg->matchstr[0].len > 0) {
+            str_secat(path, len - str_len(path), 
+                      msg->docuri->path + msg->matchstr[0].len,
+                      msg->docuri->pathlen - msg->matchstr[0].len);
+        } else {
+            str_secat(path, len - str_len(path), msg->docuri->path, msg->docuri->pathlen);
+        }
+
+    } else {
         str_secpy(path, len, root, retlen);
 
-    if (path) {
         slen = strlen(path);
+        //str_secpy(path + slen, len - slen, msg->docuri->dir, msg->docuri->dirlen);
         uri_decode(msg->docuri->dir, msg->docuri->dirlen, path + slen, len - slen);
+        retlen += msg->docuri->dirlen;
     }
-    retlen += msg->docuri->dirlen;
  
-    if (path) return strlen(path);
- 
-    return retlen;
+    return strlen(path);
 }
 
 int GetRealFile (void * vmsg, char * path, int len)
@@ -321,25 +364,46 @@ int GetRealFile (void * vmsg, char * path, int len)
     root = GetRootPath(msg);
     retlen = str_len(root);
  
-    if (path && len > 0)
+    ploc = msg->ploc;
+    if (ploc && (ploc->matchtype == MATCH_REGEX_CASE || ploc->matchtype == MATCH_REGEX_NOCASE)) {
+        /* when matching type is regex matching, subsitude
+           $num with matching substring */
+
+        retlen = http_var_copy(msg, root, retlen, path, len, msg->matchstr, msg->matchnum, "root", 4);
+
+        str_secat(path, len - str_len(path), msg->docuri->path, msg->docuri->pathlen);
+
+    } else if (ploc && ploc->matchtype == MATCH_PREFIX) {
+        /* if matching type is prefix matching, remove the matching
+           substring of req_path and append the rest of req_path to path */
+
         str_secpy(path, len, root, retlen);
 
-    if (msg->docuri->path && msg->docuri->pathlen > 0) {
-        if (path) {
-            slen = strlen(path);
-            uri_decode(msg->docuri->path, msg->docuri->pathlen, path + slen, len - slen);
+        if (msg->matchnum > 0 && msg->matchstr[0].p == msg->docuri->path && msg->matchstr[0].len > 0) {
+            str_secat(path, len - str_len(path),
+                      msg->docuri->path + msg->matchstr[0].len,
+                      msg->docuri->pathlen - msg->matchstr[0].len);
+        } else {
+            str_secat(path, len - str_len(path), msg->docuri->path, msg->docuri->pathlen);
         }
-        retlen += msg->docuri->pathlen;
- 
+
     } else {
-        if (path) {
+        str_secpy(path, len, root, retlen);
+
+        if (msg->docuri->path && msg->docuri->pathlen > 0) {
+            slen = strlen(path);
+            //str_secpy(path + slen, len - slen, msg->docuri->path, msg->docuri->pathlen);
+            uri_decode(msg->docuri->path, msg->docuri->pathlen, path + slen, len - slen);
+            retlen += msg->docuri->pathlen;
+     
+        } else {
             slen = strlen(path);
             str_secpy(path + slen, len - slen, "/", 1);
+            retlen += 1;
         }
-        retlen += 1;
     }
  
-    if (path && file_is_dir(path) && (ploc = msg->ploc)) {
+    if (file_is_dir(path) && ploc) {
         slen = strlen(path);
         for (i = 0; i < (int)ploc->indexnum; i++) {
             snprintf(path + slen, len - slen, "%s", ploc->index[i]);
@@ -350,9 +414,7 @@ int GetRealFile (void * vmsg, char * path, int len)
         path[slen] = '\0';
     }
 
-    if (path) return strlen(path);
-
-    return retlen;
+    return strlen(path);
 }
 
 int GetLocFile (void * vmsg, char * upath, int upathlen, char * locfile, int loclen, char * docuri, int doclen)
@@ -374,8 +436,8 @@ int GetLocFile (void * vmsg, char * upath, int upathlen, char * locfile, int loc
     ploc = (HTTPLoc *)msg->ploc;
     if (!ploc) return -2;
 
-    pathfrm = frame_new(1024);
-    urifrm = frame_new(1024);
+    pathfrm = frame_alloc(1024, msg->alloctype, msg->kmemblk);
+    urifrm = frame_alloc(1024, msg->alloctype, msg->kmemblk);
 
     /* root path */
     frame_append(pathfrm, ploc->root);
@@ -384,7 +446,17 @@ int GetLocFile (void * vmsg, char * upath, int upathlen, char * locfile, int loc
     if (upath && upathlen > 0) {
         frame_put_nlast(pathfrm, upath, upathlen);
     } else {
-        frame_uri_decode(pathfrm, msg->docuri->path, msg->docuri->pathlen);
+        if (ploc->matchtype == MATCH_PREFIX) {
+            if (msg->matchnum > 0 && msg->matchstr[0].p == msg->docuri->path && msg->matchstr[0].len > 0) {
+                frame_put_nlast(pathfrm, 
+                          msg->docuri->path + msg->matchstr[0].len,
+                          msg->docuri->pathlen - msg->matchstr[0].len);
+            } else {
+                frame_uri_decode(pathfrm, msg->docuri->path, msg->docuri->pathlen);
+            }
+        } else {
+            frame_uri_decode(pathfrm, msg->docuri->path, msg->docuri->pathlen);
+        }
     }
 
     if (file_is_regular(frameS(pathfrm))) {
@@ -497,6 +569,7 @@ int GetFileOnly(void * vmsg, char * path, int pathlen)
 
     if (!path || pathlen <= 0) return -2;
         
+    //return str_secpy(path, pathlen, msg->docuri->file, msg->docuri->filelen);
     return uri_decode(msg->docuri->file, msg->docuri->filelen, path, pathlen);
 }
 
@@ -520,6 +593,7 @@ int GetQuery (void * vmsg, char * query, int querylen)
     if (!query || querylen <= 0) return -2;
     
     return uri_decode(msg->req_query, msg->req_querylen, query, querylen);
+    //return str_secpy(query, querylen, msg->req_query, msg->req_querylen);
 }
 
 int GetQueryP (void * vmsg, char ** pquery, int * pquerylen)
@@ -1297,11 +1371,15 @@ int AddReqContentPtr (void * vmsg, void * body, int64 bodylen)
 int AddReqFile (void * vmsg, char * filename, int64 startpos, int64 len)
 {
     HTTPMsg  * msg = (HTTPMsg *)vmsg;
+    //char    * mime = NULL;
  
     if (!msg) return -1;
     if (!filename) return -2;
  
     chunk_add_file(msg->req_body_chunk, filename, startpos, len, 1);
+ 
+    //mime = http_get_mime(msg->httpmgmt, filename, NULL);
+    //SetReqContentType (msg, mime, str_len(mime));
  
     return 0;
 }
@@ -1780,6 +1858,10 @@ int SetResContentType (void * vmsg, char * type, int typelen)
 
     if (typelen == 0) return 0;
 
+    /* set content-type value of HTTPMsg instance */
+    mime_type_get_by_mime(http_msg_get_mimemgmt(msg), type, NULL, &msg->res_mimeid, NULL);
+    mime_type_get_by_mimeid(http_msg_get_mimemgmt(msg), msg->res_mimeid, &msg->res_mime, NULL, NULL);
+
     return http_header_append(msg, 1, "Content-Type", 12, type, typelen);
 }
 
@@ -1796,6 +1878,9 @@ int SetResContentTypeID (void * vmsg, uint32 mimeid)
 
     mime_type_get_by_mimeid(mgmt->mimemgmt, mimeid, &mime, NULL, NULL);
     if (!mime) return -100;
+
+    msg->res_mimeid = mimeid;
+    msg->res_mime = mime;
 
     http_header_del(msg, 1, "Content-Type", 12);
 
@@ -2058,7 +2143,7 @@ int Check304Resp (void * vmsg, uint64 mediasize, time_t mtime, uint32 inode)
         msg->flag304 = 1;
         SetResEtag(msg, reqetag, -1);
 
-    } else if (mtime > 0 && mediasize > 0) {
+    } else if (mtime > 0 && mediasize > 0/* && inode > 0*/) {
         memset(etag, 0, sizeof(etag));
 #if defined(_WIN32) || defined(_WIN64)
         sprintf(etag, "%I64x-%I64x", mediasize, mtime);
@@ -2088,7 +2173,6 @@ int AsynReply (void * vmsg, int bodyend, int probewrite)
     HTTPMgmt * mgmt = NULL;
     int        ret = 0;
     time_t     gmtval = 0;
-    char       rangestr[64];
  
     int64      fsize = 0;
     time_t     mtime = 0;
@@ -2105,29 +2189,15 @@ int AsynReply (void * vmsg, int bodyend, int probewrite)
     if (http_msg_mgmt_get(mgmt, msg->msgid) != msg)
         return -100;
  
-    if (msg->issued == 0) {
-        msg->issued = 1;
+    if (msg->res_encoded == 0) {
+        msg->res_encoded = 1;
  
         gmtval = time(NULL);
- 
-        memset(rangestr, 0, sizeof(rangestr));
- 
-        GetReqHdr(msg, "Super-Magic", -1, rangestr, sizeof(rangestr)-1);
-        ret = atoi(rangestr);
-        if (ret == 1) {
-            AddResHdr(msg, "Random", -1, mgmt->uploadso, str_len(mgmt->uploadso));
-            AddResHdr(msg, "RandomVar", -1, mgmt->uploadvar, str_len(mgmt->uploadvar));
-        }
  
         /* append some necessary headers to fail-response */
         http_header_append(msg, 1, "Server", 6, mgmt->useragent, str_len(mgmt->useragent));
         if (http_header_get(msg, 1, "Date", 4) == NULL)
             http_header_append_date(msg, 1, "Date", 4, gmtval);
-        //if (http_header_get(msg, 1, "Expires", 7) == NULL)
-        //    http_header_append_date(msg, 1, "Expires", 7, gmtval + 24*3600);
-        //if (http_header_get(msg, 1, "Cache-Control", 13) == NULL)
-        //    http_header_append(msg, 1, "Cache-Control", 13, "no-cache", 8);
-        //    http_header_append(msg, 1, "Cache-Control", 13, "max-age=86400", 13);
  
         if (msg->flag304) {
             http_res_statusline_set(msg, mgmt->httpver1, str_len(mgmt->httpver1), 304, "Not Modified");
@@ -2138,6 +2208,12 @@ int AsynReply (void * vmsg, int bodyend, int probewrite)
             Check304Resp(msg, fsize, mtime, inode);
  
             if (msg->flag304) {
+                /* If the status code of the HTTP response is 304, it means that there is
+                   no need to return the message body content to the client. In this case,
+                   the file contents to be sent in body_chunk need to be deleted. */
+                chunk_remove_file(msg->res_body_chunk);
+                msg->res_body_length = chunk_size(msg->res_body_chunk, msg->res_body_flag==BC_TE?1:0);
+
                 http_res_statusline_set(msg, mgmt->httpver1, str_len(mgmt->httpver1), 304, "Not Modified");
                 goto encoding;
             }
@@ -2171,7 +2247,7 @@ int AsynReply (void * vmsg, int bodyend, int probewrite)
 encoding:
         ret = http_res_encoding(msg);
         if (ret < 0) {
-            msg->issued = 0;
+            msg->res_encoded = 0;
             return ret;
         }
  
@@ -2184,11 +2260,11 @@ encoding:
     if (probewrite) {
         /* probing if the fd is wirte-ready. sending handling in http_cli_send
            is called when the fd is write-ready */
-        http_cli_send_probe(msg->pcon);
+        http_cli_send_probe(mgmt, msg->conid);
  
     } else {
         /* directly send response to client without probing fd's wirtable */
-        http_cli_send(msg->pcon);
+        http_cli_send(mgmt, msg->conid);
     }
  
     return 0;
@@ -2256,9 +2332,6 @@ int RedirectReply (void * vmsg, int status, char * url)
     if (http_header_get(msg, 1, "Date", 4) == NULL)
         http_header_append_date(msg, 1, "Date", 4, gmtval);
  
-    //if (http_header_get(msg, 1, "Expires", 7) == NULL)
-    //    http_header_append_date(msg, 1, "Expires", 7, gmtval + 24*3600);
- 
     if (http_header_get(msg, 1, "Cache-Control", 13) == NULL)
         http_header_append(msg, 1, "Cache-Control", 13, "no-cache", 8);
         //http_header_append(msg, 1, "Cache-Control", 13, "max-age=86400", 13);
@@ -2266,13 +2339,12 @@ int RedirectReply (void * vmsg, int status, char * url)
     ret = http_res_encoding(msg);
     if (ret < 0) return ret;
  
-    msg->issued = 1;
+    msg->res_encoded = 1;
     msg->state = HTTP_MSG_REQUEST_HANDLED;
  
     chunk_set_end(msg->res_body_chunk);
  
     /* directly send response to client without probing if the fd is wirte-ready */
-    return http_cli_send(msg->pcon);
-    //return http_cli_send_probe(msg->pcon);
+    return http_cli_send(mgmt, msg->conid);
 }
 

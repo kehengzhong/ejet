@@ -1,6 +1,30 @@
 /*
- * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2024 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
+ *
+ * #####################################################
+ * #                       _oo0oo_                     #
+ * #                      o8888888o                    #
+ * #                      88" . "88                    #
+ * #                      (| -_- |)                    #
+ * #                      0\  =  /0                    #
+ * #                    ___/`---'\___                  #
+ * #                  .' \\|     |// '.                #
+ * #                 / \\|||  :  |||// \               #
+ * #                / _||||| -:- |||||- \              #
+ * #               |   | \\\  -  /// |   |             #
+ * #               | \_|  ''\---/''  |_/ |             #
+ * #               \  .-\__  '-'  ___/-. /             #
+ * #             ___'. .'  /--.--\  `. .'___           #
+ * #          ."" '<  `.___\_<|>_/___.'  >' "" .       #
+ * #         | | :  `- \`.;`\ _ /`;.`/ -`  : | |       #
+ * #         \  \ `_.   \_ __\ /__ _/   .-` /  /       #
+ * #     =====`-.____`.___ \_____/___.-`___.-'=====    #
+ * #                       `=---='                     #
+ * #     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   #
+ * #               佛力加持      佛光普照              #
+ * #  Buddha's power blessing, Buddha's light shining  #
+ * #####################################################
  */
 
 #include "adifall.ext"
@@ -23,6 +47,7 @@ int http_pump (void * vmgmt, void * vobj, int event, int fdtype)
     HTTPMgmt   * mgmt = (HTTPMgmt *)vmgmt;
     HTTPCon    * pcon = NULL;
     HTTPListen * hl = NULL;
+    HTTPSrv    * srv = NULL;
     ulong        conid = 0;
     int          cmd = 0;
 
@@ -33,7 +58,7 @@ int http_pump (void * vmgmt, void * vobj, int event, int fdtype)
         if (fdtype != FDT_LISTEN) 
             return -1;
 
-        hl = (HTTPListen *)http_listen_find(mgmt, iodev_lip(vobj), iodev_lport(vobj));
+        hl = iodev_para(vobj);
         if (!hl) return -1;
 
         return http_cli_accept(mgmt, vobj);
@@ -46,7 +71,7 @@ int http_pump (void * vmgmt, void * vobj, int event, int fdtype)
             tolog(1, "eJet - TCP Connect: invalid connection to '%s:%d'.\n",
                   pcon->dstip, pcon->dstport);
 
-            return http_con_close(pcon);
+            return http_con_close(mgmt, conid);
         }
         break;
 
@@ -58,17 +83,21 @@ int http_pump (void * vmgmt, void * vobj, int event, int fdtype)
 
             if (fdtype == FDT_ACCEPTED) {
                 if (pcon->ssl_link && !pcon->ssl_handshaked)
-                    return http_ssl_accept(pcon);
+                    return http_ssl_accept(mgmt, conid);
 
                 else 
-                    return http_cli_recv(pcon);
+                    return http_cli_recv(mgmt, conid);
 
             } else if (fdtype == FDT_CONNECTED) {
-                if (pcon->ssl_link && !pcon->ssl_handshaked)
-                    return http_ssl_connect(pcon);
+                if ((srv = pcon->srv) && srv->proxied && pcon->tunnel_built &&
+                         pcon->ssl_link && !pcon->ssl_handshaked)
+                    return http_ssl_connect(mgmt, conid);
+
+                else if (pcon->ssl_link && !pcon->ssl_handshaked)
+                    return http_ssl_connect(mgmt, conid);
 
                 else 
-                    return http_srv_recv(pcon);
+                    return http_srv_recv(mgmt, conid);
 
             } else
                 return -1;
@@ -86,17 +115,21 @@ int http_pump (void * vmgmt, void * vobj, int event, int fdtype)
         if (pcon && pcon->pdev == vobj) {
             if (fdtype == FDT_ACCEPTED) {
                 if (pcon->ssl_link && !pcon->ssl_handshaked)
-                    return http_ssl_accept(pcon);
+                    return http_ssl_accept(mgmt, conid);
 
                 else 
-                    return http_cli_send(pcon);
+                    return http_cli_send(mgmt, conid);
 
             } else if (fdtype == FDT_CONNECTED) {
-                if (pcon->ssl_link && !pcon->ssl_handshaked)
-                    return http_ssl_connect(pcon);
+                if ((srv = pcon->srv) && srv->proxied && pcon->tunnel_built &&
+                         pcon->ssl_link && !pcon->ssl_handshaked)
+                    return http_ssl_connect(mgmt, conid);
+
+                else if (pcon->ssl_link && !pcon->ssl_handshaked)
+                    return http_ssl_connect(mgmt, conid);
 
                 else 
-                    return http_srv_send(pcon);
+                    return http_srv_send(mgmt, conid);
 
             } else
                 return -1;
@@ -113,8 +146,9 @@ int http_pump (void * vmgmt, void * vobj, int event, int fdtype)
             conid = (ulong)iotimer_para(vobj);
             pcon = http_mgmt_con_get(mgmt, conid);
 
-            if (pcon && pcon->life_timer == vobj) {
-                http_srv_con_lifecheck(pcon);
+            if (pcon && (ulong)pcon->life_timer == iotimer_id(vobj)) {
+                pcon->life_timer = NULL;
+                http_srv_con_lifecheck(mgmt, conid);
             }
 
             return 0;
@@ -123,8 +157,9 @@ int http_pump (void * vmgmt, void * vobj, int event, int fdtype)
             conid = (ulong)iotimer_para(vobj);
             pcon = http_mgmt_con_get(mgmt, conid);
 
-            if (pcon && pcon->life_timer == vobj) {
-                http_cli_con_lifecheck(pcon);
+            if (pcon && (ulong)pcon->life_timer == iotimer_id(vobj)) {
+                pcon->life_timer = NULL;
+                http_cli_con_lifecheck(mgmt, conid);
             }
 
             return 0;
@@ -133,8 +168,9 @@ int http_pump (void * vmgmt, void * vobj, int event, int fdtype)
             conid = (ulong)iotimer_para(vobj);
             pcon = http_mgmt_con_get(mgmt, conid);
 
-            if (pcon && pcon->ready_timer == vobj) {
-                http_con_connect(pcon);
+            if (pcon && (ulong)pcon->ready_timer == iotimer_id(vobj)) {
+                pcon->ready_timer = NULL;
+                http_con_connect(mgmt, conid);
             }
 
             return 0;
@@ -146,17 +182,25 @@ int http_pump (void * vmgmt, void * vobj, int event, int fdtype)
             srvid = (ulong)iotimer_para(vobj);
             srv = http_mgmt_srv_get(mgmt, srvid);
 
-            if (srv && srv->life_timer == vobj) {
-                http_srv_lifecheck(srv);
+            if (srv && (ulong)srv->life_timer == iotimer_id(vobj)) {
+                srv->life_timer = NULL;
+                http_srv_lifecheck(mgmt, srvid);
             }
 
             return 0;
+
+        } else if (cmd == t_http_count) {
+            if ((ulong)mgmt->count_timer == iotimer_id(vobj)) {
+                mgmt->count_timer = NULL;
+                http_count_timeout(mgmt);
+            }
         }
         break;
 
     case IOE_CONNECTED:
         conid = (ulong)iodev_para(vobj);
         pcon = http_mgmt_con_get(mgmt, conid);
+        if (!pcon) return -21;
 
         EnterCriticalSection(&pcon->rcvCS);
 
@@ -178,6 +222,7 @@ int http_pump (void * vmgmt, void * vobj, int event, int fdtype)
         if (pcon && pcon->pdev == vobj) {
             tolog(1, "eJet - TCP Connect: failed to build connection to '%s:%d'.\n",
                   pcon->dstip, pcon->dstport);
+
         } else {
             return -20;
         }
@@ -236,3 +281,4 @@ void print_pump_arg (void * vobj, int event, int fdtype)
     printf("%s\n", buf);
 #endif
 }
+

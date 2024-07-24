@@ -1,6 +1,30 @@
 /*
- * Copyright (c) 2003-2021 Ke Hengzhong <kehengzhong@hotmail.com>
+ * Copyright (c) 2003-2024 Ke Hengzhong <kehengzhong@hotmail.com>
  * All rights reserved. See MIT LICENSE for redistribution.
+ *
+ * #####################################################
+ * #                       _oo0oo_                     #
+ * #                      o8888888o                    #
+ * #                      88" . "88                    #
+ * #                      (| -_- |)                    #
+ * #                      0\  =  /0                    #
+ * #                    ___/`---'\___                  #
+ * #                  .' \\|     |// '.                #
+ * #                 / \\|||  :  |||// \               #
+ * #                / _||||| -:- |||||- \              #
+ * #               |   | \\\  -  /// |   |             #
+ * #               | \_|  ''\---/''  |_/ |             #
+ * #               \  .-\__  '-'  ___/-. /             #
+ * #             ___'. .'  /--.--\  `. .'___           #
+ * #          ."" '<  `.___\_<|>_/___.'  >' "" .       #
+ * #         | | :  `- \`.;`\ _ /`;.`/ -`  : | |       #
+ * #         \  \ `_.   \_ __\ /__ _/   .-` /  /       #
+ * #     =====`-.____`.___ \_____/___.-`___.-'=====    #
+ * #                       `=---='                     #
+ * #     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   #
+ * #               佛力加持      佛光普照              #
+ * #  Buddha's power blessing, Buddha's light shining  #
+ * #####################################################
  */
 
 #include "adifall.ext"
@@ -68,7 +92,7 @@ int http_send_proxy_init (void * vmgmt)
     if (mgmt->sndpxy_list == NULL)
         mgmt->sndpxy_list = arr_new(4);
 
-    ret = json_mget_obj(mgmt->cnfjson, "http.send request.proxy setting", -1, &jsndpxy);
+    ret = json_mget_obj(mgmt->cnfjson, "http.connect.proxy setting", -1, &jsndpxy);
     if (ret <= 0) return 0;
 
     num = json_num(jsndpxy);
@@ -144,7 +168,7 @@ int http_send_proxy_check (void * vmsg)
     mgmt = (HTTPMgmt *)msg->httpmgmt;
     if (!mgmt) return -2;
 
-    str_secpy(buf, sizeof(buf)-1, msg->req_host, msg->req_hostlen);
+    str_secpy(buf, sizeof(buf)-7, msg->req_host, msg->req_hostlen);
 
     if (!msg->ssl_link && msg->req_port != 80) {
         sprintf(buf + strlen(buf), ":%d", msg->req_port);
@@ -173,6 +197,10 @@ int http_send_proxy_check (void * vmsg)
             } else {
                 msg->proxyport = sndpxy->port;
             }
+
+            /*sock_addr_get(msg->proxy, strlen(msg->proxy), msg->proxyport, 0,
+                          msg->dstip, &msg->dstport, NULL); 
+            msg->dstport = msg->proxyport;*/
 
             msg->dstport = msg->proxyport;
 
