@@ -65,7 +65,7 @@ int EntryPoint (int argc, char ** argv)
     char    opt;
     int     cpunum = 0;
     int     epumpnum = 0;
-    int     workernum = 0;
+    //int     workernum = 0;
 
     void  * httpmgmt = NULL;
     char  * jsonconf = "ejet.conf";
@@ -158,7 +158,7 @@ int EntryPoint (int argc, char ** argv)
 
     hlog = trlog_init("ejet.log", 0);
 
-    pcore = epcore_new(65535, 1);
+    pcore = epcore_new(65535);
     g_pcore = pcore;
 
     httpmgmt = http_mgmt_alloc(pcore, jsonconf, 0, 0);
@@ -169,13 +169,16 @@ int EntryPoint (int argc, char ** argv)
    /* now startup the system, epump as the engine will be erected */
 
     cpunum = get_cpu_num();
-    epumpnum = cpunum * 0.2;
+    epumpnum = cpunum - 1;
+    if (epumpnum < 3) epumpnum = 3;
+
+    /*epumpnum = cpunum * 0.2;
     if (epumpnum < 3) epumpnum = 3;
     workernum = cpunum - epumpnum;
-    if (workernum < 3) workernum = 3;
+    if (workernum < 3) workernum = 3;*/
 
     /* start worker threads */
-    epcore_start_worker(pcore, workernum);
+    //epcore_start_worker(pcore, workernum);
  
     /* start epump threads */
     epcore_start_epump(pcore, epumpnum - 1);
