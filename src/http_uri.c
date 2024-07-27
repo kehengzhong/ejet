@@ -209,6 +209,8 @@ int http_uri_parse (void * vuri, char * paddr, int addrlen)
             }
 
         } else {
+            uri->port = 80;
+
             ptmp = skipTo(pbgn, pend-pbgn, "?&", 2);
             if (ptmp < pend && (*ptmp == '?' || *ptmp == '&')) {
                 /* ke.test.dlinktb.com?key=1373 
