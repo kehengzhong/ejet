@@ -373,10 +373,10 @@ int http_res_errpage (void * vmsg)
 
         msg->AddResContent(msg, frameP(frm), frameL(frm));
 
-        frame_free(frm);
-
         msg->SetResContentType(msg, "text/html", -1);
         msg->SetResContentLength(msg, frameL(frm));
+
+        frame_free(frm);
     }
 
     return 0;
