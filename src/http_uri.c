@@ -226,15 +226,19 @@ int http_uri_parse (void * vuri, char * paddr, int addrlen)
 
         goto connecturi;
  
-    } else if (p > pbgn && *(p-1) == ':' && *p == '/' && *(p+1) == '/') {
-        if (pscheme && pscheme != p - 1) {
-            return -101; //duplicate scheme flag appears
-        }
-        pscheme = p - 1;
-        uri->scheme = pbgn;
-        uri->schemelen = p - 1 - pbgn;
+    } else if (*p == '/' && *(p+1) == '/') {
+        if (p > pbgn && *(p-1) == ':') {
+            if (pscheme && pscheme != p - 1) {
+                return -101; //duplicate scheme flag appears
+            } 
+            pscheme = p - 1;
+            uri->scheme = pbgn;
+            uri->schemelen = p - 1 - pbgn;
+        } else {
+            /* //www.google.com/img/flexible/logo/peak-result.png */
+        }   
  
-        if (uri->schemelen == 5 && strncasecmp(uri->scheme, "https", 5) == 0)
+        if (uri->schemelen == 5 && str_ncasecmp(uri->scheme, "https", 5) == 0)
             uri->ssl_link = 1;
         else
             uri->ssl_link = 0;
@@ -276,11 +280,13 @@ int http_uri_parse (void * vuri, char * paddr, int addrlen)
             uri->hostlen = p - pbgn;
             uri->rooturilen = p - uri->rooturi;
  
-            if (strncasecmp(uri->scheme, "https", 5) == 0)
-                uri->port = 443;
-            else if (strncasecmp(uri->scheme, "http", 4) == 0)
+            if (uri->scheme == NULL || uri->schemelen == 0)
                 uri->port = 80;
- 
+            else if (str_ncasecmp(uri->scheme, "https", 5) == 0)
+                uri->port = 443;
+            else if (str_ncasecmp(uri->scheme, "http", 4) == 0)
+                uri->port = 80;
+
             /* solve the case: http://www.abcd.com///a.html */
             while (p < pmark - 1 && *(p+1) == '/') p++;
 

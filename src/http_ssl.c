@@ -231,7 +231,11 @@ int http_ssl_free (SSL * ssl)
 {
     if (!ssl) return -1;
 
-    SSL_shutdown(ssl);
+    if (SSL_shutdown(ssl) != 1) {
+        if (SSL_shutdown(ssl) == 0)
+            SSL_shutdown(ssl);
+    }
+
     SSL_free(ssl);
 
     return 0;

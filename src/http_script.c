@@ -754,8 +754,8 @@ static int script_if_objcmp_parse (void * vhsc, char * pbgn, int len, char ** pt
     }
     cmplen = strlen(cmpsym);
 
-    if (pa && palen > 0) {
-        bvar = pa; blen = palen;
+    if (pb && pblen > 0) {
+        bvar = pb; blen = pblen;
 
     } else {
         /* extracting the second variable */
